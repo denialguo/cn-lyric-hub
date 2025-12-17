@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Analytics } from "@vercel/analytics/react" // <--- 1. Import this
+import { Analytics } from '@vercel/analytics/react';
 
 import HomePage from './pages/HomePage';
 import SongPage from './pages/SongPage';
@@ -17,9 +17,7 @@ const App = () => {
           <Route path="/add" element={<AddSongPage />} />
           <Route path="/edit/:id" element={<EditSongPage />} />
         </Routes>
-        
-        {/* 2. Add the component here at the bottom */}
-        <Analytics /> 
+        <Analytics />
       </div>
     </Router>
   );
