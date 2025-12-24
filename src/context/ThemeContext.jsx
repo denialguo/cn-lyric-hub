@@ -28,14 +28,18 @@ export const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     // Apply dark/light mode
+    const html = document.documentElement;
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
+      html.classList.add('dark');
+      html.classList.remove('light');
     } else {
-      document.documentElement.classList.add('light');
-      document.documentElement.classList.remove('dark');
+      html.classList.add('light');
+      html.classList.remove('dark');
     }
     localStorage.setItem('theme-mode', isDarkMode ? 'dark' : 'light');
+    
+    // Debug log
+    console.log('Theme mode:', isDarkMode ? 'dark' : 'light', 'Classes:', html.className);
   }, [isDarkMode]);
 
   return (

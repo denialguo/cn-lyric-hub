@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Moon, Sun, X } from 'lucide-react';
+import { Palette, Moon, Sun, X } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const colors = [
@@ -21,7 +21,7 @@ const ThemeSettings = () => {
         className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
         aria-label="Theme settings"
       >
-        <Settings className="w-5 h-5" />
+        <Palette className="w-5 h-5" />
       </button>
 
       {isOpen && (

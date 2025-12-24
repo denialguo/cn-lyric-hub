@@ -141,12 +141,16 @@ body {
   color: #0f172a !important;
 }
 
+.light .text-slate-100 {
+  color: #0f172a !important;
+}
+
 .light .text-slate-200 {
-  color: #334155 !important;
+  color: #0f172a !important;
 }
 
 .light .text-slate-300 {
-  color: #475569 !important;
+  color: #334155 !important;
 }
 
 .light .text-slate-400 {
@@ -155,6 +159,25 @@ body {
 
 .light .text-slate-500 {
   color: #64748b !important;
+}
+
+/* Fix for any remaining white text in hero/headers */
+.light h1,
+.light h2,
+.light h3,
+.light h4 {
+  color: #0f172a !important;
+}
+
+/* Fix gradient text in light mode */
+.light .text-transparent {
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+}
+
+/* Ensure dark text in light mode hero sections */
+.light .bg-gradient-to-b {
+  color: #0f172a;
 }
 
 .light .border-slate-700 {
@@ -213,4 +236,33 @@ body {
 /* Fix shadows in light mode */
 .light .shadow-2xl {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+}
+/* --- HERO SECTION CONTRAST FIXES (IMPROVED) --- */
+
+/* 1. Top of gradient: Use the THEME COLOR at 20% opacity (Glassy Look) */
+/* This brings back the "Gradient" feel without making text hard to read */
+.light .from-slate-900\/50 {
+  --tw-gradient-from: rgba(var(--color-primary-rgb), 0.2) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+/* 2. Bottom of gradient: Fade to solid page background */
+.light .to-slate-950 {
+  --tw-gradient-to: #f8fafc !important; 
+}
+
+/* 3. Fix the "Back to Library" button contrast */
+.light .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.5) !important; /* Lighter, glassier button */
+  border: 1px solid rgba(0,0,0,0.1); /* Add a border so it pops */
+}
+
+/* 4. Fix hover states for white text */
+.light .hover\:text-white:hover {
+  color: #000000 !important;
+}
+
+/* 5. Darken the primary color text slightly for readability */
+.light .text-primary {
+  filter: brightness(0.8);
 }

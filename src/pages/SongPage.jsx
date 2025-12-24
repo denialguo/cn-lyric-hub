@@ -4,19 +4,25 @@ import { ArrowLeft, Play, Music, Youtube } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 const SongPage = () => {
-  const { id } = useParams();
+  const { slug } = useParams(); // Change 'id' to 'slug'
   const navigate = useNavigate();
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchSong = async () => {
-      const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
-      if (data) setSong(data);
-      setLoading(false);
-    };
-    fetchSong();
-  }, [id]);
+useEffect(() => {
+  const fetchSong = async () => {
+    // 3. Search by the 'slug' column
+    const { data, error } = await supabase
+      .from('songs')
+      .select('*')
+      .eq('slug', slug) // <--- The Important Change
+      .single();
+      
+    if (data) setSong(data);
+    setLoading(false);
+  };
+  fetchSong();
+}, [slug]);
 
   const getYoutubeId = (url) => {
     if (!url) return null;
@@ -67,7 +73,7 @@ const SongPage = () => {
              <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2">
               <Music className="w-5 h-5" /> Lyrics
              </h3>
-             <button onClick={() => navigate(`/edit/${id}`)} className="text-xs text-slate-500 hover:text-primary">Suggest Edit</button>
+             <button onClick={() => navigate(`/edit/${song.id}`)} className="text-xs text-slate-500 hover:text-primary">Suggest Edit</button>
            </div>
            
            <div className="space-y-4">
@@ -145,15 +151,25 @@ const SongPage = () => {
             <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="font-bold text-white">Song Details</h4>
-                <button onClick={() => navigate(`/edit/${id}`)} className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded text-slate-300 transition-colors">
+                <button onClick={() => navigate(`/edit/${song.id}`)} className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded text-slate-300 transition-colors">
                   Edit Song
                 </button>
               </div>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Genre</span>
-                  <span className="text-primary font-bold uppercase">{song.category || "Pop"}</span>
-                </div>
+                <div className="flex flex-col gap-2">
+  <span className="text-slate-500 text-sm">Tags</span>
+  <div className="flex flex-wrap gap-2">
+    {song.tags && song.tags.length > 0 ? (
+      song.tags.map((tag, i) => (
+        <span key={i} className="text-xs bg-slate-800 text-primary px-2 py-1 rounded border border-slate-700">
+          #{tag}
+        </span>
+      ))
+    ) : (
+      <span className="text-slate-600 text-sm italic">No tags added</span>
+    )}
+  </div>
+</div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Added By</span>
                   <span className="text-slate-300">{song.submitted_by || "Community"}</span>

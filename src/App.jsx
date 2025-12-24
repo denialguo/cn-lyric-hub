@@ -13,7 +13,7 @@ const App = () => {
       <div className="min-h-screen bg-slate-950 text-slate-200">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/song/:id" element={<SongPage />} />
+          <Route path="/song/:slug" element={<SongPage />} />
           <Route path="/add" element={<AddSongPage />} />
           <Route path="/edit/:id" element={<EditSongPage />} />
         </Routes>

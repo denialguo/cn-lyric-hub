@@ -60,7 +60,7 @@ const HomePage = () => {
               alt="Quality Pinyin Logo" 
               className="w-10 h-10 rounded-lg object-cover" 
             />
-            <span className="font-bold text-xl tracking-tight text-white">Quality Pinyin Lyrics</span>
+            <span className="font-bold text-xl tracking-tight text-white">CN Lyric Hub</span>
           </div>
 
           <div className="hidden md:flex flex-1 max-w-lg mx-8 relative">
@@ -96,11 +96,7 @@ const HomePage = () => {
         
         <div className="max-w-7xl mx-auto px-6 py-16 text-center">
           <h1 className="text-4xl sm:text-6xl font-extrabold text-white mb-6 tracking-tight">
-            Learn Chinese Through <br className="hidden sm:block" />
-            {/* UPDATED: Gradient uses 'from-primary' */}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400 transition-all duration-700">
-              Music
-            </span>
+            Chinese Lyric Database <br className="hidden sm:block" />
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-10">
             A community-driven database of Chinese lyrics with full Pinyin and English translations.
@@ -149,7 +145,7 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => (
-              <div key={song.id} onClick={() => navigate(`/song/${song.id}`)}>
+              <div key={song.id} onClick={() => navigate(`/song/${song.slug}`)}>
                 <SongCard 
                   title={song.title} 
                   artist={song.artist}
