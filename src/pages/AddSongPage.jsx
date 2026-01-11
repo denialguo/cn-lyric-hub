@@ -87,9 +87,9 @@ const AddSongPage = () => {
     const { error } = await supabase
       .from('songs')
       .insert([{ 
-        ...formData, 
+        ...formData,
         slug: generatedSlug, // Uses the clean pinyin version
-        tags: tags 
+        tags: tags
       }]);
 
     if (error) {
@@ -110,16 +110,17 @@ const AddSongPage = () => {
         <h1 className="text-3xl font-bold text-white mb-8">Add New Song</h1>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Metadata Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             {/* LEFT COLUMN */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Song Title *</label>
-                <input name="title" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" required />
+                <input name="title" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" required />
               </div>
               <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (English) *</label>
-                <input name="artist" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" required />
+                <input name="artist" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" required />
               </div>
               <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Tags (Genre, Mood, Era)</label>
@@ -131,15 +132,15 @@ const AddSongPage = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (Chinese) - Optional</label>
-                <input name="artist_chinese" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+                <input name="artist_chinese" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" />
               </div>
               <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Cover Image URL</label>
-                <input name="cover_url" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+                <input name="cover_url" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" />
               </div>
               <div className="space-y-2">
                 <label className="text-slate-400 text-sm">YouTube Video URL</label>
-                <input name="youtube_url" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+                <input name="youtube_url" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" />
               </div>
             </div>
           </div>
@@ -164,7 +165,8 @@ const AddSongPage = () => {
           </div>
 
           <div className="fixed bottom-6 right-6 z-50">
-             <button disabled={loading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
+             {/* FIXED: Changed bg-emerald-500 to bg-blue-600 */}
+             <button disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
               <Save className="w-5 h-5" /> {loading ? "Saving..." : "Publish Song"}
             </button>
           </div>

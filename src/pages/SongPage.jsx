@@ -58,7 +58,7 @@ const SongPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white pb-20">
-      
+
       {/* 1. HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 z-10" />
@@ -158,7 +158,7 @@ const SongPage = () => {
             ) : (
               <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 text-center text-slate-500">No video available</div>
             )}
-
+            
             {/* Additional Info Card */}
             <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
               <div className="flex justify-between items-center mb-4">
