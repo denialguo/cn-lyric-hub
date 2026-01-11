@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput'; 
 
 // --- HELPER COMPONENT: Auto-Growing Textarea ---
-const LyricsEditor = ({ label, name, value, onChange, placeholder }) => {
+const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '150px' }) => {
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -21,7 +21,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder }) => {
   return (
     <div className="flex flex-col gap-2">
       <label className="text-slate-400 text-sm font-bold flex justify-between">
-        {label} <span className="text-xs font-normal text-slate-600">({lineCount} lines)</span>
+        {label}
       </label>
       
       <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-emerald-500 transition-colors">
@@ -36,7 +36,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder }) => {
           rows={1}
           className="w-full bg-slate-900 text-white p-4 font-mono text-sm leading-6 outline-none resize-none whitespace-pre overflow-x-auto overflow-y-hidden"
           placeholder={placeholder}
-          style={{ minHeight: '150px' }}
+          style={{ minHeight: minHeight }}
         />
       </div>
     </div>
@@ -44,7 +44,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder }) => {
 };
 
 const EditSongPage = () => {
-  const { id } = useParams(); // Keep using ID for database lookups (it's safer)
+  const { id } = useParams(); 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -53,8 +53,9 @@ const EditSongPage = () => {
 
   const [formData, setFormData] = useState({
     title: '', artist: '', artist_chinese: '', cover_url: '', youtube_url: '', 
-    category: 'pop', slug: '', // We store the slug here so we can use it for navigation
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: ''
+    category: 'pop', slug: '', 
+    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '',
+    credits: '' // <--- Added credits to state
   });
 
   // Fetch existing data
@@ -79,7 +80,7 @@ const EditSongPage = () => {
     e.preventDefault();
     setLoading(true);
     
-    // Update the song (including tags)
+    // Update the song (including tags and credits)
     const { error } = await supabase
       .from('songs')
       .update({ 
@@ -91,7 +92,6 @@ const EditSongPage = () => {
     if (error) {
       alert('Error updating: ' + error.message);
     } else {
-      // FIXED: Navigate to the SLUG, not the ID
       navigate(`/song/${formData.slug}`);
     }
     
@@ -104,7 +104,6 @@ const EditSongPage = () => {
     <div className="min-h-screen bg-slate-950 p-6 md:p-12">
       <div className="max-w-[1600px] mx-auto">
         
-        {/* FIXED: The "Cancel" button now uses formData.slug instead of id */}
         <button 
           onClick={() => navigate(`/song/${formData.slug}`)} 
           className="flex items-center text-slate-400 hover:text-white mb-6"
@@ -129,8 +128,8 @@ const EditSongPage = () => {
               
               {/* Tags Input */}
               <div className="space-y-2">
-                 <label className="text-slate-400 text-sm">Tags</label>
-                 <TagInput tags={tags} setTags={setTags} placeholder="Add tags (Pop, Ballad, etc.)" />
+                  <label className="text-slate-400 text-sm">Tags</label>
+                  <TagInput tags={tags} setTags={setTags} placeholder="Add tags (Pop, Ballad, etc.)" />
               </div>
             </div>
             
@@ -144,12 +143,31 @@ const EditSongPage = () => {
                 <input name="youtube_url" value={formData.youtube_url || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
               </div>
               
-              {/* Slug Editor (Optional - Helpful if you want to change the URL manually) */}
-              <div className="space-y-2">
-                <label className="text-slate-400 text-sm">URL Slug</label>
-                <input name="slug" value={formData.slug || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-slate-300 w-full font-mono text-xs" />
-              </div>
+            {/* --- LOCKED SLUG SECTION (EXACT SIZE MATCH) --- */}
+          <div className="space-y-2"> 
+            <div className="flex justify-between">
+                <label className="text-slate-400 text-sm">URL Slug (Read-only)</label>
             </div>
+            <input 
+                name="slug" 
+                value={formData.slug || ''} 
+                disabled 
+                className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-slate-400 w-full" 
+            />
+          </div>
+                      </div>
+          </div>
+
+          {/* --- NEW CREDITS BLOCK --- */}
+          <div className="w-full">
+             <LyricsEditor 
+                label="Credits / About (Song Bio)" 
+                name="credits" 
+                value={formData.credits || ''} 
+                onChange={handleChange} 
+                placeholder="Write whatever you want here...&#10;Translation: Admin&#10;Cleaned by: User123"
+                minHeight="100px" 
+             />
           </div>
 
           {/* LYRICS EDITORS */}

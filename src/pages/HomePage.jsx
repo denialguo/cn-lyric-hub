@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Music, Flame, Sparkles, Disc } from 'lucide-react';
+import { Search, Plus, Music, Flame, Sparkles, Disc, Globe } from 'lucide-react'; 
 import { supabase } from '../lib/supabaseClient';
 import SongCard from '../components/SongCard';
 import ThemeSettings from '../components/ThemeSettings';
+import { tify, sify } from 'chinese-conv'; 
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -12,7 +13,10 @@ const HomePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Fetch songs from Supabase
+  // Script State
+  const [scriptMode, setScriptMode] = useState('simplified'); 
+
+  // Fetch songs
   useEffect(() => {
     const fetchSongs = async () => {
       const { data, error } = await supabase
@@ -27,7 +31,12 @@ const HomePage = () => {
     fetchSongs();
   }, []);
 
-  // --- FILTER LOGIC ---
+  // Toggle script helper
+  const toggleScript = () => {
+    setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
+  };
+
+  // Filter Logic
   const filteredSongs = songs.filter(song => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = 
@@ -74,8 +83,17 @@ const HomePage = () => {
             />
           </div>
 
-          {/* FIXED: Single Group for Settings + Add Button */}
           <div className="flex items-center gap-4">
+            {/* <--- BIGGER TOGGLE BUTTON ---> */}
+            <button 
+              onClick={toggleScript}
+              /* CHANGED: text-xs -> text-sm | px-3 -> px-4 | py-1.5 -> py-2 */
+              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-emerald-500 hover:text-emerald-500 transition-all"
+            >
+              <Globe className="w-4 h-4" /> {/* Icon size bumped to w-4 h-4 */}
+              {scriptMode === 'simplified' ? 'Simplified (简体字)' : ' Traditional (繁體字)'}
+            </button>
+
             <ThemeSettings />
 
             <button
@@ -91,7 +109,6 @@ const HomePage = () => {
 
       {/* 2. Hero Section */}
       <div className="relative overflow-hidden border-b border-white/5">
-        {/* UPDATED: Uses 'bg-primary' for the glow effect */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-primary/20 rounded-full blur-[120px] -z-10 transition-colors duration-700" />
         
         <div className="max-w-7xl mx-auto px-6 py-16 text-center">
@@ -112,7 +129,6 @@ const HomePage = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                // UPDATED: Active state uses 'bg-primary' and 'text-primary'
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                   activeTab === tab.id 
                     ? 'bg-primary/10 text-primary border border-primary/20' 
@@ -144,17 +160,25 @@ const HomePage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredSongs.map((song) => (
-              <div key={song.id} onClick={() => navigate(`/song/${song.slug}`)}>
-                <SongCard 
-                  title={song.title} 
-                  artist={song.artist}
-                  tags={song.tags} // <--- Pass the new array!
-                  coverUrl={song.cover_url}
-                  likes="0" 
-                />
-              </div>
-            ))}
+            {filteredSongs.map((song) => {
+                // Convert Title/Artist based on state
+                const displayTitle = scriptMode === 'traditional' ? tify(song.title) : sify(song.title);
+                const displayArtist = song.artist_chinese 
+                    ? (scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese))
+                    : song.artist;
+
+                return (
+                  <div key={song.id} onClick={() => navigate(`/song/${song.slug}`)}>
+                    <SongCard 
+                      title={displayTitle}    
+                      artist={displayArtist}  
+                      tags={song.tags} 
+                      coverUrl={song.cover_url}
+                      likes="0" 
+                    />
+                  </div>
+                );
+            })}
           </div>
         )}
       </main>
