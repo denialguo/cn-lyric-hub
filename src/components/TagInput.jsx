@@ -1,48 +1,57 @@
 import React, { useState } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X } from 'lucide-react';
 
-const TagInput = ({ tags, setTags, placeholder = "Add a tag..." }) => {
+const TagInput = ({ tags, setTags, placeholder }) => {
   const [input, setInput] = useState('');
 
   const handleKeyDown = (e) => {
-    // If Enter or Comma is pressed, add the tag
-    if ((e.key === 'Enter' || e.key === ',') && input.trim()) {
+    if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      if (!tags.includes(input.trim())) {
-        setTags([...tags, input.trim()]);
+      const value = input.trim();
+      if (value && !tags.includes(value)) {
+        setTags([...tags, value]);
+        setInput('');
       }
-      setInput('');
+    } else if (e.key === 'Backspace' && !input && tags.length > 0) {
+      setTags(tags.slice(0, -1));
     }
   };
 
-  const removeTag = (tagToRemove) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+  const removeTag = (index) => {
+    setTags(tags.filter((_, i) => i !== index));
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 mb-2">
+    <div className="w-full">
+      <div className="flex flex-wrap gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg focus-within:border-emerald-500 transition-colors min-h-[50px]">
         {tags.map((tag, index) => (
-          <span key={index} className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
+          <span 
+            key={index} 
+            className="flex items-center gap-1 bg-slate-800 text-emerald-400 px-2 py-1 rounded text-sm border border-slate-700 animate-fade-in"
+          >
             {tag}
-            <button type="button" onClick={() => removeTag(tag)} className="hover:text-white">
-              <X size={14} />
+            <button 
+              type="button" 
+              onClick={() => removeTag(index)} 
+              className="text-slate-500 hover:text-white"
+            >
+              <X size={12} />
             </button>
           </span>
         ))}
-      </div>
-      <div className="relative">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full pr-10 focus:border-emerald-500 focus:outline-none transition-colors"
-          placeholder={placeholder}
+          placeholder={tags.length === 0 ? placeholder : ''}
+          className="bg-transparent outline-none text-white flex-1 min-w-[120px] text-sm"
         />
-        <Plus className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
       </div>
-      <p className="text-xs text-slate-500">Press Enter or comma to add a tag</p>
+      {/* THIS IS THE TEXT WE ARE MATCHING */}
+      <p className="text-[10px] text-slate-500 mt-1 pl-1">
+        Press Enter or comma to add multiple tags.
+      </p>
     </div>
   );
 };

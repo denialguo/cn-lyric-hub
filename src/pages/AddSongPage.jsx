@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput';
 import { pinyin } from 'pinyin-pro';
 
-// --- HELPER COMPONENT: Auto-Growing Textarea ---
 const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '150px' }) => {
   const textareaRef = useRef(null);
 
@@ -26,8 +25,6 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
       </label>
       
       <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-emerald-500 transition-colors">
-        {/* Optional: Remove line numbers if you want it to look EXACTLY like a bio box. 
-            I kept them for consistency, but you can delete this div to remove the sidebar numbers. */}
         <div className="bg-slate-800 text-slate-500 text-right pr-3 pt-4 font-mono text-sm leading-6 select-none w-10 flex-shrink-0 border-r border-slate-700">
           <pre>{lineNumbers}</pre>
         </div>
@@ -49,52 +46,109 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
 const AddSongPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  
+  // --- STATE ---
   const [tags, setTags] = useState([]);
+  const [artistList, setArtistList] = useState([]);         
+  const [artistChineseList, setArtistChineseList] = useState([]); 
 
   const [formData, setFormData] = useState({
     title: '', 
-    artist: '', 
-    artist_chinese: '', 
+    title_chinese: '', 
     cover_url: '', 
     youtube_url: '', 
     lyrics_chinese: '', 
     lyrics_pinyin: '', 
     lyrics_english: '',
-    credits: '' // <--- JUST ONE BIG BLOCK NOW
+    credits: '' 
   });
 
+  // --- LOAD DRAFT ---
+  useEffect(() => {
+    const savedData = localStorage.getItem('song_draft_form');
+    const savedTags = localStorage.getItem('song_draft_tags');
+    const savedArtists = localStorage.getItem('song_draft_artists');       
+    const savedArtistsCn = localStorage.getItem('song_draft_artists_cn'); 
+
+    if (savedData) {
+        setFormData(JSON.parse(savedData));
+        setDraftLoaded(true);
+        setTimeout(() => setDraftLoaded(false), 3000);
+    }
+    if (savedTags) setTags(JSON.parse(savedTags));
+    if (savedArtists) setArtistList(JSON.parse(savedArtists));
+    if (savedArtistsCn) setArtistChineseList(JSON.parse(savedArtistsCn));
+  }, []);
+
+  // --- SAVE DRAFT ---
+  useEffect(() => {
+    const isNotEmpty = Object.values(formData).some(x => x !== '') || tags.length > 0 || artistList.length > 0;
+    
+    if (isNotEmpty) {
+        localStorage.setItem('song_draft_form', JSON.stringify(formData));
+        localStorage.setItem('song_draft_tags', JSON.stringify(tags));
+        localStorage.setItem('song_draft_artists', JSON.stringify(artistList));
+        localStorage.setItem('song_draft_artists_cn', JSON.stringify(artistChineseList));
+    }
+  }, [formData, tags, artistList, artistChineseList]);
+
+  // --- CLEAR DRAFT ---
+  const clearDraft = () => {
+    if (window.confirm("Are you sure? This will delete your current draft.")) {
+        localStorage.removeItem('song_draft_form');
+        localStorage.removeItem('song_draft_tags');
+        localStorage.removeItem('song_draft_artists');
+        localStorage.removeItem('song_draft_artists_cn');
+        window.location.reload(); 
+    }
+  };
+
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleAutoPinyin = () => {
+    if (!formData.lyrics_chinese) return;
+    const lines = formData.lyrics_chinese.split('\n');
+    const pinyinLines = lines.map(line => pinyin(line, { toneType: 'symbol' }));
+    setFormData(prev => ({ ...prev, lyrics_pinyin: pinyinLines.join('\n') }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return; 
+    
+    if (artistList.length === 0) {
+        alert("Please add at least one artist (English).");
+        return;
+    }
+
     setLoading(true);
     
-    // 1. Convert title to Pinyin (handling Chinese characters)
-    // 'toneType: none' removes the tone numbers/marks (ni3 -> ni)
+    const finalArtistString = artistList.join(', ');
+    const finalArtistChineseString = artistChineseList.join(', ');
+
     const pinyinTitle = pinyin(formData.title, { toneType: 'none', type: 'array' }).join(' ');
-
-    // 2. Clean it up for the URL (standard slugify)
     const generatedSlug = pinyinTitle
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove non-English chars
-      .replace(/\s+/g, '-')         // Replace spaces with dashes
-      .replace(/-+/g, '-')          // Remove double dashes
-      .replace(/^-+|-+$/g, '');     // Trim dashes from ends
+      .trim().toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
 
-    // Insert with the Pinyin slug
     const { error } = await supabase
       .from('songs')
       .insert([{ 
-        ...formData,
-        slug: generatedSlug, // Uses the clean pinyin version
-        tags: tags
+        ...formData, 
+        artist: finalArtistString,            
+        artist_chinese: finalArtistChineseString, 
+        slug: generatedSlug, 
+        tags: tags 
       }]);
 
     if (error) {
       alert('Error adding song: ' + error.message);
     } else {
+      localStorage.removeItem('song_draft_form');
+      localStorage.removeItem('song_draft_tags');
+      localStorage.removeItem('song_draft_artists');
+      localStorage.removeItem('song_draft_artists_cn');
       navigate('/');
     }
     setLoading(false);
@@ -103,70 +157,110 @@ const AddSongPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 p-6 md:p-12">
       <div className="max-w-[1600px] mx-auto">
-        <button onClick={() => navigate('/')} className="flex items-center text-slate-400 hover:text-white mb-6">
-          <ArrowLeft className="w-5 h-5 mr-2" /> Back to Home
-        </button>
+        
+        {/* Header Row */}
+        <div className="flex justify-between items-start mb-6">
+            <button onClick={() => navigate('/')} className="flex items-center text-slate-400 hover:text-white">
+            <ArrowLeft className="w-5 h-5 mr-2" /> Back to Home
+            </button>
+            <button onClick={clearDraft} className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                <Trash2 className="w-3 h-3" /> Clear Draft
+            </button>
+        </div>
 
-        <h1 className="text-3xl font-bold text-white mb-8">Add New Song</h1>
+        <div className="flex items-center gap-4 mb-8">
+            <h1 className="text-3xl font-bold text-white">Add New Song</h1>
+            {draftLoaded && <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded animate-fade-in">Draft Restored</span>}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Metadata Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
-            {/* LEFT COLUMN */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Song Title *</label>
-                <input name="title" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Artist (English) *</label>
-                <input name="artist" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Tags (Genre, Mood, Era)</label>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+            
+            {/* ROW 1: TITLES */}
+            <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Song Title (English/Pinyin) <span className="text-emerald-500">*</span></label>
+                <input name="title" value={formData.title} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" required />
+            </div>
+            <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Song Title (Chinese) <span className="text-transparent select-none">*</span></label>
+                <input name="title_chinese" value={formData.title_chinese} onChange={handleChange} placeholder="e.g. 让风告诉你" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+            </div>
+
+            {/* ROW 2: ARTISTS */}
+            <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Artist (English) <span className="text-emerald-500">*</span></label>
+                <TagInput tags={artistList} setTags={setArtistList} placeholder="Type artist & hit Enter..." />
+            </div>
+            <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Artist (Chinese) <span className="text-transparent select-none">*</span></label>
+                <TagInput tags={artistChineseList} setTags={setArtistChineseList} placeholder="Type Chinese name & hit Enter..." />
+            </div>
+
+            {/* ROW 3: TAGS & COVER */}
+            <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Tags</label>
                 <TagInput tags={tags} setTags={setTags} placeholder="Type tag & hit Enter..." />
-              </div>
             </div>
             
-            {/* RIGHT COLUMN */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Artist (Chinese) - Optional</label>
-                <input name="artist_chinese" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" />
-              </div>
-              <div className="space-y-2">
+            {/* --- FIX IS HERE: EXACT MATCH FOR TEXT AND STYLE --- */}
+            <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Cover Image URL</label>
-                <input name="cover_url" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" />
-              </div>
-              <div className="space-y-2">
+                <div>
+                    <input 
+                        name="cover_url" 
+                        value={formData.cover_url} 
+                        onChange={handleChange} 
+                        className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" 
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1 pl-1">
+                        Portrait images work best.
+                    </p>
+                </div>
+            </div>
+
+            {/* ROW 4: YOUTUBE */}
+            <div className="space-y-2 lg:col-span-2"> 
                 <label className="text-slate-400 text-sm">YouTube Video URL</label>
-                <input name="youtube_url" onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-blue-500 outline-none" />
-              </div>
+                <input name="youtube_url" value={formData.youtube_url} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
           </div>
 
-          {/* --- THE BIG CREDITS BLOCK --- */}
+          {/* CREDITS & LYRICS SECTIONS */}
           <div className="w-full">
              <LyricsEditor 
                 label="Credits / About (Song Bio)" 
                 name="credits" 
                 value={formData.credits} 
                 onChange={handleChange} 
-                placeholder="Write whatever you want here...&#10;Translation: Admin&#10;Cleaned by: User123"
+                placeholder="Write whatever you want here..."
                 minHeight="100px" 
              />
           </div>
 
-          {/* LYRICS EDITORS */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-             <LyricsEditor label="Chinese Characters *" name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} placeholder="Lyrics here..." />
-             <LyricsEditor label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin} onChange={handleChange} placeholder="Pinyin here..." />
+             <LyricsEditor label={<>Chinese Characters <span className="text-emerald-500">*</span></>} name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} placeholder="Lyrics here..." />
+             
+             <div className="relative">
+                 <button
+                   type="button"
+                   onClick={handleAutoPinyin}
+                   className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded hover:bg-emerald-500 hover:text-white transition-colors"
+                 >
+                   <Sparkles className="w-3 h-3" /> Auto-Fill
+                 </button>
+                 <LyricsEditor label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin} onChange={handleChange} placeholder="Click Auto-Fill or type..." />
+                 <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5">
+                    <span className="text-yellow-500/80">⚠</span> 
+                    Always double-check auto-fill for accuracy (e.g., polyphones like 'le' vs 'yue').
+                 </p>
+             </div>
+
              <LyricsEditor label="English Translation" name="lyrics_english" value={formData.lyrics_english} onChange={handleChange} placeholder="Translation here..." />
           </div>
 
           <div className="fixed bottom-6 right-6 z-50">
-             {/* FIXED: Changed bg-emerald-500 to bg-blue-600 */}
-             <button disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
+             <button disabled={loading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
               <Save className="w-5 h-5" /> {loading ? "Saving..." : "Publish Song"}
             </button>
           </div>

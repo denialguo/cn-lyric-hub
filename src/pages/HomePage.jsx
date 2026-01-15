@@ -13,7 +13,7 @@ const HomePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Script State
+  // Script State (Restoring this feature for you)
   const [scriptMode, setScriptMode] = useState('simplified'); 
 
   // Fetch songs
@@ -36,7 +36,7 @@ const HomePage = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
   };
 
-  // Filter Logic
+  // --- FILTER LOGIC (Updated to work with your Arrays) ---
   const filteredSongs = songs.filter(song => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = 
@@ -49,21 +49,24 @@ const HomePage = () => {
     if (activeTab === 'new') {
         matchesTab = true; 
     } else if (activeTab === 'classics') {
-        matchesTab = song.category === 'ballad' || song.category === 'oldies'; 
+        // Safe check for tags array
+        matchesTab = song.tags && song.tags.includes('Ballad'); 
     } else if (activeTab === 'trending') {
-        matchesTab = song.category === 'pop'; 
+        matchesTab = song.tags && song.tags.includes('Pop'); 
     }
 
     return matchesSearch && matchesTab;
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500">
+    <div className="min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500 relative">
       
       {/* 1. Navbar */}
-      <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+      {/* FIX: Increased Z-Index to 100 so menu is always clickable */}
+      <nav className="sticky top-0 z-[100] bg-slate-950/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
+            {/* YOUR ORIGINAL LOGO CODE */}
             <img 
               src="/logo_inverse.svg" 
               alt="Quality Pinyin Logo" 
@@ -79,21 +82,22 @@ const HomePage = () => {
               placeholder="Search songs, artists, lyrics..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              // YOUR ORIGINAL STYLE (Keeps Color Picker working)
               className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm"
             />
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* <--- BIGGER TOGGLE BUTTON ---> */}
-            <button 
+          <div className="flex items-center gap-4 relative">
+             {/* Script Toggle Button */}
+             <button 
               onClick={toggleScript}
-              /* CHANGED: text-xs -> text-sm | px-3 -> px-4 | py-1.5 -> py-2 */
-              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-emerald-500 hover:text-emerald-500 transition-all"
+              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all"
             >
-              <Globe className="w-4 h-4" /> {/* Icon size bumped to w-4 h-4 */}
-              {scriptMode === 'simplified' ? 'Simplified (简体字)' : ' Traditional (繁體字)'}
+              <Globe className="w-4 h-4" />
+              {scriptMode === 'simplified' ? 'Simplified (简体)' : ' Traditional (繁體)'}
             </button>
 
+            {/* YOUR THEME SETTINGS */}
             <ThemeSettings />
 
             <button
@@ -109,9 +113,10 @@ const HomePage = () => {
 
       {/* 2. Hero Section */}
       <div className="relative overflow-hidden border-b border-white/5">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-primary/20 rounded-full blur-[120px] -z-10 transition-colors duration-700" />
+        {/* FIX: Added pointer-events-none so you can click buttons underneath the glow */}
+        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-primary/20 rounded-full blur-[120px] -z-10 transition-colors duration-700" />
         
-        <div className="max-w-7xl mx-auto px-6 py-16 text-center">
+        <div className="max-w-7xl mx-auto px-6 py-16 text-center relative z-10">
           <h1 className="text-4xl sm:text-6xl font-extrabold text-white mb-6 tracking-tight">
             Chinese Lyric Database <br className="hidden sm:block" />
           </h1>
@@ -129,6 +134,7 @@ const HomePage = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                // YOUR ORIGINAL STYLE (Keeps Color Picker working)
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                   activeTab === tab.id 
                     ? 'bg-primary/10 text-primary border border-primary/20' 
@@ -161,22 +167,22 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => {
-                // Convert Title/Artist based on state
+                // 1. Script Conversion Logic
                 const displayTitle = scriptMode === 'traditional' ? tify(song.title) : sify(song.title);
                 const displayArtist = song.artist_chinese 
                     ? (scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese))
                     : song.artist;
 
+                // 2. Prepare Object (THE FIX FOR BLANK SONGS)
+                const songForCard = {
+                    ...song,
+                    title: displayTitle,
+                    artist: displayArtist
+                };
+
                 return (
-                  <div key={song.id} onClick={() => navigate(`/song/${song.slug}`)}>
-                    <SongCard 
-                      title={displayTitle}    
-                      artist={displayArtist}  
-                      tags={song.tags} 
-                      coverUrl={song.cover_url}
-                      likes="0" 
-                    />
-                  </div>
+                  // FIX: Pass the single object prop
+                  <SongCard key={song.id} song={songForCard} />
                 );
             })}
           </div>
