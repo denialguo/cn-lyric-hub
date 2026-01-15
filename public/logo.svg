@@ -1,0 +1,16 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="100" fill="white" />
+  
+  <text 
+    x="50%" 
+    y="55%" 
+    dominant-baseline="middle" 
+    text-anchor="middle" 
+    font-family="'Songti SC', 'STSong', 'SimSun', 'Times New Roman', serif" 
+    font-weight="900" 
+    font-size="130" 
+    fill="black"
+  >
+    音
+  </text>
+</svg>

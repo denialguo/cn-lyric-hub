@@ -1,14 +1,270 @@
 @import "tailwindcss";
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  
-  /* Deep dark background foundation */
-  background-color: #0f172a; /* Slate-900 */
-  color: #f8fafc; /* Slate-50 */
+/* Define theme colors using Tailwind v4 @theme syntax */
+@theme {
+  /* CHANGED: Default is now Blue (Blue-500) */
+  --color-primary: rgb(59 130 246); 
 }
 
+/* Theme color overrides using CSS custom properties */
+:root {
+  /* CHANGED: Default RGB values for Blue */
+  --color-primary-rgb: 59 130 246;
+}
+
+/* Keep the other themes as options if you want, or delete them */
+[data-theme="emerald"] {
+  --color-primary-rgb: 16 185 129; /* The green you hate */
+}
+
+[data-theme="cyan"] {
+  --color-primary-rgb: 6 182 212;
+}
+
+[data-theme="rose"] {
+  --color-primary-rgb: 244 63 94;
+}
+
+[data-theme="violet"] {
+  --color-primary-rgb: 139 92 246;
+}
+
+[data-theme="amber"] {
+  --color-primary-rgb: 245 158 11;
+}
+/* Custom utility classes - simple approach */
+.bg-primary {
+  background-color: rgb(var(--color-primary-rgb));
+}
+
+.text-primary {
+  color: rgb(var(--color-primary-rgb));
+}
+
+.border-primary {
+  border-color: rgb(var(--color-primary-rgb));
+}
+
+.ring-primary {
+  --tw-ring-color: rgb(var(--color-primary-rgb));
+}
+
+.from-primary {
+  --tw-gradient-from: rgb(var(--color-primary-rgb));
+  --tw-gradient-to: rgb(var(--color-primary-rgb) / 0);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.to-primary {
+  --tw-gradient-to: rgb(var(--color-primary-rgb));
+}
+
+/* Opacity variants */
+.bg-primary\/5 {
+  background-color: rgb(var(--color-primary-rgb) / 0.05);
+}
+
+.bg-primary\/10 {
+  background-color: rgb(var(--color-primary-rgb) / 0.1);
+}
+
+.bg-primary\/20 {
+  background-color: rgb(var(--color-primary-rgb) / 0.2);
+}
+
+.border-primary\/20 {
+  border-color: rgb(var(--color-primary-rgb) / 0.2);
+}
+
+.ring-primary\/50 {
+  --tw-ring-color: rgb(var(--color-primary-rgb) / 0.5);
+}
+
+/* Hover variants */
+.hover\:bg-primary:hover {
+  background-color: rgb(var(--color-primary-rgb));
+}
+
+.hover\:text-primary:hover {
+  color: rgb(var(--color-primary-rgb));
+}
+
+.hover\:border-primary:hover {
+  border-color: rgb(var(--color-primary-rgb));
+}
+
+/* Global Styles - Dark Mode (Default) */
 body {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   margin: 0;
   min-height: 100vh;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Dark mode (default) */
+.dark body,
+:root:not(.light) body {
+  background-color: #020617;
+  color: #e2e8f0;
+}
+
+/* Light mode */
+.light body {
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+/* Utility overrides for light mode */
+.light .bg-slate-950 {
+  background-color: #f8fafc !important;
+}
+
+.light .bg-slate-900 {
+  background-color: #f1f5f9 !important;
+}
+
+.light .bg-slate-900\/50 {
+  background-color: rgba(241, 245, 249, 0.5) !important;
+}
+
+.light .bg-slate-900\/80 {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+.light .bg-slate-800 {
+  background-color: #e2e8f0 !important;
+}
+
+.light .bg-slate-800\/50 {
+  background-color: rgba(226, 232, 240, 0.5) !important;
+}
+
+.light .text-white {
+  color: #0f172a !important;
+}
+
+.light .text-slate-100 {
+  color: #0f172a !important;
+}
+
+.light .text-slate-200 {
+  color: #0f172a !important;
+}
+
+.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.light .text-slate-400 {
+  color: #64748b !important;
+}
+
+.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Fix for any remaining white text in hero/headers */
+.light h1,
+.light h2,
+.light h3,
+.light h4 {
+  color: #0f172a !important;
+}
+
+/* Fix gradient text in light mode */
+.light .text-transparent {
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+}
+
+/* Ensure dark text in light mode hero sections */
+.light .bg-gradient-to-b {
+  color: #0f172a;
+}
+
+.light .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+.light .border-slate-800 {
+  border-color: #cbd5e1 !important;
+}
+
+.light .border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.light .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light .bg-white\/5 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light .hover\:bg-slate-900\/80:hover {
+  background-color: rgba(226, 232, 240, 0.8) !important;
+}
+
+.light .hover\:bg-slate-800:hover {
+  background-color: #cbd5e1 !important;
+}
+
+.light .hover\:bg-slate-700:hover {
+  background-color: #cbd5e1 !important;
+}
+
+.light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+.light .bg-black\/40 {
+  background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Fix the navbar backdrop in light mode */
+.light .bg-slate-950\/80 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Fix shadows in light mode */
+.light .shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+}
+/* --- HERO SECTION CONTRAST FIXES (IMPROVED) --- */
+
+/* 1. Top of gradient: Use the THEME COLOR at 20% opacity (Glassy Look) */
+/* This brings back the "Gradient" feel without making text hard to read */
+.light .from-slate-900\/50 {
+  --tw-gradient-from: rgba(var(--color-primary-rgb), 0.2) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+/* 2. Bottom of gradient: Fade to solid page background */
+.light .to-slate-950 {
+  --tw-gradient-to: #f8fafc !important; 
+}
+
+/* 3. Fix the "Back to Library" button contrast */
+.light .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.5) !important; /* Lighter, glassier button */
+  border: 1px solid rgba(0,0,0,0.1); /* Add a border so it pops */
+}
+
+/* 4. Fix hover states for white text */
+.light .hover\:text-white:hover {
+  color: #000000 !important;
+}
+
+/* 5. Darken the primary color text slightly for readability */
+.light .text-primary {
+  filter: brightness(0.8);
 }

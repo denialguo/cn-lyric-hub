@@ -1,7 +1,10 @@
 import React from 'react';
-import { Play, Heart, Mic2 } from 'lucide-react'; // Changed MicVc to Mic2
+import { Play, Heart, Hash } from 'lucide-react'; // Swapped Mic2 for Hash icon
 
-const SongCard = ({ title, artist, difficulty, coverUrl, likes }) => {
+const SongCard = ({ title, artist, tags, coverUrl, likes }) => {
+  // If tags exist, take the first 2. If not, fallback to empty array.
+  const displayTags = tags && tags.length > 0 ? tags.slice(0, 2) : [];
+
   return (
     <div className="group bg-slate-800/50 hover:bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 border border-white/5 hover:border-white/10 hover:-translate-y-1 cursor-pointer h-full flex flex-col">
       <div className="relative aspect-square w-full overflow-hidden bg-slate-900">
@@ -26,10 +29,19 @@ const SongCard = ({ title, artist, difficulty, coverUrl, likes }) => {
           <div className="flex items-center gap-1.5">
              <Heart className="w-3.5 h-3.5" /> <span>{likes || 0}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* Added the correct icon here */}
-            <Mic2 className="w-3.5 h-3.5" />
-            <span className="bg-slate-700 px-2 py-0.5 rounded text-slate-300">{difficulty}</span>
+          
+          {/* NEW: Loop through tags instead of showing one category */}
+          <div className="flex gap-1">
+            {displayTags.length > 0 ? (
+              displayTags.map((tag, i) => (
+                <span key={i} className="bg-slate-700 px-2 py-0.5 rounded text-slate-300 flex items-center gap-1">
+                  <Hash size={10} /> {tag}
+                </span>
+              ))
+            ) : (
+              // Fallback if no tags exist yet
+              <span className="bg-slate-700 px-2 py-0.5 rounded text-slate-300">Music</span>
+            )}
           </div>
         </div>
       </div>
