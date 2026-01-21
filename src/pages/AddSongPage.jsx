@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Trash2, Info } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput';
 import { pinyin } from 'pinyin-pro';
+import { useAuth } from '../context/AuthContext';
 
+// Helper Component for Text Areas
 const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '150px' }) => {
   const textareaRef = useRef(null);
 
@@ -45,6 +47,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
 
 const AddSongPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth(); // We just check the user, we DO NOT kick them out
   const [loading, setLoading] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   
@@ -93,7 +96,6 @@ const AddSongPage = () => {
     }
   }, [formData, tags, artistList, artistChineseList]);
 
-  // --- CLEAR DRAFT ---
   const clearDraft = () => {
     if (window.confirm("Are you sure? This will delete your current draft.")) {
         localStorage.removeItem('song_draft_form');
@@ -132,26 +134,46 @@ const AddSongPage = () => {
       .trim().toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
 
-    const { error } = await supabase
-      .from('songs')
-      .insert([{ 
+    const songData = {
         ...formData, 
         artist: finalArtistString,            
         artist_chinese: finalArtistChineseString, 
-        slug: generatedSlug, 
-        tags: tags 
-      }]);
+        tags: tags,
+        // If User exists, add slug + name. If Guest, leave blank (or add later).
+        ...(user ? { slug: generatedSlug, submitted_by: user.user_metadata?.username || user.email } : {}) 
+    };
+
+    let error;
+
+    if (user) {
+        // LOGGED IN: Go Straight to Live DB
+        const result = await supabase.from('songs').insert([songData]);
+        error = result.error;
+    } else {
+        // GUEST: Go to Queue
+        const result = await supabase.from('song_submissions').insert([{
+            ...songData,
+            status: 'pending'
+        }]);
+        error = result.error;
+    }
 
     if (error) {
-      alert('Error adding song: ' + error.message);
+      alert('Error: ' + error.message);
+      setLoading(false);
     } else {
       localStorage.removeItem('song_draft_form');
       localStorage.removeItem('song_draft_tags');
       localStorage.removeItem('song_draft_artists');
       localStorage.removeItem('song_draft_artists_cn');
-      navigate('/');
+      
+      if (user) {
+          navigate('/');
+      } else {
+          alert("Thank you! Your song has been submitted for review.");
+          navigate('/');
+      }
     }
-    setLoading(false);
   };
 
   return (
@@ -168,16 +190,30 @@ const AddSongPage = () => {
             </button>
         </div>
 
-        <div className="flex items-center gap-4 mb-8">
-            <h1 className="text-3xl font-bold text-white">Add New Song</h1>
-            {draftLoaded && <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded animate-fade-in">Draft Restored</span>}
+        <div className="flex flex-col gap-2 mb-8">
+            <div className="flex items-center gap-4">
+                <h1 className="text-3xl font-bold text-white">Add New Song</h1>
+                {draftLoaded && <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded animate-fade-in">Draft Restored</span>}
+            </div>
+
+            {/* STATUS BANNER */}
+            {!user ? (
+                <div className="flex items-center gap-2 text-amber-400 bg-amber-400/10 border border-amber-400/20 px-4 py-2 rounded-lg w-fit">
+                    <Info className="w-4 h-4" />
+                    <span className="text-xs font-bold">You are posting as a Guest. Your song will be reviewed before going live.</span>
+                </div>
+            ) : (
+                <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-4 py-2 rounded-lg w-fit">
+                    <Sparkles className="w-4 h-4" />
+                    <span className="text-xs font-bold">You are verified. Your song will go live immediately.</span>
+                </div>
+            )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             
-            {/* ROW 1: TITLES */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Song Title (English/Pinyin) <span className="text-emerald-500">*</span></label>
                 <input name="title" value={formData.title} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" required />
@@ -187,7 +223,6 @@ const AddSongPage = () => {
                 <input name="title_chinese" value={formData.title_chinese} onChange={handleChange} placeholder="e.g. 让风告诉你" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
 
-            {/* ROW 2: ARTISTS */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (English) <span className="text-emerald-500">*</span></label>
                 <TagInput tags={artistList} setTags={setArtistList} placeholder="Type artist & hit Enter..." />
@@ -197,36 +232,27 @@ const AddSongPage = () => {
                 <TagInput tags={artistChineseList} setTags={setArtistChineseList} placeholder="Type Chinese name & hit Enter..." />
             </div>
 
-            {/* ROW 3: TAGS & COVER */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Tags</label>
                 <TagInput tags={tags} setTags={setTags} placeholder="Type tag & hit Enter..." />
             </div>
             
-            {/* --- FIX IS HERE: EXACT MATCH FOR TEXT AND STYLE --- */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Cover Image URL</label>
                 <div>
-                    <input 
-                        name="cover_url" 
-                        value={formData.cover_url} 
-                        onChange={handleChange} 
-                        className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" 
-                    />
+                    <input name="cover_url" value={formData.cover_url} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
                     <p className="text-[10px] text-slate-500 mt-1 pl-1">
                         Portrait images work best.
                     </p>
                 </div>
             </div>
 
-            {/* ROW 4: YOUTUBE */}
             <div className="space-y-2 lg:col-span-2"> 
                 <label className="text-slate-400 text-sm">YouTube Video URL</label>
                 <input name="youtube_url" value={formData.youtube_url} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
           </div>
 
-          {/* CREDITS & LYRICS SECTIONS */}
           <div className="w-full">
              <LyricsEditor 
                 label="Credits / About (Song Bio)" 
@@ -252,7 +278,7 @@ const AddSongPage = () => {
                  <LyricsEditor label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin} onChange={handleChange} placeholder="Click Auto-Fill or type..." />
                  <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5">
                     <span className="text-yellow-500/80">⚠</span> 
-                    Always double-check auto-fill for accuracy (e.g., polyphones like 'le' vs 'yue').
+                    Always double-check auto-fill for accuracy.
                  </p>
              </div>
 
@@ -261,7 +287,7 @@ const AddSongPage = () => {
 
           <div className="fixed bottom-6 right-6 z-50">
              <button disabled={loading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
-              <Save className="w-5 h-5" /> {loading ? "Saving..." : "Publish Song"}
+              <Save className="w-5 h-5" /> {loading ? "Saving..." : (user ? "Publish Song" : "Submit for Review")}
             </button>
           </div>
         </form>
