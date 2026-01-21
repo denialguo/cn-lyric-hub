@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Music, Youtube, Info, Globe } from 'lucide-react'; 
 import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
-import { useTheme } from '../context/ThemeContext'; // <--- IMPORT THIS
+import { useTheme } from '../context/ThemeContext'; 
 
 const SongPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { isDarkMode } = useTheme(); // <--- GET THEME STATE
+  const { isDarkMode } = useTheme(); 
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scriptMode, setScriptMode] = useState('simplified'); 
@@ -55,13 +55,12 @@ const SongPage = () => {
   };
 
   return (
-    // WRAPPER: Reverted to standard bg-slate-950. 
-    // Your index.css override will handle turning this white in Light Mode.
+    // WRAPPER: Default Dark (slate-950). CSS handles the flip to White.
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20 transition-colors duration-500">
 
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
-        {/* GRADIENT FIX: Explicitly switches tail color based on isDarkMode */}
+        {/* GRADIENT: Logic remains same - blends to page bg color */}
         <div 
           className={`absolute inset-0 bg-gradient-to-b from-slate-900/50 ${isDarkMode ? 'to-slate-950' : 'to-[#f8fafc]'} z-10`} 
         />
@@ -101,7 +100,7 @@ const SongPage = () => {
              <div className="flex gap-4 items-center">
                  <button 
                     onClick={toggleScript}
-                    className="flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full border border-slate-300 dark:border-slate-700 hover:border-primary hover:text-primary transition-all text-slate-600 dark:text-slate-400"
+                    className="flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all text-slate-400"
                  >
                     <Globe className="w-3 h-3" />
                     {scriptMode === 'simplified' ? '简 Simplified' : '繁 Traditional'}
@@ -120,14 +119,13 @@ const SongPage = () => {
               if (!line.trim() && !pinyin.trim() && !english.trim()) return <div key={index} className="h-6"></div>;
 
               return (
-                <div key={index} className="group hover:bg-slate-100 dark:hover:bg-slate-900/80 p-6 rounded-2xl transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-800">
-                  {/* Pinyin: text-primary */}
+                // FIX 1: Removed 'bg-slate-100'. Now defaults to transparent/dark hover. 
+                // CSS Override will handle the light mode hover.
+                <div key={index} className="group hover:bg-slate-800 p-6 rounded-2xl transition-all border border-transparent hover:border-slate-800">
                   {pinyin && <div className="text-sm text-primary font-mono mb-2 tracking-wide opacity-80 group-hover:opacity-100">{pinyin}</div>}
-                  
-                  {/* Lines: Slate-800 for Light, Slate-100 for Dark */}
-                  {line && <div className="text-3xl md:text-4xl font-bold text-slate-800 dark:text-slate-100 mb-3 leading-relaxed">{line}</div>}
-                  
-                  {english && <div className="text-slate-500 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors text-lg italic">{english}</div>}
+                  {/* Text Color: Slate-100 by default (Dark mode). CSS will flip this to dark grey. */}
+                  {line && <div className="text-3xl md:text-4xl font-bold text-slate-100 mb-3 leading-relaxed">{line}</div>}
+                  {english && <div className="text-slate-500 group-hover:text-slate-300 transition-colors text-lg italic">{english}</div>}
                 </div>
               );
             })}
@@ -135,11 +133,12 @@ const SongPage = () => {
 
            {/* CREDITS SECTION */}
            {song.credits && (
-             <div className="mt-16 pt-10 border-t border-slate-200 dark:border-slate-800/50">
-               <h3 className="text-xl font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 mb-6">
+             <div className="mt-16 pt-10 border-t border-slate-800/50">
+               <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6">
                  <Info className="w-5 h-5" /> About This Song
                </h3>
-               <div className="bg-slate-100 dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+               {/* FIX 2: Removed 'bg-slate-100'. Uses 'bg-slate-900/40' (Dark). CSS override will fix light mode. */}
+               <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800 text-slate-300 leading-relaxed whitespace-pre-wrap">
                  {song.credits}
                </div>
              </div>
@@ -153,7 +152,7 @@ const SongPage = () => {
             
             {/* YouTube Player */}
             {videoId ? (
-              <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
+              <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
                 <div className="aspect-video">
                   <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${videoId}`} title="YouTube" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                 </div>
@@ -164,14 +163,16 @@ const SongPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-100 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-slate-500">No video available</div>
+              // FIX 3: Default to Dark bg
+              <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 text-center text-slate-500">No video available</div>
             )}
             
             {/* Info Card */}
-            <div className="bg-slate-100 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+            {/* FIX 4: Default to Dark bg (bg-slate-900/50) */}
+            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
               <div className="flex justify-between items-center mb-4">
-                <h4 className="font-bold text-slate-700 dark:text-white">Song Details</h4>
-                <button onClick={() => navigate(`/edit/${song.id}`)} className="text-xs bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-3 py-1 rounded text-slate-500 dark:text-slate-300 transition-colors">Edit Song</button>
+                <h4 className="font-bold text-white">Song Details</h4>
+                <button onClick={() => navigate(`/edit/${song.id}`)} className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded text-slate-300 transition-colors">Edit Song</button>
               </div>
               <div className="space-y-3 text-sm">
                 <div className="flex flex-col gap-2">
@@ -179,15 +180,16 @@ const SongPage = () => {
                   <div className="flex flex-wrap gap-2">
                     {song.tags && song.tags.length > 0 ? (
                       song.tags.map((tag, i) => (
-                        <span key={i} className="text-xs bg-white dark:bg-slate-800 text-primary px-2 py-1 rounded border border-slate-200 dark:border-slate-700">#{tag}</span>
+                        // FIX 5: Tag styling default to dark
+                        <span key={i} className="text-xs bg-slate-800 text-primary px-2 py-1 rounded border border-slate-700">#{tag}</span>
                       ))
                     ) : (
                       <span className="text-slate-400 text-sm italic">No tags added</span>
                     )}
                   </div>
                 </div>
-                <div className="flex justify-between"><span className="text-slate-500">Added By</span><span className="text-slate-700 dark:text-slate-300">{song.submitted_by || "Community"}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Added On</span><span className="text-slate-700 dark:text-slate-300">{new Date(song.created_at).toLocaleDateString()}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Added By</span><span className="text-slate-300">{song.submitted_by || "Community"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Added On</span><span className="text-slate-300">{new Date(song.created_at).toLocaleDateString()}</span></div>
               </div>
             </div>
 
