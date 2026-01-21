@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Moon, Sun, X } from 'lucide-react';
+import { Palette, Moon, Sun, X } from 'lucide-react'; // <--- Changed Settings to Palette
 import { useTheme } from '../context/ThemeContext';
 
 const colors = [
@@ -22,12 +22,10 @@ const ThemeSettings = () => {
   const { isDarkMode, setIsDarkMode, accentColor, setAccentColor } = useTheme();
 
   const handleColorChange = (colorId) => {
-    console.log('🎨 Changing color to:', colorId);
     setAccentColor(colorId);
   };
 
   const handleModeChange = (darkMode) => {
-    console.log('🌓 Changing mode to:', darkMode ? 'dark' : 'light');
     setIsDarkMode(darkMode);
   };
 
@@ -38,7 +36,7 @@ const ThemeSettings = () => {
         className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
         aria-label="Theme settings"
       >
-        <Settings className="w-5 h-5" />
+        <Palette className="w-5 h-5" /> {/* <--- The Paintbrush Icon */}
       </button>
 
       {isOpen && (
@@ -107,10 +105,6 @@ const ThemeSettings = () => {
                     title={c.label}
                   />
                 ))}
-              </div>
-              {/* Debug Info */}
-              <div className="mt-2 text-xs text-slate-500">
-                Current: {accentColor} | Mode: {isDarkMode ? 'Dark' : 'Light'}
               </div>
             </div>
           </div>

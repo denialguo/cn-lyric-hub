@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Music, Flame, Sparkles, Disc, Globe } from 'lucide-react'; 
+import { Search, Plus, Music, Flame, Sparkles, Disc, Globe, User, LogOut, ShieldAlert } from 'lucide-react'; 
 import { supabase } from '../lib/supabaseClient';
 import SongCard from '../components/SongCard';
 import ThemeSettings from '../components/ThemeSettings';
+import { useAuth } from '../context/AuthContext';
 import { tify, sify } from 'chinese-conv'; 
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { user, profile, signOut } = useAuth(); 
   const [songs, setSongs] = useState([]);
   const [activeTab, setActiveTab] = useState('all'); 
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-
-  // Script State (Restoring this feature for you)
   const [scriptMode, setScriptMode] = useState('simplified'); 
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Fetch songs
   useEffect(() => {
@@ -31,12 +32,10 @@ const HomePage = () => {
     fetchSongs();
   }, []);
 
-  // Toggle script helper
   const toggleScript = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
   };
 
-  // --- FILTER LOGIC (Updated to work with your Arrays) ---
   const filteredSongs = songs.filter(song => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = 
@@ -46,14 +45,9 @@ const HomePage = () => {
       (song.lyrics_chinese && song.lyrics_chinese.includes(query));
 
     let matchesTab = true;
-    if (activeTab === 'new') {
-        matchesTab = true; 
-    } else if (activeTab === 'classics') {
-        // Safe check for tags array
-        matchesTab = song.tags && song.tags.includes('Ballad'); 
-    } else if (activeTab === 'trending') {
-        matchesTab = song.tags && song.tags.includes('Pop'); 
-    }
+    if (activeTab === 'new') matchesTab = true; 
+    else if (activeTab === 'classics') matchesTab = song.tags && song.tags.includes('Ballad'); 
+    else if (activeTab === 'trending') matchesTab = song.tags && song.tags.includes('Pop'); 
 
     return matchesSearch && matchesTab;
   });
@@ -62,17 +56,15 @@ const HomePage = () => {
     <div className="min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500 relative">
       
       {/* 1. Navbar */}
-      {/* FIX: Increased Z-Index to 100 so menu is always clickable */}
       <nav className="sticky top-0 z-[100] bg-slate-950/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            {/* YOUR ORIGINAL LOGO CODE */}
             <img 
               src="/logo_inverse.svg" 
-              alt="Quality Pinyin Logo" 
+              alt="Logo" 
               className="w-10 h-10 rounded-lg object-cover" 
             />
-            <span className="font-bold text-xl tracking-tight text-white">CN Lyric Hub</span>
+            <span className="font-bold text-xl tracking-tight text-white hidden sm:block">CN Lyric Hub</span>
           </div>
 
           <div className="hidden md:flex flex-1 max-w-lg mx-8 relative">
@@ -82,38 +74,92 @@ const HomePage = () => {
               placeholder="Search songs, artists, lyrics..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              // YOUR ORIGINAL STYLE (Keeps Color Picker working)
               className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm"
             />
           </div>
 
-          <div className="flex items-center gap-4 relative">
-             {/* Script Toggle Button */}
+          <div className="flex items-center gap-3 relative">
              <button 
               onClick={toggleScript}
-              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all"
+              className="hidden lg:flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all"
             >
               <Globe className="w-4 h-4" />
-              {scriptMode === 'simplified' ? 'Simplified (简体)' : ' Traditional (繁體)'}
+              {/* <--- UPDATED TEXT LOGIC --- */}
+              {scriptMode === 'simplified' ? '简体字' : '繁體字'}
             </button>
 
-            {/* YOUR THEME SETTINGS */}
             <ThemeSettings />
 
+            {/* <--- MOVED 'ADD SONG' TO LEFT OF PROFILE --- */}
             <button
               onClick={() => navigate('/add')}
-              className="flex items-center gap-2 bg-white text-slate-900 px-4 py-2 rounded-full text-sm font-bold hover:bg-slate-200 transition-colors"
+              className="flex items-center gap-2 bg-white text-slate-900 px-4 py-2 rounded-full text-sm font-bold hover:bg-slate-200 transition-colors ml-2"
             >
               <Plus size={16} /> 
               <span className="hidden sm:inline">Add Song</span>
             </button>
+
+            {/* <--- AUTH BUTTONS (NOW ON FAR RIGHT) --- */}
+            {user ? (
+                <div className="relative ml-2">
+                    <button 
+                        onClick={() => setIsProfileOpen(!isProfileOpen)}
+                        // <--- UPDATED COLORS: Use 'primary' instead of 'emerald' --->
+                        className="w-9 h-9 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-colors"
+                    >
+                        <User size={18} />
+                    </button>
+
+                    {isProfileOpen && (
+                        <>
+                        <div className="fixed inset-0 z-10" onClick={() => setIsProfileOpen(false)} />
+                        <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-xl py-1 z-20 overflow-hidden">
+                            <div className="px-4 py-2 border-b border-slate-800 mb-1">
+                                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Signed in as</p>
+                                <p className="text-xs font-bold text-white truncate">{user.user_metadata?.username || user.email}</p>
+                            </div>
+
+                            {/* ADMIN DASHBOARD BUTTON */}
+                            {profile?.role === 'admin' && (
+                              <button 
+                                  onClick={() => { navigate('/admin'); setIsProfileOpen(false); }}
+                                  className="w-full text-left px-4 py-2 text-sm text-emerald-400 hover:bg-slate-800 hover:text-emerald-300 flex items-center gap-2 font-bold"
+                              >
+                                  <ShieldAlert size={14} /> Admin Dashboard
+                              </button>
+                            )}
+
+                            <button 
+                                onClick={() => { navigate('/add'); setIsProfileOpen(false); }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2"
+                            >
+                                <Plus size={14} /> Add Song
+                            </button>
+                            <button 
+                                onClick={() => { signOut(); setIsProfileOpen(false); }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-800 hover:text-red-300 flex items-center gap-2"
+                            >
+                                <LogOut size={14} /> Sign Out
+                            </button>
+                        </div>
+                        </>
+                    )}
+                </div>
+            ) : (
+                <button 
+                    onClick={() => navigate('/login')}
+                    className="text-sm font-bold text-slate-400 hover:text-white transition-colors px-2"
+                >
+                    Sign In
+                </button>
+            )}
+
           </div>
         </div>
       </nav>
 
       {/* 2. Hero Section */}
       <div className="relative overflow-hidden border-b border-white/5">
-        {/* FIX: Added pointer-events-none so you can click buttons underneath the glow */}
         <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-primary/20 rounded-full blur-[120px] -z-10 transition-colors duration-700" />
         
         <div className="max-w-7xl mx-auto px-6 py-16 text-center relative z-10">
@@ -124,7 +170,7 @@ const HomePage = () => {
             A community-driven database of Chinese lyrics with full Pinyin and English translations.
           </p>
           
-          <div className="flex justify-center gap-2">
+          <div className="flex justify-center gap-2 flex-wrap">
             {[
               { id: 'all', label: 'All Songs', icon: Music },
               { id: 'trending', label: 'Trending', icon: Flame },
@@ -134,7 +180,6 @@ const HomePage = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                // YOUR ORIGINAL STYLE (Keeps Color Picker working)
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                   activeTab === tab.id 
                     ? 'bg-primary/10 text-primary border border-primary/20' 
@@ -167,23 +212,24 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => {
-                // 1. Script Conversion Logic
                 const displayTitle = scriptMode === 'traditional' ? tify(song.title) : sify(song.title);
+                
+                const displayTitleChinese = song.title_chinese 
+                    ? (scriptMode === 'traditional' ? tify(song.title_chinese) : sify(song.title_chinese))
+                    : "";
+
                 const displayArtist = song.artist_chinese 
                     ? (scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese))
                     : song.artist;
 
-                // 2. Prepare Object (THE FIX FOR BLANK SONGS)
                 const songForCard = {
                     ...song,
                     title: displayTitle,
+                    title_chinese: displayTitleChinese, 
                     artist: displayArtist
                 };
 
-                return (
-                  // FIX: Pass the single object prop
-                  <SongCard key={song.id} song={songForCard} />
-                );
+                return <SongCard key={song.id} song={songForCard} />;
             })}
           </div>
         )}
