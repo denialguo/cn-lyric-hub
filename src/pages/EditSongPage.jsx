@@ -21,7 +21,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
   return (
     <div className="flex flex-col gap-2">
       <label className="text-slate-400 text-sm font-bold flex justify-between">{label}</label>
-      <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-emerald-500 transition-colors">
+      <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-primary transition-colors">
         <div className="bg-slate-800 text-slate-500 text-right pr-3 pt-4 font-mono text-sm leading-6 select-none w-10 flex-shrink-0 border-r border-slate-700">
           <pre>{lineNumbers}</pre>
         </div>
@@ -165,7 +165,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             {/* INPUTS (Identical to before) */}
             <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Title (English) <span className="text-emerald-500">*</span></label>
+                <label className="text-slate-400 text-sm">Title (English) <span className="text-primary">*</span></label>
                 <input name="title" value={formData.title} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
             <div className="space-y-2">
@@ -173,7 +173,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
                 <input name="title_chinese" value={formData.title_chinese || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
             <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Artist (English) <span className="text-emerald-500">*</span></label>
+                <label className="text-slate-400 text-sm">Artist (English) <span className="text-primary">*</span></label>
                 <TagInput tags={artistList} setTags={setArtistList} placeholder="Type & Enter..." />
             </div>
             <div className="space-y-2">
@@ -207,7 +207,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
              <LyricsEditor label="Chinese Characters" name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} />
              <div className="relative">
-                 <button type="button" onClick={handleAutoPinyin} className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded hover:bg-emerald-500 hover:text-white transition-colors">
+                 <button type="button" onClick={handleAutoPinyin} className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded hover:bg-primary hover:text-white transition-colors">
                    <Sparkles className="w-3 h-3" /> Auto-Fill
                  </button>
                  <LyricsEditor label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin} onChange={handleChange} />
@@ -221,7 +221,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
                     <XCircle className="w-5 h-5" /> Reject
                  </button>
              )}
-             <button type="submit" disabled={loading} className={`text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105 ${isReviewMode ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-blue-600 hover:bg-blue-500'}`}>
+             <button type="submit" disabled={loading} className={`text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105 ${isReviewMode ? 'bg-primary hover:bg-primary/90' : 'bg-blue-600 hover:bg-blue-500'}`}>
                 {isReviewMode ? <CheckCircle className="w-5 h-5" /> : <Save className="w-5 h-5" />} 
                 {loading ? "Processing..." : (isReviewMode ? "Approve & Publish" : "Save Changes")}
             </button>

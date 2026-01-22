@@ -26,7 +26,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
         {label}
       </label>
       
-      <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-emerald-500 transition-colors">
+      <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-primary transition-colors">
         <div className="bg-slate-800 text-slate-500 text-right pr-3 pt-4 font-mono text-sm leading-6 select-none w-10 flex-shrink-0 border-r border-slate-700">
           <pre>{lineNumbers}</pre>
         </div>
@@ -193,7 +193,7 @@ const AddSongPage = () => {
         <div className="flex flex-col gap-2 mb-8">
             <div className="flex items-center gap-4">
                 <h1 className="text-3xl font-bold text-white">Add New Song</h1>
-                {draftLoaded && <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded animate-fade-in">Draft Restored</span>}
+                {draftLoaded && <span className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded animate-fade-in">Draft Restored</span>}
             </div>
 
             {/* STATUS BANNER */}
@@ -203,7 +203,7 @@ const AddSongPage = () => {
                     <span className="text-xs font-bold">You are posting as a Guest. Your song will be reviewed before going live.</span>
                 </div>
             ) : (
-                <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-4 py-2 rounded-lg w-fit">
+                <div className="flex items-center gap-2 text-primary bg-primary/10 border border-primary/20 px-4 py-2 rounded-lg w-fit">
                     <Sparkles className="w-4 h-4" />
                     <span className="text-xs font-bold">You are verified. Your song will go live immediately.</span>
                 </div>
@@ -215,7 +215,7 @@ const AddSongPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             
             <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Song Title (English/Pinyin) <span className="text-emerald-500">*</span></label>
+                <label className="text-slate-400 text-sm">Song Title (English/Pinyin) <span className="text-primary">*</span></label>
                 <input name="title" value={formData.title} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" required />
             </div>
             <div className="space-y-2">
@@ -224,7 +224,7 @@ const AddSongPage = () => {
             </div>
 
             <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Artist (English) <span className="text-emerald-500">*</span></label>
+                <label className="text-slate-400 text-sm">Artist (English) <span className="text-primary">*</span></label>
                 <TagInput tags={artistList} setTags={setArtistList} placeholder="Type artist & hit Enter..." />
             </div>
             <div className="space-y-2">
@@ -265,13 +265,13 @@ const AddSongPage = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-             <LyricsEditor label={<>Chinese Characters <span className="text-emerald-500">*</span></>} name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} placeholder="Lyrics here..." />
+             <LyricsEditor label={<>Chinese Characters <span className="text-primary">*</span></>} name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} placeholder="Lyrics here..." />
              
              <div className="relative">
                  <button
                    type="button"
                    onClick={handleAutoPinyin}
-                   className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded hover:bg-emerald-500 hover:text-white transition-colors"
+                   className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded hover:bg-primary hover:text-white transition-colors"
                  >
                    <Sparkles className="w-3 h-3" /> Auto-Fill
                  </button>
@@ -286,7 +286,7 @@ const AddSongPage = () => {
           </div>
 
           <div className="fixed bottom-6 right-6 z-50">
-             <button disabled={loading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
+             <button disabled={loading} className="bg-primary hover:bg-primary/90 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
               <Save className="w-5 h-5" /> {loading ? "Saving..." : (user ? "Publish Song" : "Submit for Review")}
             </button>
           </div>

@@ -23,11 +23,11 @@ const TagInput = ({ tags, setTags, placeholder }) => {
 
   return (
     <div className="w-full">
-      <div className="flex flex-wrap gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg focus-within:border-emerald-500 transition-colors min-h-[50px]">
+      <div className="flex flex-wrap gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg focus-within:border-primary transition-colors min-h-[50px]">
         {tags.map((tag, index) => (
           <span 
             key={index} 
-            className="flex items-center gap-1 bg-slate-800 text-emerald-400 px-2 py-1 rounded text-sm border border-slate-700 animate-fade-in"
+            className="flex items-center gap-1 bg-slate-800 text-primary px-2 py-1 rounded text-sm border border-slate-700 animate-fade-in"
           >
             {tag}
             <button 

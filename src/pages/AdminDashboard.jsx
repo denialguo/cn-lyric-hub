@@ -78,7 +78,7 @@ const AdminDashboard = () => {
             </button>
             
             <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                <AlertCircle className="text-emerald-500" /> Admin Dashboard
+                <AlertCircle className="text-primary" /> Admin Dashboard
             </h1>
         </div>
 
@@ -102,7 +102,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-bold text-white">{item.title}</h3>
                         {item.title_chinese && (
-                            <span className="text-sm text-emerald-400 border border-emerald-400/20 px-2 py-0.5 rounded bg-emerald-400/10">
+                            <span className="text-sm text-primary border border-primary/20 px-2 py-0.5 rounded bg-primary/10">
                             {item.title_chinese}
                             </span>
                         )}
