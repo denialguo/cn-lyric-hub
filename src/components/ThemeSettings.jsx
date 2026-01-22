@@ -5,7 +5,6 @@ import { useTheme } from '../context/ThemeContext';
 const colors = [
   // Top row
   { id: 'cyan', bg: 'bg-cyan-500', label: 'Cyan' },
-  { id: 'emerald', bg: 'bg-emerald-500', label: 'Emerald' },
   { id: 'rose', bg: 'bg-rose-500', label: 'Rose' },
   { id: 'violet', bg: 'bg-violet-500', label: 'Violet' },
   { id: 'amber', bg: 'bg-amber-500', label: 'Amber' },

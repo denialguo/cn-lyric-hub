@@ -123,7 +123,7 @@ const HomePage = () => {
                             {profile?.role === 'admin' && (
                               <button 
                                   onClick={() => { navigate('/admin'); setIsProfileOpen(false); }}
-                                  className="w-full text-left px-4 py-2 text-sm text-emerald-400 hover:bg-slate-800 hover:text-emerald-300 flex items-center gap-2 font-bold"
+                                  className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-slate-800 hover:text-primary/80 flex items-center gap-2 font-bold"
                               >
                                   <ShieldAlert size={14} /> Admin Dashboard
                               </button>

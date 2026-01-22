@@ -116,12 +116,12 @@ const AuthPage = () => {
           {/* ... The rest of your form stays the same ... */}
           {isSignUp && (
             <div className="relative group">
-              <User className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <User className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
               <input
                 type="text"
                 placeholder="Username"
                 required
-                className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
+                className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
               />
@@ -129,24 +129,24 @@ const AuthPage = () => {
           )}
           
           <div className="relative group">
-            <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+            <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
             <input
               type="email"
               placeholder="Email address"
               required
-              className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
               value={formData.email}
               onChange={(e) => setFormData({...formData, email: e.target.value})}
             />
           </div>
 
           <div className="relative group">
-            <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+            <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
             <input
               type="password"
               placeholder="Password"
               required
-              className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
               value={formData.password}
               onChange={(e) => setFormData({...formData, password: e.target.value})}
             />
@@ -154,7 +154,7 @@ const AuthPage = () => {
 
           <button
             disabled={loading}
-            className="w-full bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+            className="w-full bg-slate-800 hover:bg-primary hover:text-white text-slate-300 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (isSignUp ? 'Create Account' : 'Sign In')}
           </button>
@@ -164,7 +164,7 @@ const AuthPage = () => {
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}
           <button 
             onClick={() => setIsSignUp(!isSignUp)}
-            className="ml-2 text-emerald-400 hover:text-emerald-300 font-medium"
+            className="ml-2 text-primary hover:text-primary/80 font-medium"
           >
             {isSignUp ? 'Sign In' : 'Sign Up'}
           </button>

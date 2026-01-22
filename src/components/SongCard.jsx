@@ -21,7 +21,7 @@ const SongCard = ({ song }) => {
           loading="lazy"
         />
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="bg-emerald-500 text-white p-3 rounded-full shadow-lg transform scale-50 group-hover:scale-100 transition-transform">
+          <div className="bg-primary text-white p-3 rounded-full shadow-lg transform scale-50 group-hover:scale-100 transition-transform">
             <Play fill="currentColor" className="w-6 h-6 ml-1" />
           </div>
         </div>
