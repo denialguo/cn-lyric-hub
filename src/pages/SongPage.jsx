@@ -188,7 +188,21 @@ const SongPage = () => {
                     )}
                   </div>
                 </div>
-                <div className="flex justify-between"><span className="text-slate-500">Added By</span><span className="text-slate-300">{song.submitted_by || "Community"}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Added By</span>
+                  <span 
+                    className="text-slate-300 font-medium cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => {
+                        const name = song.submitted_by;
+                        // Only navigate if it's a real username (not "Community" or an Email)
+                        if (name && name !== 'Community' && !name.includes('@')) {
+                            navigate(`/user/${name}`);
+                        }
+                    }}
+                  >
+                    {song.submitted_by || "Community"}
+                  </span>
+                </div>
                 <div className="flex justify-between"><span className="text-slate-500">Added On</span><span className="text-slate-300">{new Date(song.created_at).toLocaleDateString()}</span></div>
               </div>
             </div>

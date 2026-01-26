@@ -9,7 +9,9 @@ import SongPage from './pages/SongPage';
 import AddSongPage from './pages/AddSongPage';
 import EditSongPage from './pages/EditSongPage';
 import AuthPage from './pages/AuthPage';
-import AdminDashboard from './pages/AdminDashboard'; // <--- The new import
+import AdminDashboard from './pages/AdminDashboard';
+import ProfilePage from './pages/ProfilePage';
+import PublicProfile from './pages/PublicProfile';
 
 const App = () => {
   return (
@@ -22,10 +24,10 @@ const App = () => {
             <Route path="/song/:slug" element={<SongPage />} />
             <Route path="/add" element={<AddSongPage />} />
             <Route path="/edit/:id" element={<EditSongPage />} />
-            
-            {/* The Admin Route */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/review/:id" element={<EditSongPage isReviewMode={true} />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/user/:username" element={<PublicProfile />} />
           </Routes>
           
           <Analytics />

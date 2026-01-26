@@ -146,18 +146,35 @@ const AddSongPage = () => {
     let error;
 
     if (user) {
-        // LOGGED IN: Go Straight to Live DB
-        const result = await supabase.from('songs').insert([songData]);
+        // --- LOGGED IN: FETCH PROFILE NAME FIRST ---
+        
+        // 1. Get their display name from the profiles table
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', user.id)
+            .single();
+
+        // 2. Decide the name: Use Profile Name OR fallback to Email prefix
+        const submitterName = profile?.display_name || user.email.split('@')[0];
+
+        // 3. Go Straight to Live DB (with the clean name)
+        const result = await supabase.from('songs').insert([{
+            ...songData,
+            submitted_by: submitterName, // <--- Overwrites the old ugly email
+            user_id: user.id // Optional: link the song to the user ID for future features
+        }]);
         error = result.error;
+
     } else {
-        // GUEST: Go to Queue
+        // --- GUEST: Go to Queue ---
         const result = await supabase.from('song_submissions').insert([{
             ...songData,
+            submitted_by: 'Community', 
             status: 'pending'
         }]);
         error = result.error;
     }
-
     if (error) {
       alert('Error: ' + error.message);
       setLoading(false);
