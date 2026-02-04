@@ -1,8 +1,8 @@
-import { createClient } from '@supabase/supabase-client';
+import { createClient } from '@supabase/supabase-js'; // <--- FIXED THIS LINE
 import { SitemapStream, streamToPromise } from 'sitemap';
 import { createWriteStream } from 'fs';
 import { resolve } from 'path';
-import 'dotenv/config'; // Loads .env variables locally
+import 'dotenv/config';
 
 // 1. Get Credentials
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -42,7 +42,6 @@ async function generate() {
     smStream.end();
 
     // 5. Save to File
-    // We use process.cwd() to ensure we find the public folder correctly from the project root
     const sitemapOutput = await streamToPromise(smStream);
     const outputPath = resolve(process.cwd(), 'public/sitemap.xml');
     
