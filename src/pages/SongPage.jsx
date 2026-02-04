@@ -4,7 +4,7 @@ import { ArrowLeft, Music, Youtube, Info, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
 import { useTheme } from '../context/ThemeContext'; 
-import { Helmet } from 'react-helmet-async'; // <--- 1. IMPORT HELMET
+import { Helmet } from 'react-helmet-async'; 
 
 const SongPage = () => {
   const { slug } = useParams();
@@ -55,36 +55,35 @@ const SongPage = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
   };
 
-  // Determine display title for SEO
-  const displayTitle = scriptMode === 'traditional' ? tify(song.title) : sify(song.title);
+  // --- FIX 1: USE NEW COLUMN NAMES ---
+  const rawTitle = song.title_chinese || "";
+  const displayTitle = scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle);
   const displayArtist = scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese);
 
   return (
-    // WRAPPER: Default Dark (slate-950). CSS handles the flip to White.
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20 transition-colors duration-500">
       
-      {/* --- 2. DYNAMIC SEO TAGS --- */}
+      {/* --- SEO TAGS UPDATED --- */}
       <Helmet>
         <title>{displayTitle} - {song.artist} | CN Lyric Hub</title>
-        <meta name="description" content={`Lyrics, Pinyin, and English translation for ${song.title} by ${song.artist}.`} />
+        <meta name="description" content={`Lyrics, Pinyin, and English translation for ${displayTitle} by ${song.artist}.`} />
         
-        {/* Open Graph / Facebook / Discord */}
+        {/* Open Graph */}
         <meta property="og:type" content="music.song" />
         <meta property="og:url" content={window.location.href} />
         <meta property="og:title" content={`${displayTitle} - ${song.artist}`} />
-        <meta property="og:description" content={`Learn the lyrics to ${song.title} with Pinyin and English translations.`} />
+        <meta property="og:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
         <meta property="og:image" content={song.cover_url} />
 
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={`${displayTitle} - ${song.artist}`} />
-        <meta name="twitter:description" content={`Learn the lyrics to ${song.title} with Pinyin and English translations.`} />
+        <meta name="twitter:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
         <meta name="twitter:image" content={song.cover_url} />
       </Helmet>
 
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
-        {/* GRADIENT: Logic remains same - blends to page bg color */}
         <div 
           className={`absolute inset-0 bg-gradient-to-b from-slate-900/50 ${isDarkMode ? 'to-slate-950' : 'to-[#f8fafc]'} z-10`} 
         />
@@ -92,17 +91,26 @@ const SongPage = () => {
         <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="Background" />
         
         <div className="absolute bottom-0 left-0 z-20 p-6 md:p-12 w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end gap-8">
-          <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={song.title} />
+          <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={displayTitle} />
           
           <div className="mb-4 flex-1">
              <button onClick={() => navigate('/')} className="text-slate-200 hover:text-white flex items-center mb-6 text-sm font-bold bg-white/10 w-fit px-4 py-2 rounded-full backdrop-blur-md transition-colors">
               <ArrowLeft className="w-4 h-4 mr-2" /> Back to Library
             </button>
             
+            {/* --- FIX 2: TITLE DISPLAY LOGIC --- */}
+            {/* Primary Chinese Title */}
             <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">
                 {displayTitle}
             </h1>
             
+            {/* Secondary English Title (If exists) */}
+            {song.title_english && (
+                <p className="text-2xl text-slate-400 font-medium mb-4 italic">
+                    {song.title_english}
+                </p>
+            )}
+
             <p className="text-2xl text-primary font-medium">{song.artist} 
                 <span className="text-slate-300 text-lg ml-2">
                     {displayArtist}
@@ -143,11 +151,8 @@ const SongPage = () => {
               if (!line.trim() && !pinyin.trim() && !english.trim()) return <div key={index} className="h-6"></div>;
 
               return (
-                // FIX 1: Removed 'bg-slate-100'. Now defaults to transparent/dark hover. 
-                // CSS Override will handle the light mode hover.
                 <div key={index} className="group hover:bg-slate-800 p-6 rounded-2xl transition-all border border-transparent hover:border-slate-800">
                   {pinyin && <div className="text-sm text-primary font-mono mb-2 tracking-wide opacity-80 group-hover:opacity-100">{pinyin}</div>}
-                  {/* Text Color: Slate-100 by default (Dark mode). CSS will flip this to dark grey. */}
                   {line && <div className="text-3xl md:text-4xl font-bold text-slate-100 mb-3 leading-relaxed">{line}</div>}
                   {english && <div className="text-slate-500 group-hover:text-slate-300 transition-colors text-lg italic">{english}</div>}
                 </div>
@@ -161,7 +166,6 @@ const SongPage = () => {
                <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6">
                  <Info className="w-5 h-5" /> About This Song
                </h3>
-               {/* FIX 2: Removed 'bg-slate-100'. Uses 'bg-slate-900/40' (Dark). CSS override will fix light mode. */}
                <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800 text-slate-300 leading-relaxed whitespace-pre-wrap">
                  {song.credits}
                </div>
@@ -187,12 +191,10 @@ const SongPage = () => {
                 </div>
               </div>
             ) : (
-              // FIX 3: Default to Dark bg
               <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 text-center text-slate-500">No video available</div>
             )}
             
             {/* Info Card */}
-            {/* FIX 4: Default to Dark bg (bg-slate-900/50) */}
             <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="font-bold text-white">Song Details</h4>
@@ -204,7 +206,6 @@ const SongPage = () => {
                   <div className="flex flex-wrap gap-2">
                     {song.tags && song.tags.length > 0 ? (
                       song.tags.map((tag, i) => (
-                        // FIX 5: Tag styling default to dark
                         <span key={i} className="text-xs bg-slate-800 text-primary px-2 py-1 rounded border border-slate-700">#{tag}</span>
                       ))
                     ) : (
@@ -218,7 +219,6 @@ const SongPage = () => {
                     className="text-slate-300 font-medium cursor-pointer hover:text-primary transition-colors"
                     onClick={() => {
                         const name = song.submitted_by;
-                        // Only navigate if it's a real username (not "Community" or an Email)
                         if (name && name !== 'Community' && !name.includes('@')) {
                             navigate(`/user/${name}`);
                         }
