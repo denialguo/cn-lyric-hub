@@ -47,7 +47,7 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
 
 const AddSongPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth(); // We just check the user, we DO NOT kick them out
+  const { user } = useAuth(); 
   const [loading, setLoading] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   
@@ -57,8 +57,8 @@ const AddSongPage = () => {
   const [artistChineseList, setArtistChineseList] = useState([]); 
 
   const [formData, setFormData] = useState({
-    title: '', 
-    title_chinese: '', 
+    title_chinese: '', // <--- NEW PRIMARY
+    title_english: '', // <--- NEW SECONDARY
     cover_url: '', 
     youtube_url: '', 
     lyrics_chinese: '', 
@@ -129,45 +129,54 @@ const AddSongPage = () => {
     const finalArtistString = artistList.join(', ');
     const finalArtistChineseString = artistChineseList.join(', ');
 
-    const pinyinTitle = pinyin(formData.title, { toneType: 'none', type: 'array' }).join(' ');
+    // --- FIX: GENERATE SLUG FROM CHINESE TITLE ONLY ---
+    // Uses 'nonZh: consecutive' so any numbers/English in the Chinese title stay grouped
+    const pinyinTitle = pinyin(formData.title_chinese, { 
+        toneType: 'none', 
+        nonZh: 'consecutive', 
+        separator: '-' 
+    });
+    
     const generatedSlug = pinyinTitle
-      .trim().toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '') // Remove special chars
+      .replace(/-+/g, '-')        // Collapse dashes
+      .replace(/^-|-$/g, '');     // Trim dashes
+    // --------------------------------------------------
 
     const songData = {
         ...formData, 
         artist: finalArtistString,            
         artist_chinese: finalArtistChineseString, 
         tags: tags,
-        // If User exists, add slug + name. If Guest, leave blank (or add later).
+        // If User exists, add slug + name. If Guest, leave blank.
         ...(user ? { slug: generatedSlug, submitted_by: user.user_metadata?.username || user.email } : {}) 
     };
 
     let error;
 
     if (user) {
-        // --- LOGGED IN: FETCH PROFILE NAME FIRST ---
-        
-        // 1. Get their display name from the profiles table
+        // --- LOGGED IN ---
         const { data: profile } = await supabase
             .from('profiles')
-            .select('display_name')
+            .select('display_name, username') // Fetch username too just in case
             .eq('id', user.id)
             .single();
 
-        // 2. Decide the name: Use Profile Name OR fallback to Email prefix
-        const submitterName = profile?.display_name || user.email.split('@')[0];
+        // Prefer Username for the link, Display Name for the text (handled in UI)
+        // Actually, for DB storage, we just store the identifier. 
+        // Let's stick to your existing pattern: Profile Name OR Email prefix.
+        const submitterName = profile?.username || user.email.split('@')[0];
 
-        // 3. Go Straight to Live DB (with the clean name)
         const result = await supabase.from('songs').insert([{
             ...songData,
-            submitted_by: submitterName, // <--- Overwrites the old ugly email
-            user_id: user.id // Optional: link the song to the user ID for future features
+            submitted_by: submitterName, 
+            user_id: user.id
         }]);
         error = result.error;
 
     } else {
-        // --- GUEST: Go to Queue ---
+        // --- GUEST ---
         const result = await supabase.from('song_submissions').insert([{
             ...songData,
             submitted_by: 'Community', 
@@ -231,14 +240,32 @@ const AddSongPage = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             
+            {/* --- UPDATED: CHINESE TITLE FIRST (PRIMARY) --- */}
             <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Song Title (English/Pinyin) <span className="text-primary">*</span></label>
-                <input name="title" value={formData.title} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" required />
+                <label className="text-slate-400 text-sm">Song Title (Chinese) <span className="text-primary">*</span></label>
+                <input 
+                    name="title_chinese" 
+                    value={formData.title_chinese} 
+                    onChange={handleChange} 
+                    placeholder="e.g. 有点甜" 
+                    className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" 
+                    required // <--- Now Required
+                />
             </div>
+            {/* --------------------------------------------- */}
+
+            {/* --- UPDATED: ENGLISH TITLE SECOND (OPTIONAL) --- */}
             <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Song Title (Chinese) <span className="text-transparent select-none">*</span></label>
-                <input name="title_chinese" value={formData.title_chinese} onChange={handleChange} placeholder="e.g. 让风告诉你" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+                <label className="text-slate-400 text-sm">Song Title (English) <span className="text-slate-600 text-xs ml-2">(Optional)</span></label>
+                <input 
+                    name="title_english" 
+                    value={formData.title_english} 
+                    onChange={handleChange} 
+                    placeholder="e.g. A Little Sweet"
+                    className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" 
+                />
             </div>
+            {/* --------------------------------------------- */}
 
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (English) <span className="text-primary">*</span></label>
