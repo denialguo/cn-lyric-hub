@@ -1,35 +1,48 @@
-import { createClient } from '@supabase/supabase-client';
-import { SitemapStream, streamToPromise } from 'sitemap';
-import { createWriteStream } from 'fs';
-import { resolve } from 'path';
+const { createClient } = require('@supabase/supabase-client');
+const { SitemapStream, streamToPromise } = require('sitemap');
+const { createWriteStream } = require('fs');
+const { resolve } = require('path');
 
-// Use your actual Supabase credentials here
-const supabase = createClient('https://gxxxgycqqoivkqcpwxvd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4eHhneWNxcW9pdmtxY3B3eHZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5MzA1NjUsImV4cCI6MjA4MTUwNjU2NX0.Xqi9Pd233PxDfKWhPqfeagIJnyT07pf4C7TafWtMfTU');
+// Use process.env for Vercel compatibility
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Missing Supabase environment variables!");
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function generate() {
-  const { data: songs } = await supabase.from('songs').select('slug');
+  try {
+    const { data: songs, error } = await supabase.from('songs').select('slug');
+    if (error) throw error;
 
-  const smStream = new SitemapStream({ hostname: 'https://cnlyrichub.vercel.app' });
-  
-  // Add static pages
-  smStream.write({ url: '/', changefreq: 'daily', priority: 1.0 });
-  smStream.write({ url: '/add', changefreq: 'monthly', priority: 0.5 });
+    const smStream = new SitemapStream({ hostname: 'https://cnlyrichub.vercel.app' });
+    
+    smStream.write({ url: '/', changefreq: 'daily', priority: 1.0 });
 
-  // Add dynamic song pages
-  songs.forEach((song) => {
-    smStream.write({
-      url: `/song/${song.slug}`,
-      changefreq: 'weekly',
-      priority: 0.8,
-    });
-  });
+    if (songs) {
+      songs.forEach((song) => {
+        smStream.write({
+          url: `/song/${song.slug}`,
+          changefreq: 'weekly',
+          priority: 0.8,
+        });
+      });
+    }
 
-  smStream.end();
+    smStream.end();
 
-  const sitemapOutput = await streamToPromise(smStream);
-  createWriteStream(resolve('./public/sitemap.xml')).write(sitemapOutput);
-  
-  console.log('Sitemap generated successfully!');
+    const sitemapOutput = await streamToPromise(smStream);
+    createWriteStream(resolve(__dirname, '../public/sitemap.xml')).write(sitemapOutput);
+    
+    console.log('Sitemap generated successfully!');
+  } catch (err) {
+    console.error('Sitemap generation failed:', err);
+    process.exit(1);
+  }
 }
 
 generate();

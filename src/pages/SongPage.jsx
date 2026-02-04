@@ -4,6 +4,7 @@ import { ArrowLeft, Music, Youtube, Info, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
 import { useTheme } from '../context/ThemeContext'; 
+import { Helmet } from 'react-helmet-async'; // <--- 1. IMPORT HELMET
 
 const SongPage = () => {
   const { slug } = useParams();
@@ -54,9 +55,32 @@ const SongPage = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
   };
 
+  // Determine display title for SEO
+  const displayTitle = scriptMode === 'traditional' ? tify(song.title) : sify(song.title);
+  const displayArtist = scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese);
+
   return (
     // WRAPPER: Default Dark (slate-950). CSS handles the flip to White.
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20 transition-colors duration-500">
+      
+      {/* --- 2. DYNAMIC SEO TAGS --- */}
+      <Helmet>
+        <title>{displayTitle} - {song.artist} | CN Lyric Hub</title>
+        <meta name="description" content={`Lyrics, Pinyin, and English translation for ${song.title} by ${song.artist}.`} />
+        
+        {/* Open Graph / Facebook / Discord */}
+        <meta property="og:type" content="music.song" />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:title" content={`${displayTitle} - ${song.artist}`} />
+        <meta property="og:description" content={`Learn the lyrics to ${song.title} with Pinyin and English translations.`} />
+        <meta property="og:image" content={song.cover_url} />
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${displayTitle} - ${song.artist}`} />
+        <meta name="twitter:description" content={`Learn the lyrics to ${song.title} with Pinyin and English translations.`} />
+        <meta name="twitter:image" content={song.cover_url} />
+      </Helmet>
 
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
@@ -76,12 +100,12 @@ const SongPage = () => {
             </button>
             
             <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">
-                {scriptMode === 'traditional' ? tify(song.title) : sify(song.title)}
+                {displayTitle}
             </h1>
             
             <p className="text-2xl text-primary font-medium">{song.artist} 
                 <span className="text-slate-300 text-lg ml-2">
-                    {scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese)}
+                    {displayArtist}
                 </span>
             </p>
           </div>
