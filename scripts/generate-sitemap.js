@@ -1,14 +1,15 @@
-const { createClient } = require('@supabase/supabase-client');
-const { SitemapStream, streamToPromise } = require('sitemap');
-const { createWriteStream } = require('fs');
-const { resolve } = require('path');
+import { createClient } from '@supabase/supabase-client';
+import { SitemapStream, streamToPromise } from 'sitemap';
+import { createWriteStream } from 'fs';
+import { resolve } from 'path';
+import 'dotenv/config'; // Loads .env variables locally
 
-// Use process.env for Vercel compatibility
+// 1. Get Credentials
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing Supabase environment variables!");
+  console.error("❌ Missing Supabase environment variables!");
   process.exit(1);
 }
 
@@ -16,11 +17,16 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function generate() {
   try {
+    console.log("Fetching songs for sitemap...");
+    
+    // 2. Fetch Slugs
     const { data: songs, error } = await supabase.from('songs').select('slug');
     if (error) throw error;
 
+    // 3. Start Stream
     const smStream = new SitemapStream({ hostname: 'https://cnlyrichub.vercel.app' });
     
+    // 4. Add Pages
     smStream.write({ url: '/', changefreq: 'daily', priority: 1.0 });
 
     if (songs) {
@@ -35,12 +41,16 @@ async function generate() {
 
     smStream.end();
 
+    // 5. Save to File
+    // We use process.cwd() to ensure we find the public folder correctly from the project root
     const sitemapOutput = await streamToPromise(smStream);
-    createWriteStream(resolve(__dirname, '../public/sitemap.xml')).write(sitemapOutput);
+    const outputPath = resolve(process.cwd(), 'public/sitemap.xml');
     
-    console.log('Sitemap generated successfully!');
+    createWriteStream(outputPath).write(sitemapOutput);
+    
+    console.log(`✅ Sitemap generated successfully at ${outputPath}`);
   } catch (err) {
-    console.error('Sitemap generation failed:', err);
+    console.error('❌ Sitemap generation failed:', err);
     process.exit(1);
   }
 }
