@@ -1,61 +1,65 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Play, Heart } from 'lucide-react';
 
-// This component receives a single "song" prop
 const SongCard = ({ song }) => {
-  // Safety check: If no data passed, render nothing
-  if (!song) return null;
+  const navigate = useNavigate();
+
+  const mainTitle = song.display_title || song.title_chinese || song.title;
+  const rawSubTitle = song.title; 
+  const showSubTitle = rawSubTitle && rawSubTitle !== mainTitle;
 
   return (
-    <Link 
-      to={`/song/${song.slug}`} 
-      className="group bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden hover:bg-slate-800 transition-all hover:scale-[1.02] hover:shadow-2xl flex flex-col h-full"
+    <div 
+      onClick={() => navigate(`/song/${song.slug}`)}
+      className="group relative bg-slate-900 rounded-2xl overflow-hidden hover:-translate-y-2 transition-all duration-300 border border-slate-800 hover:shadow-2xl hover:shadow-primary/20 cursor-pointer"
     >
-      {/* IMAGE */}
-      <div className="relative aspect-square overflow-hidden bg-slate-900">
+      <div className="aspect-square overflow-hidden relative">
         <img 
-          src={song.cover_url || "/default-cover.png"} 
-          alt={song.title} 
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          loading="lazy"
+          src={song.cover_url} 
+          alt={mainTitle} 
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="bg-primary text-white p-3 rounded-full shadow-lg transform scale-50 group-hover:scale-100 transition-transform">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-[2px]">
+          <button className="bg-primary text-white p-3 rounded-full transform scale-50 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-primary/90">
             <Play fill="currentColor" className="w-6 h-6 ml-1" />
-          </div>
+          </button>
         </div>
+        {song.tags && song.tags.length > 0 && (
+          <div className="absolute bottom-3 right-3">
+             <span className="bg-black/60 backdrop-blur-md text-slate-200 text-[10px] px-2 py-1 rounded-full border border-white/10 shadow-sm">
+               #{song.tags[0]}
+             </span>
+          </div>
+        )}
       </div>
 
-      {/* TEXT INFO */}
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="text-white font-bold text-lg truncate leading-tight">
-          {song.title}
+      <div className="p-5">
+        {/* MAIN TITLE: Changed to text-primary (Colored) */}
+        <h3 className="text-primary font-bold text-lg truncate mb-1 leading-tight">
+          {mainTitle}
         </h3>
-        {song.title_chinese && (
-          <p className="text-primary text-sm font-medium truncate mt-0.5">
-            {song.title_chinese}
-          </p>
+        
+        {/* SUBTITLE: Changed to text-slate-400 (Neutral/Not Colored) */}
+        {showSubTitle ? (
+           <p className="text-slate-400 text-sm font-medium truncate mb-2">
+             {rawSubTitle}
+           </p>
+        ) : (
+           <div className="h-2"></div>
         )}
-        <p className="text-slate-400 text-sm truncate mt-1">
+
+        <p className="text-slate-500 text-xs truncate font-medium flex items-center gap-1">
           {song.artist}
         </p>
-        
-        {/* Footer */}
-        <div className="mt-auto pt-4 flex items-center justify-between">
-           <div className="flex items-center text-slate-500 text-xs">
-             <Heart className="w-4 h-4 mr-1" /> {song.likes || 0}
-           </div>
-           <div className="flex gap-2">
-             {Array.isArray(song.tags) && song.tags.slice(0, 2).map(tag => (
-               <span key={tag} className="text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded-full border border-slate-700">
-                 #{tag}
-               </span>
-             ))}
+
+        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between text-slate-500 text-xs">
+           <div className="flex items-center gap-1 hover:text-red-400 transition-colors">
+              <Heart className="w-3.5 h-3.5" /> 0
            </div>
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
 

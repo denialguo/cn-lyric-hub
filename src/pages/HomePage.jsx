@@ -20,6 +20,7 @@ const HomePage = () => {
 
   useEffect(() => {
     const fetchSongs = async () => {
+      // Fetch all columns (title_chinese, title_english, etc.)
       const { data } = await supabase
         .from('songs')
         .select('*')
@@ -41,11 +42,11 @@ const HomePage = () => {
     window.location.reload(); 
   };
 
-  // --- FIX 1: UPDATED FILTER LOGIC ---
+  // --- FILTER LOGIC ---
   const filteredSongs = songs.filter(song => {
     const query = searchQuery.toLowerCase();
     
-    // Safely get titles (fallback to empty string to prevent crash)
+    // Check all fields for the search query
     const cnTitle = song.title_chinese || "";
     const enTitle = song.title_english || "";
     const artist = song.artist || "";
@@ -55,8 +56,7 @@ const HomePage = () => {
       cnTitle.toLowerCase().includes(query) ||
       enTitle.toLowerCase().includes(query) ||
       artist.toLowerCase().includes(query) ||
-      cnArtist.includes(query) ||
-      (song.lyrics_chinese && song.lyrics_chinese.includes(query));
+      cnArtist.includes(query);
 
     let matchesTab = true;
     if (activeTab === 'new') matchesTab = true; 
@@ -81,7 +81,7 @@ const HomePage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
             <input 
               type="text" 
-              placeholder="Search songs, artists, lyrics..." 
+              placeholder="Search songs, artists..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm"
@@ -217,20 +217,17 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => {
-                // --- FIX 2: HANDLE NEW DATA STRUCTURE ---
-                const rawTitle = song.title_chinese || ""; 
+                // 1. Get the Chinese Title (Primary)
+                const rawChinese = song.title_chinese || "";
                 
-                const displayTitle = scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle);
+                // 2. Convert it based on toggle
+                const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
                 
-                const displayArtist = song.artist_chinese 
-                    ? (scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese))
-                    : song.artist;
-
-                // Pass the formatted title to the card so it doesn't have to guess
+                // 3. Prepare Object for Card
+                // We pass 'display_title' for the main text, and keep song.title_english for the subtitle
                 const songForCard = {
                     ...song,
-                    title: displayTitle,
-                    artist: displayArtist
+                    display_title: displayChinese,
                 };
 
                 return (
