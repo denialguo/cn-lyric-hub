@@ -101,9 +101,9 @@ const AdminDashboard = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-bold text-white">{item.title}</h3>
-                        {item.title_chinese && (
+                        {item.title_zh && (
                             <span className="text-sm text-primary border border-primary/20 px-2 py-0.5 rounded bg-primary/10">
-                            {item.title_chinese}
+                            {item.title_zh}
                             </span>
                         )}
                       </div>

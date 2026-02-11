@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { User, Save, ArrowLeft, Camera, Music, Clock, ExternalLink, AtSign } from 'lucide-react';
+import { User, Save, ArrowLeft, Camera, Music, Clock, AtSign, AlertCircle, CheckCircle, XCircle } from 'lucide-react'; // Removed ExternalLink
 
 const ProfilePage = () => {
   const { user } = useAuth();
@@ -11,13 +11,12 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   
-  // Profile State
+  // Profile State (Website removed)
   const [profile, setProfile] = useState({
-    username: '',       // <--- Logic exists
+    username: '',       
     display_name: '',
     avatar_url: '',
-    bio: '',
-    website: ''
+    bio: ''
   });
 
   const [mySongs, setMySongs] = useState([]);
@@ -37,11 +36,10 @@ const ProfilePage = () => {
         
         if (profileData) {
             setProfile({
-                username: profileData.username || '',         // <--- Load it
+                username: profileData.username || '',        
                 display_name: profileData.display_name || '',
                 avatar_url: profileData.avatar_url || '',
-                bio: profileData.bio || '',
-                website: profileData.website || ''
+                bio: profileData.bio || ''
             });
         }
 
@@ -55,7 +53,8 @@ const ProfilePage = () => {
         const { data: subsData } = await supabase
             .from('song_submissions')
             .select('*')
-            .eq('user_id', user.id); 
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }); 
         if (subsData) setMySubmissions(subsData);
 
       } catch (error) {
@@ -72,7 +71,6 @@ const ProfilePage = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Basic Validation: Usernames shouldn't have spaces
     if (profile.username.includes(' ')) {
         alert("Usernames cannot contain spaces. Use underscores (_) instead.");
         setLoading(false);
@@ -81,11 +79,10 @@ const ProfilePage = () => {
 
     const updates = {
       id: user.id,
-      username: profile.username.toLowerCase(), // Force lowercase
+      username: profile.username.toLowerCase(), 
       display_name: profile.display_name,
       avatar_url: profile.avatar_url,
       bio: profile.bio,
-      website: profile.website,
       updated_at: new Date(),
     };
 
@@ -140,7 +137,7 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* --- NEW SECTION: USERNAME INPUT --- */}
+                        {/* Username */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Username (Unique)</label>
                             <div className="relative">
@@ -157,8 +154,8 @@ const ProfilePage = () => {
                             </div>
                             <p className="text-[10px] text-slate-600 mt-1 ml-1">No spaces. Used for your profile URL.</p>
                         </div>
-                        {/* ----------------------------------- */}
 
+                        {/* Display Name */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Display Name</label>
                             <input 
@@ -170,6 +167,7 @@ const ProfilePage = () => {
                             />
                         </div>
 
+                        {/* Avatar URL */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avatar URL</label>
                             <div className="relative">
@@ -184,6 +182,7 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
+                        {/* Bio */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bio</label>
                             <textarea 
@@ -195,19 +194,7 @@ const ProfilePage = () => {
                             />
                         </div>
 
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Website</label>
-                            <div className="relative">
-                                <input 
-                                    type="text" 
-                                    value={profile.website}
-                                    onChange={e => setProfile({...profile, website: e.target.value})}
-                                    placeholder="Your personal site..."
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 pl-10 text-white mt-1 focus:border-primary outline-none transition-colors text-sm"
-                                />
-                                <ExternalLink className="absolute left-3 top-[18px] text-slate-500 w-4 h-4" />
-                            </div>
-                        </div>
+                        {/* Website Removed Here */}
 
                         <button 
                             type="submit" 
@@ -241,10 +228,10 @@ const ProfilePage = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {mySongs.map(song => (
                                 <div key={song.id} onClick={() => navigate(`/song/${song.slug}`)} className="flex items-center gap-4 p-3 bg-slate-950/50 rounded-xl border border-slate-800 hover:border-slate-600 cursor-pointer transition-colors group">
-                                    <img src={song.cover_url || "/default-cover.png"} className="w-12 h-12 rounded-lg object-cover" alt={song.title} />
+                                    <img src={song.cover_url || "/default-cover.png"} className="w-12 h-12 rounded-lg object-cover" alt={song.title_zh} />
                                     <div className="overflow-hidden">
-                                        <h4 className="text-white font-bold truncate group-hover:text-primary transition-colors">{song.title}</h4>
-                                        <p className="text-xs text-slate-500 truncate">{song.artist}</p>
+                                        <h4 className="text-white font-bold truncate group-hover:text-primary transition-colors">{song.title_zh || song.title_en}</h4>
+                                        <p className="text-xs text-slate-500 truncate">{song.artist_en}</p>
                                     </div>
                                 </div>
                             ))}
@@ -252,17 +239,17 @@ const ProfilePage = () => {
                     )}
                 </div>
 
-                {/* 2. MY PENDING SUBMISSIONS */}
+                {/* 2. MY SUBMISSIONS (Pending/Rejected/Approved) */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="bg-yellow-500/10 p-2 rounded-lg text-yellow-500">
                             <Clock size={20} />
                         </div>
-                        <h2 className="text-xl font-bold text-white">Pending Approval <span className="text-slate-500 text-sm ml-2">({mySubmissions.length})</span></h2>
+                        <h2 className="text-xl font-bold text-white">Submission Status <span className="text-slate-500 text-sm ml-2">({mySubmissions.length})</span></h2>
                     </div>
 
                     {mySubmissions.length === 0 ? (
-                        <p className="text-slate-500 text-sm italic">No pending submissions.</p>
+                        <p className="text-slate-500 text-sm italic">No submissions history.</p>
                     ) : (
                         <div className="space-y-3">
                             {mySubmissions.map(sub => (
@@ -270,8 +257,25 @@ const ProfilePage = () => {
                                     <div className="flex items-center gap-3">
                                         <img src={sub.cover_url} className="w-10 h-10 rounded-lg object-cover opacity-50" />
                                         <div>
-                                            <h4 className="text-slate-300 font-medium text-sm">{sub.title}</h4>
-                                            <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-0.5 rounded">In Review</span>
+                                            <h4 className="text-slate-300 font-medium text-sm">{sub.title_chinese || sub.title}</h4>
+                                            
+                                            <div className="mt-1">
+                                                {sub.status === 'pending' && (
+                                                    <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-0.5 rounded flex items-center gap-1 w-fit">
+                                                        <AlertCircle size={10} /> Pending
+                                                    </span>
+                                                )}
+                                                {sub.status === 'rejected' && (
+                                                    <span className="text-[10px] bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-0.5 rounded flex items-center gap-1 w-fit">
+                                                        <XCircle size={10} /> Rejected
+                                                    </span>
+                                                )}
+                                                {sub.status === 'approved' && (
+                                                    <span className="text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-2 py-0.5 rounded flex items-center gap-1 w-fit">
+                                                        <CheckCircle size={10} /> Live
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     <span className="text-xs text-slate-600">{new Date(sub.created_at).toLocaleDateString()}</span>

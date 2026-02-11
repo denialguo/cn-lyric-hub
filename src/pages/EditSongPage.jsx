@@ -46,8 +46,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
   const [artistChineseList, setArtistChineseList] = useState([]); 
 
   const [formData, setFormData] = useState({
-    title: '', title_chinese: '', cover_url: '', youtube_url: '', slug: '', 
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '' 
+    title_en: '', title_zh: '', cover_url: '', youtube_url: '', slug: '',
+    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: ''
   });
 
   useEffect(() => {
@@ -61,8 +61,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
       } else {
         setFormData(data);
         if (data.tags) setTags(data.tags);
-        if (data.artist) setArtistList(Array.isArray(data.artist) ? data.artist : data.artist.split(', '));
-        if (data.artist_chinese) setArtistChineseList(Array.isArray(data.artist_chinese) ? data.artist_chinese : data.artist_chinese.split(', '));
+        if (data.artist_en) setArtistEnList(Array.isArray(data.artist_en) ? data.artist_en : data.artist_en.split(', '));
+        if (data.artist_zh) setArtistZhList(Array.isArray(data.artist_zh) ? data.artist_zh : data.artist_zh.split(', '));
         setFetching(false);
       }
     };
@@ -82,19 +82,19 @@ const EditSongPage = ({ isReviewMode = false }) => {
     e.preventDefault();
     setLoading(true);
     
-    const finalArtistString = artistList.join(', ');
-    const finalArtistChineseString = artistChineseList.join(', ');
-    
+    const finalArtistString = artistEnList.join(', ');
+    const finalArtistChineseString = artistZhList.join(', ');
+
     let finalSlug = formData.slug;
     if (!finalSlug) {
-        const pinyinTitle = pinyin(formData.title, { toneType: 'none', type: 'array' }).join(' ');
+        const pinyinTitle = pinyin(formData.title_en, { toneType: 'none', type: 'array' }).join(' ');
         finalSlug = pinyinTitle.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
     }
 
-    const basePayload = { 
-        ...formData, 
-        artist: finalArtistString,
-        artist_chinese: finalArtistChineseString,
+    const basePayload = {
+        ...formData,
+        artist_en: finalArtistString,
+        artist_zh: finalArtistChineseString,
         tags: tags,
         slug: finalSlug
     };
@@ -166,19 +166,19 @@ const EditSongPage = ({ isReviewMode = false }) => {
             {/* INPUTS (Identical to before) */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Title (English) <span className="text-primary">*</span></label>
-                <input name="title" value={formData.title} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+                <input name="title_en" value={formData.title_en} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Title (Chinese)</label>
-                <input name="title_chinese" value={formData.title_chinese || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+                <input name="title_zh" value={formData.title_zh || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (English) <span className="text-primary">*</span></label>
-                <TagInput tags={artistList} setTags={setArtistList} placeholder="Type & Enter..." />
+                <TagInput tags={artistEnList} setTags={setArtistEnList} placeholder="Type & Enter..." />
             </div>
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (Chinese)</label>
-                <TagInput tags={artistChineseList} setTags={setArtistChineseList} placeholder="Type & Enter..." />
+                <TagInput tags={artistZhList} setTags={setArtistZhList} placeholder="Type & Enter..." />
             </div>
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Tags</label>

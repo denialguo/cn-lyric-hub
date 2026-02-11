@@ -5,9 +5,20 @@ import { Play, Heart } from 'lucide-react';
 const SongCard = ({ song }) => {
   const navigate = useNavigate();
 
-  const mainTitle = song.display_title || song.title_chinese || song.title;
-  const rawSubTitle = song.title; 
-  const showSubTitle = rawSubTitle && rawSubTitle !== mainTitle;
+  // 1. Main Title (Chinese)
+  // We prefer 'display_title' (if passed from Home with conversion), otherwise DB 'title_zh'.
+  const mainTitle = song.display_title || song.title_zh || song.title_en;
+
+  // 2. Subtitle (English)
+  // This is now explicitly 'title_en'
+  const subTitle = song.title_en; 
+  
+  // Logic: Show subtitle if it exists AND is different from the main title
+  const showSubTitle = subTitle && subTitle !== mainTitle;
+
+  // 3. Artist
+  // Prefer English artist name, fallback to Chinese if English is missing
+  const artistName = song.artist_en || song.artist_zh;
 
   return (
     <div 
@@ -35,22 +46,22 @@ const SongCard = ({ song }) => {
       </div>
 
       <div className="p-5">
-        {/* MAIN TITLE: Changed to text-primary (Colored) */}
+        {/* MAIN TITLE: Primary Color */}
         <h3 className="text-primary font-bold text-lg truncate mb-1 leading-tight">
           {mainTitle}
         </h3>
         
-        {/* SUBTITLE: Changed to text-slate-400 (Neutral/Not Colored) */}
+        {/* SUBTITLE: Neutral Color */}
         {showSubTitle ? (
            <p className="text-slate-400 text-sm font-medium truncate mb-2">
-             {rawSubTitle}
+             {subTitle}
            </p>
         ) : (
            <div className="h-2"></div>
         )}
 
         <p className="text-slate-500 text-xs truncate font-medium flex items-center gap-1">
-          {song.artist}
+          {artistName}
         </p>
 
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between text-slate-500 text-xs">

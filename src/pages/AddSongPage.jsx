@@ -53,26 +53,26 @@ const AddSongPage = () => {
   
   // --- STATE ---
   const [tags, setTags] = useState([]);
-  const [artistList, setArtistList] = useState([]);         
-  const [artistChineseList, setArtistChineseList] = useState([]); 
+  const [artistEnList, setArtistEnList] = useState([]);
+  const [artistZhList, setArtistZhList] = useState([]);
 
   const [formData, setFormData] = useState({
-    title_chinese: '', // <--- NEW PRIMARY
-    title_english: '', // <--- NEW SECONDARY
-    cover_url: '', 
-    youtube_url: '', 
-    lyrics_chinese: '', 
-    lyrics_pinyin: '', 
+    title_zh: '', // Primary (Chinese)
+    title_en: '',         // Secondary (English) - Maps to DB 'title_en'
+    cover_url: '',
+    youtube_url: '',
+    lyrics_chinese: '',
+    lyrics_pinyin: '',
     lyrics_english: '',
-    credits: '' 
+    credits: ''
   });
 
   // --- LOAD DRAFT ---
   useEffect(() => {
     const savedData = localStorage.getItem('song_draft_form');
     const savedTags = localStorage.getItem('song_draft_tags');
-    const savedArtists = localStorage.getItem('song_draft_artists');       
-    const savedArtistsCn = localStorage.getItem('song_draft_artists_cn'); 
+    const savedArtists = localStorage.getItem('song_draft_artists');
+    const savedArtistsCn = localStorage.getItem('song_draft_artists_cn');
 
     if (savedData) {
         setFormData(JSON.parse(savedData));
@@ -80,21 +80,21 @@ const AddSongPage = () => {
         setTimeout(() => setDraftLoaded(false), 3000);
     }
     if (savedTags) setTags(JSON.parse(savedTags));
-    if (savedArtists) setArtistList(JSON.parse(savedArtists));
-    if (savedArtistsCn) setArtistChineseList(JSON.parse(savedArtistsCn));
+    if (savedArtists) setArtistEnList(JSON.parse(savedArtists));
+    if (savedArtistsCn) setArtistZhList(JSON.parse(savedArtistsCn));
   }, []);
 
   // --- SAVE DRAFT ---
   useEffect(() => {
-    const isNotEmpty = Object.values(formData).some(x => x !== '') || tags.length > 0 || artistList.length > 0;
-    
+    const isNotEmpty = Object.values(formData).some(x => x !== '') || tags.length > 0 || artistEnList.length > 0;
+
     if (isNotEmpty) {
         localStorage.setItem('song_draft_form', JSON.stringify(formData));
         localStorage.setItem('song_draft_tags', JSON.stringify(tags));
-        localStorage.setItem('song_draft_artists', JSON.stringify(artistList));
-        localStorage.setItem('song_draft_artists_cn', JSON.stringify(artistChineseList));
+        localStorage.setItem('song_draft_artists', JSON.stringify(artistEnList));
+        localStorage.setItem('song_draft_artists_cn', JSON.stringify(artistZhList));
     }
-  }, [formData, tags, artistList, artistChineseList]);
+  }, [formData, tags, artistEnList, artistZhList]);
 
   const clearDraft = () => {
     if (window.confirm("Are you sure? This will delete your current draft.")) {
@@ -108,49 +108,70 @@ const AddSongPage = () => {
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+  // --- UPDATED AUTO-FILL (With Space/Punctuation Fixes) ---
   const handleAutoPinyin = () => {
     if (!formData.lyrics_chinese) return;
+    
     const lines = formData.lyrics_chinese.split('\n');
-    const pinyinLines = lines.map(line => pinyin(line, { toneType: 'symbol' }));
+    
+    const pinyinLines = lines.map(line => {
+      // 1. Clean up "Bad" characters
+      const cleanLine = line
+        .replace(/，/g, ',')       // Chinese Comma -> English
+        .replace(/。/g, '.')       // Chinese Period -> English
+        .replace(/！/g, '!')       // Chinese Exclamation -> English
+        .replace(/？/g, '?')       // Chinese Question -> English
+        .replace(/\u3000/g, ' ')   // Chinese Full-width Space -> Normal Space
+        .replace(/\s+/g, ' ')      // Collapse multiple spaces
+        .trim();
+
+      // 2. Generate Pinyin
+      return pinyin(cleanLine, { 
+          toneType: 'symbol',
+          nonZh: 'spaced' 
+      });
+    });
+
     setFormData(prev => ({ ...prev, lyrics_pinyin: pinyinLines.join('\n') }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (loading) return; 
-    
-    if (artistList.length === 0) {
+    if (loading) return;
+
+    if (artistEnList.length === 0) {
         alert("Please add at least one artist (English).");
         return;
     }
 
     setLoading(true);
-    
-    const finalArtistString = artistList.join(', ');
-    const finalArtistChineseString = artistChineseList.join(', ');
 
-    // --- FIX: GENERATE SLUG FROM CHINESE TITLE ONLY ---
-    // Uses 'nonZh: consecutive' so any numbers/English in the Chinese title stay grouped
-    const pinyinTitle = pinyin(formData.title_chinese, { 
-        toneType: 'none', 
-        nonZh: 'consecutive', 
-        separator: '-' 
+    const finalArtistString = artistEnList.join(', ');
+    const finalArtistChineseString = artistZhList.join(', ');
+
+    // --- SLUG GENERATION (From Chinese Title) ---
+    const pinyinTitle = pinyin(formData.title_zh, {
+        toneType: 'none',
+        nonZh: 'consecutive',
+        separator: '-'
     });
-    
+
     const generatedSlug = pinyinTitle
       .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '') // Remove special chars
-      .replace(/-+/g, '-')        // Collapse dashes
-      .replace(/^-|-$/g, '');     // Trim dashes
-    // --------------------------------------------------
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    // -------------------------------------------
 
     const songData = {
-        ...formData, 
-        artist: finalArtistString,            
-        artist_chinese: finalArtistChineseString, 
+        ...formData,
+        // Explicitly map inputs to DB columns
+        title_en: formData.title_en,                 // English Title -> DB 'title_en'
+        title_zh: formData.title_zh, // Chinese Title -> DB 'title_zh'
+        artist_en: finalArtistString,
+        artist_zh: finalArtistChineseString,
         tags: tags,
-        // If User exists, add slug + name. If Guest, leave blank.
-        ...(user ? { slug: generatedSlug, submitted_by: user.user_metadata?.username || user.email } : {}) 
+        ...(user ? { slug: generatedSlug, submitted_by: user.user_metadata?.username || user.email } : {})
     };
 
     let error;
@@ -159,13 +180,10 @@ const AddSongPage = () => {
         // --- LOGGED IN ---
         const { data: profile } = await supabase
             .from('profiles')
-            .select('display_name, username') // Fetch username too just in case
+            .select('username')
             .eq('id', user.id)
             .single();
 
-        // Prefer Username for the link, Display Name for the text (handled in UI)
-        // Actually, for DB storage, we just store the identifier. 
-        // Let's stick to your existing pattern: Profile Name OR Email prefix.
         const submitterName = profile?.username || user.email.split('@')[0];
 
         const result = await supabase.from('songs').insert([{
@@ -240,7 +258,7 @@ const AddSongPage = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             
-            {/* --- UPDATED: CHINESE TITLE FIRST (PRIMARY) --- */}
+            {/* CHINESE TITLE (PRIMARY) */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Song Title (Chinese) <span className="text-primary">*</span></label>
                 <input 
@@ -249,23 +267,21 @@ const AddSongPage = () => {
                     onChange={handleChange} 
                     placeholder="e.g. 有点甜" 
                     className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" 
-                    required // <--- Now Required
+                    required 
                 />
             </div>
-            {/* --------------------------------------------- */}
 
-            {/* --- UPDATED: ENGLISH TITLE SECOND (OPTIONAL) --- */}
+            {/* ENGLISH TITLE (SECONDARY) - Mapped to 'title' */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Song Title (English) <span className="text-slate-600 text-xs ml-2">(Optional)</span></label>
                 <input 
-                    name="title_english" 
-                    value={formData.title_english} 
+                    name="title" 
+                    value={formData.title} 
                     onChange={handleChange} 
                     placeholder="e.g. A Little Sweet"
                     className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" 
                 />
             </div>
-            {/* --------------------------------------------- */}
 
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (English) <span className="text-primary">*</span></label>

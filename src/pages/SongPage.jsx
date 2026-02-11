@@ -65,19 +65,19 @@ const SongPage = () => {
       
       {/* --- SEO TAGS UPDATED --- */}
       <Helmet>
-        <title>{displayTitle} - {song.artist} | CN Lyric Hub</title>
-        <meta name="description" content={`Lyrics, Pinyin, and English translation for ${displayTitle} by ${song.artist}.`} />
-        
+        <title>{displayTitle} - {song.artist_en} | CN Lyric Hub</title>
+        <meta name="description" content={`Lyrics, Pinyin, and English translation for ${displayTitle} by ${song.artist_en}.`} />
+
         {/* Open Graph */}
         <meta property="og:type" content="music.song" />
         <meta property="og:url" content={window.location.href} />
-        <meta property="og:title" content={`${displayTitle} - ${song.artist}`} />
+        <meta property="og:title" content={`${displayTitle} - ${song.artist_en}`} />
         <meta property="og:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
         <meta property="og:image" content={song.cover_url} />
 
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={`${displayTitle} - ${song.artist}`} />
+        <meta name="twitter:title" content={`${displayTitle} - ${song.artist_en}`} />
         <meta name="twitter:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
         <meta name="twitter:image" content={song.cover_url} />
       </Helmet>
@@ -105,13 +105,13 @@ const SongPage = () => {
             </h1>
             
             {/* Secondary English Title (If exists) */}
-            {song.title_english && (
+            {song.title_en && (
                 <p className="text-2xl text-slate-400 font-medium mb-4 italic">
-                    {song.title_english}
+                    {song.title_en}
                 </p>
             )}
 
-            <p className="text-2xl text-primary font-medium">{song.artist} 
+            <p className="text-2xl text-primary font-medium">{song.artist_en}
                 <span className="text-slate-300 text-lg ml-2">
                     {displayArtist}
                 </span>

@@ -20,7 +20,6 @@ const HomePage = () => {
 
   useEffect(() => {
     const fetchSongs = async () => {
-      // Fetch all columns (title_chinese, title_english, etc.)
       const { data } = await supabase
         .from('songs')
         .select('*')
@@ -46,11 +45,10 @@ const HomePage = () => {
   const filteredSongs = songs.filter(song => {
     const query = searchQuery.toLowerCase();
     
-    // Check all fields for the search query
-    const cnTitle = song.title_chinese || "";
-    const enTitle = song.title_english || "";
-    const artist = song.artist || "";
-    const cnArtist = song.artist_chinese || "";
+    const cnTitle = song.title_zh || "";
+    const enTitle = song.title_en || "";
+    const artist = song.artist_en || "";
+    const cnArtist = song.artist_zh || "";
 
     const matchesSearch = 
       cnTitle.toLowerCase().includes(query) ||
@@ -65,6 +63,18 @@ const HomePage = () => {
 
     return matchesSearch && matchesTab;
   });
+
+  // --- HELPER: GET DISPLAY NAME ---
+  const getDisplayName = () => {
+    if (!user) return 'Guest';
+    // 1. Try Profile Username
+    if (profile?.username) return profile.username;
+    // 2. Try Profile Display Name
+    if (profile?.display_name) return profile.display_name;
+    // 3. Fallback to Email (before the @)
+    if (user.email) return user.email.split('@')[0];
+    return 'User';
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500 relative">
@@ -111,10 +121,18 @@ const HomePage = () => {
 
                     {isMenuOpen && (
                         <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                            <div className="px-4 py-2 border-b border-slate-800/50">
-                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account</p>
-                                 <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                            {/* --- UPDATED ACCOUNT HEADER --- */}
+                            <div className="px-4 py-3 border-b border-slate-800/50">
+                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Signed in as</p>
+                                 <p className="text-sm font-bold text-white truncate">
+                                    {getDisplayName()}
+                                 </p>
+                                 {/* Optional: Show email tiny underneath */}
+                                 <p className="text-[10px] text-slate-500 truncate opacity-60">
+                                    {user.email}
+                                 </p>
                             </div>
+                            {/* ----------------------------- */}
 
                             {profile?.role === 'admin' && (
                                 <button 
@@ -217,14 +235,10 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => {
-                // 1. Get the Chinese Title (Primary)
                 const rawChinese = song.title_chinese || "";
                 
-                // 2. Convert it based on toggle
                 const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
                 
-                // 3. Prepare Object for Card
-                // We pass 'display_title' for the main text, and keep song.title_english for the subtitle
                 const songForCard = {
                     ...song,
                     display_title: displayChinese,
@@ -241,4 +255,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage;
+export default HomePage;  
