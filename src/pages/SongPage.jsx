@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
 import { useTheme } from '../context/ThemeContext'; 
 import { Helmet } from 'react-helmet-async'; 
+import CommentSection from '../components/CommentSection';
 
 const SongPage = () => {
   const { slug } = useParams();
@@ -56,9 +57,9 @@ const SongPage = () => {
   };
 
   // --- FIX 1: USE NEW COLUMN NAMES ---
-  const rawTitle = song.title_chinese || "";
+  const rawTitle = song.title_zh || ""; // Changed from title_chinese
   const displayTitle = scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle);
-  const displayArtist = scriptMode === 'traditional' ? tify(song.artist_chinese) : sify(song.artist_chinese);
+  const displayArtist = scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh); // Changed from artist_chinese
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20 transition-colors duration-500">
@@ -98,8 +99,7 @@ const SongPage = () => {
               <ArrowLeft className="w-4 h-4 mr-2" /> Back to Library
             </button>
             
-            {/* --- FIX 2: TITLE DISPLAY LOGIC --- */}
-            {/* Primary Chinese Title */}
+            {/* TITLE DISPLAY LOGIC */}
             <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">
                 {displayTitle}
             </h1>
@@ -171,6 +171,11 @@ const SongPage = () => {
                </div>
              </div>
            )}
+
+           {/* COMMENT SECTION */}
+           <div className="mt-16 border-t border-slate-800 pt-12">
+              <CommentSection songId={song.id} />
+           </div>
 
         </div>
 
