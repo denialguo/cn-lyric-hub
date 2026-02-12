@@ -18,19 +18,21 @@ const HomePage = () => {
   const [scriptMode, setScriptMode] = useState('simplified'); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchSongs = async () => {
-      const { data } = await supabase
-        .from('songs')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (data) setSongs(data);
-      setLoading(false);
-    };
-
-    fetchSongs();
-  }, []);
+useEffect(() => {
+  const fetchSongs = async () => {
+    // This query gets songs and their like counts using a Supabase view or a count join
+    // For now, let's just fetch them. To do real trending, 
+    // we'll eventually want to order by a 'likes_count' column.
+    const { data } = await supabase
+      .from('songs')
+      .select('*, song_likes(count)') 
+      .order('created_at', { ascending: false });
+    
+    if (data) setSongs(data);
+    setLoading(false);
+  };
+  fetchSongs();
+}, []);
 
   const toggleScript = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
@@ -41,10 +43,10 @@ const HomePage = () => {
     window.location.reload(); 
   };
 
-  // --- FILTER LOGIC ---
+  // --- ROBUST FILTER LOGIC ---
   const filteredSongs = songs.filter(song => {
+    // 1. Search Filter
     const query = searchQuery.toLowerCase();
-    
     const cnTitle = song.title_zh || "";
     const enTitle = song.title_en || "";
     const artist = song.artist_en || "";
@@ -56,22 +58,31 @@ const HomePage = () => {
       artist.toLowerCase().includes(query) ||
       cnArtist.includes(query);
 
+    // 2. Tab Filter
     let matchesTab = true;
-    if (activeTab === 'new') matchesTab = true; 
-    else if (activeTab === 'classics') matchesTab = song.tags && song.tags.includes('Ballad'); 
-    else if (activeTab === 'trending') matchesTab = song.tags && song.tags.includes('Pop'); 
+    const tags = Array.isArray(song.tags) ? song.tags.map(t => t.toLowerCase()) : [];
+
+    if (activeTab === 'new') {
+        // "Fresh Drops" - show top 10 newest (already sorted by date)
+        // or just return true if you want 'All' sorted by date
+        matchesTab = true; 
+    } 
+    else if (activeTab === 'classics') {
+        // Check for common 'old' tags
+        matchesTab = tags.some(t => ['ballad', 'classic', 'opera', 'traditional', '90s', '80s'].includes(t));
+    } 
+    else if (activeTab === 'trending') {
+        // Check for 'hot' tags
+        matchesTab = tags.some(t => ['pop', 'rap', 'r&b', 'dance', 'hit'].includes(t));
+    }
 
     return matchesSearch && matchesTab;
   });
 
-  // --- HELPER: GET DISPLAY NAME ---
   const getDisplayName = () => {
     if (!user) return 'Guest';
-    // 1. Try Profile Username
     if (profile?.username) return profile.username;
-    // 2. Try Profile Display Name
     if (profile?.display_name) return profile.display_name;
-    // 3. Fallback to Email (before the @)
     if (user.email) return user.email.split('@')[0];
     return 'User';
   };
@@ -87,6 +98,7 @@ const HomePage = () => {
             <span className="font-bold text-xl tracking-tight text-white">CN Lyric Hub</span>
           </div>
 
+          {/* Search Bar (Hidden on mobile, visible on desktop) */}
           <div className="hidden md:flex flex-1 max-w-lg mx-8 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
             <input 
@@ -94,17 +106,17 @@ const HomePage = () => {
               placeholder="Search songs, artists..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm"
+              className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm text-white"
             />
           </div>
 
           <div className="flex items-center gap-4 relative">
              <button 
               onClick={toggleScript}
-              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all"
+              className="hidden sm:flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all"
             >
               <Globe className="w-4 h-4" />
-              {scriptMode === 'simplified' ? 'Simplified (简体)' : ' Traditional (繁體)'}
+              {scriptMode === 'simplified' ? '简' : '繁'}
             </button>
 
             <ThemeSettings />
@@ -120,19 +132,11 @@ const HomePage = () => {
                     </button>
 
                     {isMenuOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                            {/* --- UPDATED ACCOUNT HEADER --- */}
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden z-50">
                             <div className="px-4 py-3 border-b border-slate-800/50">
                                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Signed in as</p>
-                                 <p className="text-sm font-bold text-white truncate">
-                                    {getDisplayName()}
-                                 </p>
-                                 {/* Optional: Show email tiny underneath */}
-                                 <p className="text-[10px] text-slate-500 truncate opacity-60">
-                                    {user.email}
-                                 </p>
+                                 <p className="text-sm font-bold text-white truncate">{getDisplayName()}</p>
                             </div>
-                            {/* ----------------------------- */}
 
                             {profile?.role === 'admin' && (
                                 <button 
@@ -187,13 +191,13 @@ const HomePage = () => {
         
         <div className="max-w-7xl mx-auto px-6 py-16 text-center relative z-10">
           <h1 className="text-4xl sm:text-6xl font-extrabold text-white mb-6 tracking-tight">
-            Chinese Lyric Database <br className="hidden sm:block" />
+            Chinese Lyric Database
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-10">
             A community-driven database of Chinese lyrics with full Pinyin and English translations.
           </p>
           
-          <div className="flex justify-center gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
             {[
               { id: 'all', label: 'All Songs', icon: Music },
               { id: 'trending', label: 'Trending', icon: Flame },
@@ -220,7 +224,10 @@ const HomePage = () => {
       {/* Song Grid */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         <h2 className="text-2xl font-bold text-white mb-6">
-          {searchQuery ? `Search Results for "${searchQuery}"` : 'Latest Songs'}
+          {searchQuery ? `Search Results for "${searchQuery}"` : 
+           activeTab === 'all' ? 'Latest Songs' :
+           activeTab === 'trending' ? 'Trending Hits' :
+           activeTab === 'classics' ? 'Timeless Classics' : 'Fresh Drops'}
         </h2>
 
         {loading ? (
@@ -235,7 +242,8 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => {
-                const rawChinese = song.title_chinese || "";
+                // FIX: Use 'title_zh' (Database Column Name), NOT 'title_chinese'
+                const rawChinese = song.title_zh || song.title_en || "Untitled";
                 
                 const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
                 
@@ -255,4 +263,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage;  
+export default HomePage;
