@@ -14,14 +14,43 @@ const ArtistPage = () => {
 
   useEffect(() => {
     const fetchArtistSongs = async () => {
-      // Search for songs where this artist appears in EITHER the English OR Chinese column
-      const { data, error } = await supabase
+      // 1. First, find ANY song where this artist appears (in either column)
+      //    This helps us find their "Alias" (the other language name)
+      const { data: anySong } = await supabase
+        .from('songs')
+        .select('artist_en, artist_zh')
+        .or(`artist_en.ilike.%${artistName}%,artist_zh.ilike.%${artistName}%`)
+        .limit(1)
+        .maybeSingle();
+
+      let query = supabase
         .from('songs')
         .select('*')
-        .or(`artist_en.ilike.%${artistName}%,artist_zh.ilike.%${artistName}%`)
         .order('created_at', { ascending: false });
 
-      if (error) console.error(error);
+      // 2. Build the Smart Search
+      if (anySong) {
+        // We found a song! Let's get both names from it.
+        // If I searched "Jay Chou", foundSong might have { en: "Jay Chou", zh: "周杰伦" }
+        // Now I know his Chinese name is "周杰伦"!
+        
+        const possibleNames = [];
+        if (anySong.artist_en) possibleNames.push(...anySong.artist_en.split(',').map(s => s.trim()));
+        if (anySong.artist_zh) possibleNames.push(...anySong.artist_zh.split(',').map(s => s.trim()));
+        
+        // Clean up duplicates
+        const uniqueNames = [...new Set(possibleNames)];
+        
+        // 3. Search for ANY of these names
+        // "Find songs where artist is 'Jay Chou' OR '周杰伦'"
+        const orQuery = uniqueNames.map(name => `artist_en.ilike.%${name}%,artist_zh.ilike.%${name}%`).join(',');
+        query = query.or(orQuery);
+      } else {
+        // Fallback: Just search for the URL name if we've never seen this artist before
+        query = query.or(`artist_en.ilike.%${artistName}%,artist_zh.ilike.%${artistName}%`);
+      }
+
+      const { data } = await query;
       setSongs(data || []);
       setLoading(false);
     };

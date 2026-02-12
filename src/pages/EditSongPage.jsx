@@ -1,4 +1,3 @@
-// ... (imports remain the same)
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Sparkles, CheckCircle, XCircle } from 'lucide-react';
@@ -36,14 +35,17 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
 };
 
 const EditSongPage = ({ isReviewMode = false }) => {
-  const { id } = useParams(); // THIS IS THE SUBMISSION ID
+  const { id } = useParams(); 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   
   const [tags, setTags] = useState([]);
-  const [artistList, setArtistList] = useState([]);         
-  const [artistChineseList, setArtistChineseList] = useState([]); 
+
+  // --- FIX: RENAMED TO MATCH THE REST OF YOUR CODE ---
+  const [artistEnList, setArtistEnList] = useState([]);         
+  const [artistZhList, setArtistZhList] = useState([]); 
+  // ---------------------------------------------------
 
   const [formData, setFormData] = useState({
     title_en: '', title_zh: '', cover_url: '', youtube_url: '', slug: '',
@@ -61,8 +63,11 @@ const EditSongPage = ({ isReviewMode = false }) => {
       } else {
         setFormData(data);
         if (data.tags) setTags(data.tags);
+        
+        // These will now work because the state setters exist!
         if (data.artist_en) setArtistEnList(Array.isArray(data.artist_en) ? data.artist_en : data.artist_en.split(', '));
         if (data.artist_zh) setArtistZhList(Array.isArray(data.artist_zh) ? data.artist_zh : data.artist_zh.split(', '));
+        
         setFetching(false);
       }
     };
@@ -74,7 +79,11 @@ const EditSongPage = ({ isReviewMode = false }) => {
   const handleAutoPinyin = () => {
     if (!formData.lyrics_chinese) return;
     const lines = formData.lyrics_chinese.split('\n');
-    const pinyinLines = lines.map(line => pinyin(line, { toneType: 'symbol' }));
+    const pinyinLines = lines.map(line => {
+      // Basic cleanup before pinyin generation
+      const clean = line.replace(/，/g, ',').replace(/。/g, '.').replace(/！/g, '!').replace(/？/g, '?');
+      return pinyin(clean, { toneType: 'symbol' });
+    });
     setFormData(prev => ({ ...prev, lyrics_pinyin: pinyinLines.join('\n') }));
   };
 
@@ -82,13 +91,18 @@ const EditSongPage = ({ isReviewMode = false }) => {
     e.preventDefault();
     setLoading(true);
     
+    // Convert arrays back to strings for DB
     const finalArtistString = artistEnList.join(', ');
     const finalArtistChineseString = artistZhList.join(', ');
 
     let finalSlug = formData.slug;
+    
+    // If slug is missing (sometimes happens with raw submissions), generate one
     if (!finalSlug) {
-        const pinyinTitle = pinyin(formData.title_en, { toneType: 'none', type: 'array' }).join(' ');
-        finalSlug = pinyinTitle.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+       const source = formData.title_en || formData.title_zh || "untitled";
+       const pinyinTitle = pinyin(source, { toneType: 'none', nonZh: 'consecutive' });
+       finalSlug = pinyinTitle.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+       finalSlug = finalSlug + '-' + Math.floor(Math.random() * 1000);
     }
 
     const basePayload = {
@@ -102,26 +116,20 @@ const EditSongPage = ({ isReviewMode = false }) => {
     try {
         if (isReviewMode) {
             // --- APPROVE LOGIC ---
-            
-            // 1. CLEANUP: Remove ID and Status so we don't pollute the songs table
-            // We specifically do NOT include 'id' so Supabase makes a NEW one for the live song
+            // 1. Remove ID so we create a NEW row in 'songs'
             const { id: _ignoreId, created_at, status, submitter_ip, ...cleanPayload } = basePayload;
 
-            // 2. INSERT into live 'songs'
             const { error: insertError } = await supabase.from('songs').insert([cleanPayload]);
             if (insertError) throw insertError;
 
-            // 3. DELETE from 'song_submissions' using the URL param ID
-            // We use the 'id' from useParams() to be 100% sure we delete the submission we are looking at
+            // 2. Delete the submission
             const { error: deleteError } = await supabase.from('song_submissions').delete().eq('id', id);
             
             if (deleteError) {
-                // If delete fails, warn the admin but don't crash (song is already live)
-                alert("Song published, but failed to delete submission from queue. Please delete manually.");
+                alert("Song published, but failed to delete submission. Please delete manually.");
             } else {
                 alert("Approved & Published!");
             }
-            
             navigate('/admin');
             
         } else {
@@ -163,7 +171,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
         <form onSubmit={handleSave} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
-            {/* INPUTS (Identical to before) */}
+            
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Title (English) <span className="text-primary">*</span></label>
                 <input name="title_en" value={formData.title_en} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
@@ -172,6 +180,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
                 <label className="text-slate-400 text-sm">Title (Chinese)</label>
                 <input name="title_zh" value={formData.title_zh || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
             </div>
+
+            {/* ARTIST INPUTS (Now using correct state) */}
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Artist (English) <span className="text-primary">*</span></label>
                 <TagInput tags={artistEnList} setTags={setArtistEnList} placeholder="Type & Enter..." />
@@ -180,6 +190,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
                 <label className="text-slate-400 text-sm">Artist (Chinese)</label>
                 <TagInput tags={artistZhList} setTags={setArtistZhList} placeholder="Type & Enter..." />
             </div>
+
             <div className="space-y-2">
                 <label className="text-slate-400 text-sm">Tags</label>
                 <TagInput tags={tags} setTags={setTags} placeholder="Type tag & Enter..." />
