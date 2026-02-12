@@ -12,6 +12,7 @@ import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ProfilePage from './pages/ProfilePage';
 import PublicProfile from './pages/PublicProfile';
+import ArtistPage from './pages/ArtistPage';
 
 const App = () => {
   return (
@@ -28,6 +29,7 @@ const App = () => {
             <Route path="/admin/review/:id" element={<EditSongPage isReviewMode={true} />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/user/:username" element={<PublicProfile />} />
+            <Route path="/artist/:name" element={<ArtistPage />} />
           </Routes>
           
           <Analytics />

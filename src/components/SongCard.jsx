@@ -1,24 +1,16 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // 1. IMPORT LINK
 import { Play, Heart } from 'lucide-react';
 
 const SongCard = ({ song }) => {
   const navigate = useNavigate();
 
-  // 1. Main Title (Chinese)
-  // We prefer 'display_title' (if passed from Home with conversion), otherwise DB 'title_zh'.
   const mainTitle = song.display_title || song.title_zh || song.title_en;
-
-  // 2. Subtitle (English)
-  // This is now explicitly 'title_en'
   const subTitle = song.title_en; 
-  
-  // Logic: Show subtitle if it exists AND is different from the main title
   const showSubTitle = subTitle && subTitle !== mainTitle;
 
-  // 3. Artist
-  // Prefer English artist name, fallback to Chinese if English is missing
-  const artistName = song.artist_en || song.artist_zh;
+  // Prefer English artist, fallback to Chinese
+  const artistString = song.artist_en || song.artist_zh || "Unknown";
 
   return (
     <div 
@@ -46,12 +38,10 @@ const SongCard = ({ song }) => {
       </div>
 
       <div className="p-5">
-        {/* MAIN TITLE: Primary Color */}
         <h3 className="text-primary font-bold text-lg truncate mb-1 leading-tight">
           {mainTitle}
         </h3>
         
-        {/* SUBTITLE: Neutral Color */}
         {showSubTitle ? (
            <p className="text-slate-400 text-sm font-medium truncate mb-2">
              {subTitle}
@@ -60,9 +50,23 @@ const SongCard = ({ song }) => {
            <div className="h-2"></div>
         )}
 
-        <p className="text-slate-500 text-xs truncate font-medium flex items-center gap-1">
-          {artistName}
-        </p>
+        {/* --- UPDATED ARTIST SECTION --- */}
+        <div className="text-slate-500 text-xs truncate font-medium">
+          {artistString.split(',').map((artist, i) => (
+            <span key={i}>
+              <Link 
+                to={`/artist/${artist.trim()}`}
+                onClick={(e) => e.stopPropagation()} // <--- CRITICAL: Prevents opening the song
+                className="hover:text-white hover:underline transition-colors"
+              >
+                {artist.trim()}
+              </Link>
+              {/* Add comma if it's not the last artist */}
+              {i < artistString.split(',').length - 1 && ", "}
+            </span>
+          ))}
+        </div>
+        {/* ----------------------------- */}
 
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between text-slate-500 text-xs">
            <div className="flex items-center gap-1 hover:text-red-400 transition-colors">
