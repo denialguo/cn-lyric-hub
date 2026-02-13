@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Sparkles, CheckCircle, XCircle, Search, X, UserPlus } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, CheckCircle, XCircle, Search, X, UserPlus, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput'; 
 import { pinyin } from 'pinyin-pro';
+import { useAuth } from '../context/AuthContext';
 
-// --- REUSED COMPONENTS (LyricsEditor + ArtistSearch) ---
-const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '150px' }) => {
+const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '150px', originalValue }) => {
   const textareaRef = useRef(null);
+  
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -15,15 +16,41 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
     }
   }, [value]);
   
-  const lineCount = value ? value.split('\n').length : 1;
-  const lineNumbers = Array.from({ length: Math.max(lineCount, 5) }, (_, i) => i + 1).join('\n');
+  const currentLines = (value || '').split('\n');
+  const origLines = originalValue !== undefined && originalValue !== null ? String(originalValue).split('\n') : currentLines;
+  const maxLines = Math.max(currentLines.length, origLines.length, 5);
+
+  const changedLines = [];
+  if (originalValue !== undefined && originalValue !== value) {
+    for (let i = 0; i < Math.max(currentLines.length, origLines.length); i++) {
+      if (currentLines[i] !== origLines[i]) {
+        changedLines.push({
+          index: i + 1,
+          orig: origLines[i],
+          curr: currentLines[i]
+        });
+      }
+    }
+  }
+
+  const isChanged = changedLines.length > 0;
 
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-slate-400 text-sm font-bold flex justify-between">{label}</label>
+    <div className={`flex flex-col gap-2 p-3 rounded-xl transition-colors ${isChanged ? 'bg-yellow-500/5 border border-yellow-500/30' : 'border border-transparent'}`}>
+      <label className="text-slate-400 text-sm font-bold flex justify-between items-center">
+        {label}
+        {isChanged && <span className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1"><AlertTriangle size={12}/> Edited</span>}
+      </label>
       <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-primary transition-colors">
-        <div className="bg-slate-800 text-slate-500 text-right pr-3 pt-4 font-mono text-sm leading-6 select-none w-10 flex-shrink-0 border-r border-slate-700">
-          <pre>{lineNumbers}</pre>
+        <div className="bg-slate-800 text-slate-500 text-right pr-2 pt-4 font-mono text-sm leading-6 select-none w-12 flex-shrink-0 border-r border-slate-700">
+          {Array.from({ length: maxLines }).map((_, i) => {
+            const isDiff = changedLines.some(cl => cl.index === i + 1);
+            return (
+              <div key={i} className={isDiff ? "text-yellow-400 font-bold bg-yellow-500/20" : ""}>
+                {i + 1}
+              </div>
+            );
+          })}
         </div>
         <textarea
           ref={textareaRef} name={name} value={value} onChange={onChange} rows={1}
@@ -31,6 +58,27 @@ const LyricsEditor = ({ label, name, value, onChange, placeholder, minHeight = '
           placeholder={placeholder} style={{ minHeight: minHeight }}
         />
       </div>
+      
+      {isChanged && (
+          <div className="mt-2 p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Line Changes:</p>
+              {changedLines.map(change => (
+                  <div key={change.index} className="text-xs font-mono">
+                      <span className="text-slate-500 mb-1 block">Line {change.index}</span>
+                      {change.orig !== undefined && (
+                          <div className="text-red-400 bg-red-400/10 px-2 py-1 rounded mb-0.5 break-all">
+                              - {change.orig === '' ? '(empty line)' : change.orig}
+                          </div>
+                      )}
+                      {change.curr !== undefined && (
+                          <div className="text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded break-all">
+                              + {change.curr === '' ? '(empty line)' : change.curr}
+                          </div>
+                      )}
+                  </div>
+              ))}
+          </div>
+      )}
     </div>
   );
 };
@@ -43,11 +91,7 @@ const ArtistSearch = ({ selectedArtists, onSelect }) => {
   const wrapperRef = useRef(null);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
-    };
+    const handleClickOutside = (event) => { if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setShowDropdown(false); };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -64,18 +108,8 @@ const ArtistSearch = ({ selectedArtists, onSelect }) => {
     return () => clearTimeout(debounce);
   }, [query]);
 
-  const handleSelect = (artist) => {
-    onSelect(artist);
-    setQuery('');
-    setShowDropdown(false);
-  };
-
-  const createNewArtist = () => {
-    const newArtist = { id: null, name_en: query, name_zh: '', isNew: true };
-    onSelect(newArtist);
-    setQuery('');
-    setShowDropdown(false);
-  };
+  const handleSelect = (artist) => { onSelect(artist); setQuery(''); setShowDropdown(false); };
+  const createNewArtist = () => { onSelect({ id: null, name_en: query, name_zh: '', isNew: true }); setQuery(''); setShowDropdown(false); };
 
   return (
     <div className="relative space-y-2" ref={wrapperRef}>
@@ -114,16 +148,19 @@ const ArtistSearch = ({ selectedArtists, onSelect }) => {
     </div>
   );
 };
-// ----------------------------------------------------
+
 
 const EditSongPage = ({ isReviewMode = false }) => {
   const { id } = useParams(); 
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   
   const [tags, setTags] = useState([]);
-  const [selectedArtists, setSelectedArtists] = useState([]); // List of Artist Objects
+  const [selectedArtists, setSelectedArtists] = useState([]); 
+  const [originalData, setOriginalData] = useState(null); 
 
   const [formData, setFormData] = useState({
     title_en: '', title_zh: '', cover_url: '', youtube_url: '', slug: '',
@@ -133,8 +170,6 @@ const EditSongPage = ({ isReviewMode = false }) => {
   useEffect(() => {
     const fetchData = async () => {
       const tableName = isReviewMode ? 'song_submissions' : 'songs';
-      
-      // 1. Fetch Basic Song Data
       const { data: song, error } = await supabase.from(tableName).select('*').eq('id', id).single();
       
       if (error) {
@@ -146,24 +181,32 @@ const EditSongPage = ({ isReviewMode = false }) => {
       setFormData(song);
       if (song.tags) setTags(song.tags);
 
-      // 2. Fetch Linked Artists (The "Professional" Way)
-      // Only applicable for live songs. Submissions usually rely on the legacy strings unless you built robust linking for them too.
       if (!isReviewMode) {
-          const { data: linkedArtists } = await supabase
-            .from('song_artists')
-            .select('artist_id, artists(*)') // Join to get full artist details
-            .eq('song_id', id);
-          
-          if (linkedArtists) {
-              const artistObjects = linkedArtists.map(link => link.artists).filter(Boolean);
-              setSelectedArtists(artistObjects);
-          }
+          const { data: linkedArtists } = await supabase.from('song_artists').select('artist_id, artists(*)').eq('song_id', id);
+          if (linkedArtists) setSelectedArtists(linkedArtists.map(link => link.artists).filter(Boolean));
       } else {
-          // Fallback for Review Mode (Parsing Legacy Strings if needed)
-          // Ideally your submission system should also store artist objects, but parsing is a safe fallback
-          // For now, we leave it empty or you can implement parsing logic here if needed.
+          const enList = (song.artist_en || '').split(',').map(s => s.trim()).filter(Boolean);
+          const zhList = (song.artist_zh || '').split(',').map(s => s.trim()).filter(Boolean);
+          
+          const reconstructed = [];
+          const maxLen = Math.max(enList.length, zhList.length);
+          for (let i = 0; i < maxLen; i++) {
+              reconstructed.push({ id: null, name_en: enList[i] || zhList[i], name_zh: zhList[i] || '', isNew: true });
+          }
+
+          const namesToLookup = reconstructed.map(a => a.name_en);
+          if (namesToLookup.length > 0) {
+              const { data: found } = await supabase.from('artists').select('*').in('name_en', namesToLookup);
+              setSelectedArtists(reconstructed.map(a => found?.find(f => f.name_en === a.name_en) || a));
+          } else {
+              setSelectedArtists(reconstructed);
+          }
+
+          if (song.original_song_id) {
+              const { data: orig } = await supabase.from('songs').select('*').eq('id', song.original_song_id).single();
+              if (orig) setOriginalData(orig);
+          }
       }
-      
       setFetching(false);
     };
     fetchData();
@@ -172,22 +215,14 @@ const EditSongPage = ({ isReviewMode = false }) => {
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSelectArtist = (artist, remove = false) => {
-      if (remove) {
-          setSelectedArtists(prev => prev.filter(a => (a.id !== artist.id) || (a.isNew && a.name_en !== artist.name_en)));
-      } else {
-          if (!selectedArtists.some(a => a.id === artist.id && !a.isNew)) {
-            setSelectedArtists([...selectedArtists, artist]);
-          }
-      }
+      if (remove) setSelectedArtists(prev => prev.filter(a => (a.id !== artist.id) || (a.isNew && a.name_en !== artist.name_en)));
+      else if (!selectedArtists.some(a => a.id === artist.id && !a.isNew)) setSelectedArtists([...selectedArtists, artist]);
   };
 
   const handleAutoPinyin = () => {
     if (!formData.lyrics_chinese) return;
     const lines = formData.lyrics_chinese.split('\n');
-    const pinyinLines = lines.map(line => {
-      const clean = line.replace(/，/g, ',').replace(/。/g, '.').replace(/！/g, '!').replace(/？/g, '?');
-      return pinyin(clean, { toneType: 'symbol' });
-    });
+    const pinyinLines = lines.map(line => pinyin(line.replace(/，/g, ',').replace(/。/g, '.').replace(/！/g, '!').replace(/？/g, '?'), { toneType: 'symbol' }));
     setFormData(prev => ({ ...prev, lyrics_pinyin: pinyinLines.join('\n') }));
   };
 
@@ -200,72 +235,90 @@ const EditSongPage = ({ isReviewMode = false }) => {
         return alert("Please add at least one artist.");
     }
 
-    // 1. Generate Legacy Strings (For search compatibility)
     const artistEnString = selectedArtists.map(a => a.name_en).join(', ');
     const artistZhString = selectedArtists.map(a => a.name_zh).join(', ');
 
     let finalSlug = formData.slug;
     if (!finalSlug) {
        const source = formData.title_en || formData.title_zh || "untitled";
-       const pinyinTitle = pinyin(source, { toneType: 'none', nonZh: 'consecutive' });
-       finalSlug = pinyinTitle.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-') + '-' + Math.floor(Math.random() * 1000);
+       finalSlug = pinyin(source, { toneType: 'none', nonZh: 'consecutive' }).toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-') + '-' + Math.floor(Math.random() * 1000);
     }
 
-    const basePayload = {
-        ...formData,
-        artist_en: artistEnString,
-        artist_zh: artistZhString,
-        tags: tags,
-        slug: finalSlug
+    const safePayload = {
+        title_en: formData.title_en, title_zh: formData.title_zh, cover_url: formData.cover_url, youtube_url: formData.youtube_url,
+        lyrics_chinese: formData.lyrics_chinese, lyrics_pinyin: formData.lyrics_pinyin, lyrics_english: formData.lyrics_english,
+        credits: formData.credits, artist_en: artistEnString, artist_zh: artistZhString, tags: tags
     };
 
     try {
         if (isReviewMode) {
-            // --- APPROVE LOGIC ---
-            // 1. Insert into Live 'songs'
-            const { id: _ignoreId, created_at, status, submitter_ip, ...cleanPayload } = basePayload;
-            const { data: newSong, error: insertError } = await supabase.from('songs').insert([cleanPayload]).select().single();
-            if (insertError) throw insertError;
+            const payloadForLiveDB = { ...safePayload, slug: finalSlug };
 
-            // 2. Link Artists to New Song
-            for (const artist of selectedArtists) {
-                let artistId = artist.id;
-                if (artist.isNew) {
-                    const artistSlug = artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000);
-                    const { data: createdArtist } = await supabase.from('artists').insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug }).select().single();
-                    artistId = createdArtist.id;
+            if (formData.original_song_id) {
+                const { error: updateError } = await supabase.from('songs').update(payloadForLiveDB).eq('id', formData.original_song_id);
+                if (updateError) throw updateError;
+                
+                await supabase.from('song_artists').delete().eq('song_id', formData.original_song_id);
+                for (const artist of selectedArtists) {
+                    let artistId = artist.id;
+                    if (!artistId || artist.isNew) {
+                        const { data: existing } = await supabase.from('artists').select('id').eq('name_en', artist.name_en).maybeSingle();
+                        if (existing) artistId = existing.id;
+                        else {
+                            const artistSlug = artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000);
+                            const { data: createdArtist } = await supabase.from('artists').insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug }).select().single();
+                            artistId = createdArtist.id;
+                        }
+                    }
+                    await supabase.from('song_artists').insert({ song_id: formData.original_song_id, artist_id: artistId });
                 }
-                await supabase.from('song_artists').insert({ song_id: newSong.id, artist_id: artistId });
+            } else {
+                const { data: newSong, error: insertError } = await supabase.from('songs').insert([payloadForLiveDB]).select().single();
+                if (insertError) throw insertError;
+
+                for (const artist of selectedArtists) {
+                    let artistId = artist.id;
+                    if (!artistId || artist.isNew) {
+                         const artistSlug = artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000);
+                         const { data: createdArtist } = await supabase.from('artists').insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug }).select().single();
+                         artistId = createdArtist.id;
+                    }
+                    await supabase.from('song_artists').insert({ song_id: newSong.id, artist_id: artistId });
+                }
             }
 
-            // 3. Delete Submission
             await supabase.from('song_submissions').delete().eq('id', id);
             alert("Approved & Published!");
             navigate('/admin');
             
         } else {
-            // --- NORMAL EDIT LOGIC ---
-            
-            // 1. Update Song Data
-            const { error } = await supabase.from('songs').update(basePayload).eq('id', id);
-            if (error) throw error;
+            if (profile?.role === 'admin') {
+                const payloadForLiveDB = { ...safePayload, slug: finalSlug };
+                const { error } = await supabase.from('songs').update(payloadForLiveDB).eq('id', id);
+                if (error) throw error;
 
-            // 2. Sync Artists (The Hard Part)
-            // Strategy: Delete all existing links for this song, then re-insert current ones.
-            // This is brute-force but safe and easy for a CMS.
-            await supabase.from('song_artists').delete().eq('song_id', id);
-
-            for (const artist of selectedArtists) {
-                let artistId = artist.id;
-                if (artist.isNew) {
-                     const artistSlug = artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000);
-                     const { data: createdArtist } = await supabase.from('artists').insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug }).select().single();
-                     artistId = createdArtist.id;
+                await supabase.from('song_artists').delete().eq('song_id', id);
+                for (const artist of selectedArtists) {
+                    let artistId = artist.id;
+                    if (!artistId || artist.isNew) {
+                         const artistSlug = artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000);
+                         const { data: createdArtist } = await supabase.from('artists').insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug }).select().single();
+                         artistId = createdArtist.id;
+                    }
+                    await supabase.from('song_artists').insert({ song_id: id, artist_id: artistId });
                 }
-                await supabase.from('song_artists').insert({ song_id: id, artist_id: artistId });
+                navigate(`/song/${formData.slug}`);
+                
+            } else {
+                const submissionPayload = {
+                    ...safePayload, original_song_id: id, 
+                    submitted_by: user ? (user.user_metadata?.username || user.email.split('@')[0]) : 'Community', status: 'pending_edit'
+                };
+                const { error } = await supabase.from('song_submissions').insert([submissionPayload]);
+                if (error) throw error;
+                alert("Edit suggested! An admin will review your changes.");
+                navigate(`/song/${formData.slug}`);
             }
-
-            navigate(`/song/${formData.slug}`);
         }
     } catch (error) {
         alert('Error: ' + error.message);
@@ -279,6 +332,20 @@ const EditSongPage = ({ isReviewMode = false }) => {
     await supabase.from('song_submissions').delete().eq('id', id);
     navigate('/admin');
     setLoading(false);
+  };
+
+  const renderTextInput = (label, name, required = false) => {
+      const isChanged = originalData && originalData[name] !== formData[name];
+      return (
+        <div className={`space-y-2 p-3 rounded-lg transition-colors border ${isChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
+            <label className="text-slate-400 text-sm flex justify-between items-center">
+                <span>{label} {required && <span className="text-primary">*</span>}</span>
+                {isChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle size={12}/> Edited</span>}
+            </label>
+            <input name={name} value={formData[name] || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+            {isChanged && <p className="text-xs text-yellow-500 font-mono mt-1 pt-1 border-t border-yellow-500/20">Original: {originalData[name] || "(empty)"}</p>}
+        </div>
+      );
   };
 
   if (fetching) return <div className="text-white p-10">Loading...</div>;
@@ -298,36 +365,28 @@ const EditSongPage = ({ isReviewMode = false }) => {
         <h1 className="text-3xl font-bold text-white mb-8">{isReviewMode ? "Approve Submission" : "Edit Song"}</h1>
 
         <form onSubmit={handleSave} className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
             
-            <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Title (English) <span className="text-primary">*</span></label>
-                <input name="title_en" value={formData.title_en} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
-            </div>
-            <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Title (Chinese)</label>
-                <input name="title_zh" value={formData.title_zh || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
-            </div>
+            {renderTextInput("Title (English)", "title_en", true)}
+            {renderTextInput("Title (Chinese)", "title_zh")}
 
-            {/* UPGRADED ARTIST SEARCH */}
-            <div className="lg:col-span-2">
+            <div className={`lg:col-span-2 p-3 rounded-lg border border-transparent`}>
                 <ArtistSearch selectedArtists={selectedArtists} onSelect={handleSelectArtist} />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 p-3">
                 <label className="text-slate-400 text-sm">Tags</label>
                 <TagInput tags={tags} setTags={setTags} placeholder="Type tag & Enter..." />
             </div>
-            <div className="space-y-2">
-                <label className="text-slate-400 text-sm">Cover URL</label>
-                <input name="cover_url" value={formData.cover_url || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
+            
+            {renderTextInput("Cover URL", "cover_url")}
+            
+            <div className="lg:col-span-2">
+                {renderTextInput("YouTube URL", "youtube_url")}
             </div>
-            <div className="space-y-2 lg:col-span-2"> 
-                <label className="text-slate-400 text-sm">YouTube URL</label>
-                <input name="youtube_url" value={formData.youtube_url || ''} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full" />
-            </div>
+
             {!isReviewMode && (
-                <div className="space-y-2 lg:col-span-2"> 
+                <div className="space-y-2 lg:col-span-2 p-3"> 
                     <label className="text-slate-400 text-sm">Slug</label>
                     <input name="slug" value={formData.slug || ''} disabled className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-slate-500 w-full" />
                 </div>
@@ -335,18 +394,18 @@ const EditSongPage = ({ isReviewMode = false }) => {
           </div>
 
           <div className="w-full">
-             <LyricsEditor label="Credits" name="credits" value={formData.credits || ''} onChange={handleChange} placeholder="Credits..." minHeight="100px" />
+             <LyricsEditor label="Credits" name="credits" value={formData.credits || ''} onChange={handleChange} placeholder="Credits..." minHeight="100px" originalValue={originalData?.credits} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-             <LyricsEditor label="Chinese Characters" name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} />
+             <LyricsEditor label="Chinese Characters" name="lyrics_chinese" value={formData.lyrics_chinese} onChange={handleChange} originalValue={originalData?.lyrics_chinese} />
              <div className="relative">
-                 <button type="button" onClick={handleAutoPinyin} className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded hover:bg-primary hover:text-white transition-colors">
+                 <button type="button" onClick={handleAutoPinyin} className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded hover:bg-primary hover:text-white transition-colors mt-2 mr-2">
                    <Sparkles className="w-3 h-3" /> Auto-Fill
                  </button>
-                 <LyricsEditor label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin} onChange={handleChange} />
+                 <LyricsEditor label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin} onChange={handleChange} originalValue={originalData?.lyrics_pinyin} />
              </div>
-             <LyricsEditor label="English Translation" name="lyrics_english" value={formData.lyrics_english} onChange={handleChange} />
+             <LyricsEditor label="English Translation" name="lyrics_english" value={formData.lyrics_english} onChange={handleChange} originalValue={originalData?.lyrics_english} />
           </div>
 
           <div className="fixed bottom-6 right-6 z-50 flex gap-4">

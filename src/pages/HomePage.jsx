@@ -72,8 +72,8 @@ useEffect(() => {
         matchesTab = tags.some(t => ['ballad', 'classic', 'opera', 'traditional', '90s', '80s'].includes(t));
     } 
     else if (activeTab === 'trending') {
-        // Check for 'hot' tags
-        matchesTab = tags.some(t => ['pop', 'rap', 'r&b', 'dance', 'hit'].includes(t));
+        // Show songs that have at least 1 like, or you can sort by likes
+        matchesTab = song.song_likes && song.song_likes[0]?.count > 0;
     }
 
     return matchesSearch && matchesTab;
