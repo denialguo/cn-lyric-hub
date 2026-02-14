@@ -80,7 +80,9 @@ useEffect(() => {
   });
 
   const getDisplayName = () => {
-    if (!user) return 'Guest';
+    // If the user is anonymous (no email), they are a Guest
+    if (!user || user.is_anonymous || !user.email) return 'Guest';
+    
     if (profile?.username) return profile.username;
     if (profile?.display_name) return profile.display_name;
     if (user.email) return user.email.split('@')[0];
@@ -122,7 +124,7 @@ useEffect(() => {
             <ThemeSettings />
 
             {/* USER MENU */}
-            {user ? (
+            {user && !user.is_anonymous ? (
                 <div className="relative">
                     <button 
                       onClick={() => setIsMenuOpen(!isMenuOpen)}
