@@ -40,7 +40,7 @@ const SongCard = ({ song }) => {
 
   const handleLike = async (e) => {
     e.stopPropagation(); // Don't navigate to the song page
-    if (!user) return alert("Please sign in to like songs!");
+    // if (!user) return alert("Please sign in to like songs!"); commented out because not a big deal at this stage in development. 
 
     // Optimistic Update
     const newLikedStatus = !isLiked;

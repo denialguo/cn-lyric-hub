@@ -79,13 +79,13 @@ useEffect(() => {
     return matchesSearch && matchesTab;
   });
 
-  const getDisplayName = () => {
-    if (!user) return 'Guest';
-    if (profile?.username) return profile.username;
-    if (profile?.display_name) return profile.display_name;
-    if (user.email) return user.email.split('@')[0];
-    return 'User';
-  };
+const getDisplayName = () => {
+  // If the user is anonymous (no email), they are a Guest
+  if (!user || user.is_anonymous || !user.email) return 'Guest';
+  
+  if (profile?.username) return profile.username;
+  return user.email.split('@')[0];
+};
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500 relative">
@@ -122,7 +122,8 @@ useEffect(() => {
             <ThemeSettings />
 
             {/* USER MENU */}
-            {user ? (
+            {user && !user.is_anonymous ? (
+                // Show the full User Menu (Profile, Admin, Logout)
                 <div className="relative">
                     <button 
                       onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -166,6 +167,7 @@ useEffect(() => {
                     )}
                 </div>
             ) : (
+                // Show the "Sign In" button for Guests/Anonymous
                 <button 
                     onClick={() => navigate('/login')}
                     className="flex items-center gap-2 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"

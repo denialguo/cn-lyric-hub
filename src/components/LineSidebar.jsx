@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
+import CommentItem from './CommentItem';
 
 const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, onClose, onSelectTranslation }) => {
   const { user } = useAuth();
@@ -230,31 +231,49 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
     setSubmitting(false);
   };
 
-  const handleSubmitComment = async (e, translationId = null) => {
-    e.preventDefault();
-    if (!user) return alert("Please login to comment.");
-    
-    const content = translationId ? threadInput[translationId] : mainCommentInput;
-    if (!content?.trim()) return;
+    const handleSubmitComment = async (e, translationId = null) => {
+        e.preventDefault();
+        if (!user) return alert("Please login to comment.");
 
-    setSubmitting(true);
-    const { error } = await supabase.from('line_comments').insert({
-        song_id: songId, 
-        line_index: lineIndex, 
-        content: content, 
-        user_id: user.id,
-        translation_id: translationId,
-        votes: 0
-    });
+        const content = translationId ? threadInput[translationId] : mainCommentInput;
+        if (!content?.trim()) return;
 
-    if (error) alert(error.message);
-    else { 
-        if(translationId) setThreadInput({...threadInput, [translationId]: ''});
+        setSubmitting(true);
+        // Delegate to the new handler which supports parent_id. Keep translation association.
+        await handlePostComment(null, content, translationId);
+
+        if (translationId) setThreadInput({...threadInput, [translationId]: ''});
         else setMainCommentInput('');
-        fetchData(); 
-    }
-    setSubmitting(false);
-  };
+        fetchData();
+        setSubmitting(false);
+    };
+
+    // allow parentId to be passed in (it defaults to null for main comments)
+    const handlePostComment = async (parentId = null, text = null, translationId = null) => {
+        const contentToPost = text || mainCommentInput;
+        if (!contentToPost.trim() || !user) return;
+
+        const { data, error } = await supabase
+                .from('line_comments')
+                .insert({
+                        song_id: songId,
+                        line_index: lineIndex,
+                        user_id: user.id,
+                        content: contentToPost,
+                        translation_id: translationId,
+                        parent_id: parentId // <--- THIS IS THE ONLY NEW FIELD
+                })
+                .select('*, profiles(username, avatar_url)')
+                .single();
+
+        // Optimistically refresh or append - for simplicity we'll refetch
+        if (error) {
+                console.error(error);
+                alert(error.message);
+        } else {
+                fetchData();
+        }
+    };
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
@@ -451,38 +470,22 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
         ) : (
             /* GENERAL DISCUSSION TAB */
             <div className="space-y-4">
-                {generalComments.map(c => {
-                    const commentLiked = myCommentVotes.has(c.id);
-                    return (
-                        <div key={c.id} className="flex gap-3 group/comment">
-                            <img src={c.profiles?.avatar_url || '/default-avatar.png'} className="w-8 h-8 rounded-full object-cover bg-slate-800 flex-shrink-0" />
-                            <div className="flex-1">
-                                <div className="bg-slate-800/50 p-3 rounded-2xl rounded-tl-none border border-slate-800">
-                                    <div className="flex justify-between items-baseline mb-1">
-                                        <span className="text-xs font-bold text-slate-300">@{c.profiles?.username}</span>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-slate-600">{new Date(c.created_at).toLocaleDateString()}</span>
-                                            
-                                            {/* COMMENT ACTIONS (General Tab) */}
-                                            <button 
-                                                onClick={() => toggleVoteComment(c.id, c.votes || 0)}
-                                                className={`flex items-center gap-1 text-xs ${commentLiked ? 'text-pink-500' : 'text-slate-600 hover:text-pink-500'}`}
-                                            >
-                                                <Heart size={12} fill={commentLiked ? "currentColor" : "none"} /> {c.votes || 0}
-                                            </button>
-                                            {user && user.id === c.user_id && (
-                                                <button onClick={() => handleDeleteComment(c.id)} className="text-slate-600 hover:text-red-500">
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <p className="text-sm text-slate-300 leading-relaxed">{c.content}</p>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
+                {(() => {
+                    const rootComments = comments.filter(c => !c.parent_id);
+                    const getReplies = (parentId) => comments.filter(c => c.parent_id === parentId);
+
+                    return rootComments.map(comment => (
+                        <CommentItem
+                            key={comment.id}
+                            comment={comment}
+                            replies={getReplies(comment.id)}
+                            user={user}
+                            onReply={handlePostComment}
+                            onDelete={handleDeleteComment}
+                        />
+                    ));
+                })()}
+
                 {generalComments.length === 0 && <p className="text-slate-500 text-sm text-center italic">No general comments yet.</p>}
             </div>
         )}
