@@ -122,7 +122,7 @@ const getDisplayName = () => {
             <ThemeSettings />
 
             {/* USER MENU */}
-            {user && !user.is_anonymous ? (
+            {user && !user.is_anonymous && !user.is_anonymous ? (
                 // Show the full User Menu (Profile, Admin, Logout)
                 <div className="relative">
                     <button 
