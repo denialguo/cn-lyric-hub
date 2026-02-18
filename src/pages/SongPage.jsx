@@ -148,6 +148,13 @@ const SongPage = () => {
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20 transition-colors duration-500">
       <Helmet>
         <title>{displayTitle} - {song.artist_en} | CN Lyric Hub</title>
+        <meta name="description" content={`Chinese lyrics, Pinyin, and English translation for ${song.title_en} (${song.title_zh}) by ${song.artist_en}.`} />
+        
+        {/* Open Graph / Facebook / Discord Previews */}
+        <meta property="og:title" content={`${displayTitle} - ${song.artist_en}`} />
+        <meta property="og:description" content={`Learn the lyrics to ${song.title_en} with Pinyin and English translations.`} />
+        <meta property="og:image" content={song.cover_url} />
+        <meta property="og:type" content="music.song" />
       </Helmet>
 
       {/* HERO SECTION */}

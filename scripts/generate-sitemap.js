@@ -1,57 +1,46 @@
-import { createClient } from '@supabase/supabase-js'; // <--- FIXED THIS LINE
-import { SitemapStream, streamToPromise } from 'sitemap';
-import { createWriteStream } from 'fs';
-import { resolve } from 'path';
-import 'dotenv/config';
+// scripts/generate-sitemap.js
+const fs = require('fs');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config(); // You might need: npm install dotenv
 
-// 1. Get Credentials
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY
+);
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error("❌ Missing Supabase environment variables!");
-  process.exit(1);
-}
+const DOMAIN = 'https://your-domain-here.com'; // REPLACE THIS WITH YOUR ACTUAL DOMAIN
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+async function generateSitemap() {
+  console.log('Fetching songs...');
+  const { data: songs, error } = await supabase
+    .from('songs')
+    .select('slug, updated_at');
 
-async function generate() {
-  try {
-    console.log("Fetching songs for sitemap...");
-    
-    // 2. Fetch Slugs
-    const { data: songs, error } = await supabase.from('songs').select('slug');
-    if (error) throw error;
-
-    // 3. Start Stream
-    const smStream = new SitemapStream({ hostname: 'https://cnlyrichub.vercel.app' });
-    
-    // 4. Add Pages
-    smStream.write({ url: '/', changefreq: 'daily', priority: 1.0 });
-
-    if (songs) {
-      songs.forEach((song) => {
-        smStream.write({
-          url: `/song/${song.slug}`,
-          changefreq: 'weekly',
-          priority: 0.8,
-        });
-      });
-    }
-
-    smStream.end();
-
-    // 5. Save to File
-    const sitemapOutput = await streamToPromise(smStream);
-    const outputPath = resolve(process.cwd(), 'public/sitemap.xml');
-    
-    createWriteStream(outputPath).write(sitemapOutput);
-    
-    console.log(`✅ Sitemap generated successfully at ${outputPath}`);
-  } catch (err) {
-    console.error('❌ Sitemap generation failed:', err);
-    process.exit(1);
+  if (error) {
+    console.error('Error fetching songs:', error);
+    return;
   }
+
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${DOMAIN}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  ${songs.map(song => `
+  <url>
+    <loc>${DOMAIN}/song/${song.slug}</loc>
+    <lastmod>${new Date(song.updated_at || Date.now()).toISOString()}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  `).join('')}
+</urlset>`;
+
+  // Write to the PUBLIC folder so it's accessible at your-site.com/sitemap.xml
+  fs.writeFileSync('./public/sitemap.xml', sitemap);
+  console.log(`✅ Sitemap generated with ${songs.length} songs at ./public/sitemap.xml`);
 }
 
-generate();
+generateSitemap();
