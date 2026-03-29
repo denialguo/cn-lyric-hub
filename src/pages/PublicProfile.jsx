@@ -3,10 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { User, Music, ArrowLeft, Globe, ExternalLink } from 'lucide-react';
 import SongCard from '../components/SongCard';
-import { tify, sify } from 'chinese-conv'; 
 
 const PublicProfile = () => {
-  const { username } = useParams(); // We will use the username from the URL
+  const { username } = useParams();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [songs, setSongs] = useState([]);
@@ -14,11 +13,11 @@ const PublicProfile = () => {
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      // 1. Find the User ID based on the unique Display Name
+      // Query by unique username, not display_name
       const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('display_name', username)
+        .eq('username', username)
         .single();
 
       if (error || !profileData) {
@@ -28,11 +27,10 @@ const PublicProfile = () => {
 
       setProfile(profileData);
 
-      // 2. Fetch their approved songs
       const { data: songsData } = await supabase
         .from('songs')
         .select('*')
-        .eq('user_id', profileData.id) // Use the ID we just found
+        .eq('user_id', profileData.id)
         .order('created_at', { ascending: false });
 
       if (songsData) setSongs(songsData);
@@ -49,7 +47,6 @@ const PublicProfile = () => {
     <div className="min-h-screen bg-slate-950 p-6 md:p-12">
       <div className="max-w-6xl mx-auto">
         
-        {/* Header / Back Button */}
         <button 
           onClick={() => navigate('/')} 
           className="flex items-center text-slate-400 hover:text-white mb-8 transition-colors"
@@ -59,14 +56,12 @@ const PublicProfile = () => {
 
         {/* Profile Header Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 mb-12 shadow-2xl relative overflow-hidden">
-          {/* Background Glow */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
-            {/* Avatar */}
             <div className="w-32 h-32 rounded-full border-4 border-slate-800 overflow-hidden bg-slate-950 shadow-xl flex-shrink-0">
                {profile.avatar_url ? (
-                 <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.display_name} />
+                 <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.display_name || profile.username} />
                ) : (
                  <div className="w-full h-full flex items-center justify-center text-slate-600 bg-slate-900">
                     <User size={48} />
@@ -74,12 +69,14 @@ const PublicProfile = () => {
                )}
             </div>
 
-            {/* Info */}
             <div className="text-center md:text-left space-y-4 flex-1">
                <div>
-                 <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">{profile.display_name}</h1>
+                 <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">
+                   {profile.display_name || profile.username}
+                 </h1>
+                 <p className="text-slate-500 text-sm">@{profile.username}</p>
                  {profile.website && (
-                   <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center text-primary hover:underline text-sm gap-1">
+                   <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center text-primary hover:underline text-sm gap-1 mt-2">
                      <Globe size={14} /> {profile.website.replace(/^https?:\/\//, '')} <ExternalLink size={12} />
                    </a>
                  )}
@@ -90,7 +87,6 @@ const PublicProfile = () => {
                )}
             </div>
 
-            {/* Stats */}
             <div className="bg-slate-950/50 rounded-2xl p-6 border border-slate-800 text-center min-w-[140px]">
                <div className="text-3xl font-bold text-white mb-1">{songs.length}</div>
                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contributions</div>
@@ -110,15 +106,9 @@ const PublicProfile = () => {
             <div className="text-slate-500 italic">This user hasn't uploaded any songs yet.</div>
         ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {songs.map((song) => {
-                    // Reusing your SongCard logic
-                    const songForCard = {
-                        ...song,
-                        title: sify(song.title), // Defaulting to Simplified for viewing
-                        artist: song.artist
-                    };
-                    return <SongCard key={song.id} song={songForCard} />;
-                })}
+                {songs.map((song) => (
+                    <SongCard key={song.id} song={song} />
+                ))}
             </div>
         )}
 
