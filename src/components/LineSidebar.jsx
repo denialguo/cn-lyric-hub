@@ -1,46 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
 import CommentItem from './CommentItem';
 
 const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, onClose, onSelectTranslation }) => {
   const { user } = useAuth();
+  const { toast, confirm } = useToast();
   
   const [activeTab, setActiveTab] = useState('translations');
   const [translations, setTranslations] = useState([]);
   const [comments, setComments] = useState([]); 
   const [loading, setLoading] = useState(true);
   
-  // Voting States
   const [myVotes, setMyVotes] = useState(new Set()); 
-  const [myCommentVotes, setMyCommentVotes] = useState(new Set()); // New: Track comment likes
+  const [myCommentVotes, setMyCommentVotes] = useState(new Set());
   const [originalVotes, setOriginalVotes] = useState(0); 
   const [hasLikedOriginal, setHasLikedOriginal] = useState(false); 
 
-  // Inputs
   const [transInput, setTransInput] = useState('');
   const [mainCommentInput, setMainCommentInput] = useState('');
   const [threadInput, setThreadInput] = useState({}); 
   const [submitting, setSubmitting] = useState(false);
 
-  // UI States
   const [expandedThreads, setExpandedThreads] = useState(new Set()); 
 
   useEffect(() => {
     fetchData();
   }, [lineIndex, user]);
 
-  // Load Anonymous Votes
   useEffect(() => {
     if (!user) {
-        // Translation Votes
         const savedVotes = JSON.parse(localStorage.getItem(`votes_${songId}`) || '[]');
         const savedSet = new Set(savedVotes);
         setMyVotes(savedSet);
         if (savedSet.has(`ORG_${lineIndex}`)) setHasLikedOriginal(true);
 
-        // Comment Votes
         const savedCommentVotes = JSON.parse(localStorage.getItem(`comment_votes_${songId}`) || '[]');
         setMyCommentVotes(new Set(savedCommentVotes));
     }
@@ -49,7 +45,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
   const fetchData = async () => {
     setLoading(true);
     
-    // 1. Get Translations
     const { data: trans } = await supabase
       .from('line_translations')
       .select('*, profiles(username, avatar_url)')
@@ -57,7 +52,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
       .eq('line_index', lineIndex)
       .order('votes', { ascending: false });
 
-    // 2. Get Comments
     const { data: comms } = await supabase
       .from('line_comments')
       .select('*, profiles(username, avatar_url)')
@@ -65,7 +59,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
       .eq('line_index', lineIndex)
       .order('created_at', { ascending: true }); 
 
-    // 3. Get Vote Counts for ORIGINAL
     const { count: orgVoteCount } = await supabase
       .from('line_votes')
       .select('*', { count: 'exact', head: true })
@@ -73,13 +66,11 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
       .eq('line_index', lineIndex)
       .is('translation_id', null);
 
-    // 4. Check user votes
     let myVotedIds = new Set();
     let myCommentVotedIds = new Set();
     let likedOrg = false;
 
     if (user) {
-        // Translations
         const { data: userVotes } = await supabase
             .from('line_votes')
             .select('translation_id')
@@ -94,8 +85,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
             });
         }
 
-        // Comments
-        // Note: For efficiency, we usually fetch this better, but this works for small scale
         const { data: commentVotes } = await supabase
             .from('comment_votes')
             .select('comment_id')
@@ -117,8 +106,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
     setLoading(false);
   };
 
-  // --- ACTIONS ---
-
   const toggleThread = (transId) => {
     setExpandedThreads(prev => {
         const newSet = new Set(prev);
@@ -128,7 +115,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
     });
   };
 
-  // --- VOTE: TRANSLATION ---
   const toggleVoteCommunity = async (translationId, currentCount) => {
     const isLiked = myVotes.has(translationId);
     
@@ -154,11 +140,9 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
     }
   };
 
-  // --- VOTE: COMMENT ---
   const toggleVoteComment = async (commentId, currentVotes) => {
     const isLiked = myCommentVotes.has(commentId);
 
-    // Optimistic UI
     setComments(prev => prev.map(c => {
         if (c.id !== commentId) return c;
         return { ...c, votes: isLiked ? (c.votes || 0) - 1 : (c.votes || 0) + 1 };
@@ -181,7 +165,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
     }
   };
 
-  // --- VOTE: ORIGINAL ---
   const toggleVoteOriginal = async () => {
     setOriginalVotes(prev => hasLikedOriginal ? prev - 1 : prev + 1);
     setHasLikedOriginal(!hasLikedOriginal);
@@ -203,43 +186,42 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
     }
   };
 
-  // --- DELETE HANDLERS ---
   const handleDelete = async (id) => {
-    if (!confirm("Delete your translation?")) return;
+    const ok = await confirm("Delete your translation?", { destructive: true, confirmLabel: 'Delete' });
+    if (!ok) return;
     setTranslations(translations.filter(t => t.id !== id));
     await supabase.from('line_translations').delete().eq('id', id);
   };
 
   const handleDeleteComment = async (id) => {
-    if (!confirm("Delete your comment?")) return;
+    const ok = await confirm("Delete your comment?", { destructive: true, confirmLabel: 'Delete' });
+    if (!ok) return;
     setComments(comments.filter(c => c.id !== id));
     await supabase.from('line_comments').delete().eq('id', id);
   };
 
-  // --- SUBMIT HANDLERS ---
   const handleSubmitTranslation = async (e) => {
     e.preventDefault();
-    if (!user) return alert("Please login to contribute.");
+    if (!user) return toast.info("Please log in to contribute.");
     if (!transInput.trim()) return;
 
     setSubmitting(true);
     const { error } = await supabase.from('line_translations').insert({
         song_id: songId, line_index: lineIndex, content: transInput, user_id: user.id, language: 'en', votes: 0
     });
-    if (error) alert(error.message);
+    if (error) toast.error(error.message);
     else { setTransInput(''); fetchData(); }
     setSubmitting(false);
   };
 
     const handleSubmitComment = async (e, translationId = null) => {
         e.preventDefault();
-        if (!user) return alert("Please login to comment.");
+        if (!user) return toast.info("Please log in to comment.");
 
         const content = translationId ? threadInput[translationId] : mainCommentInput;
         if (!content?.trim()) return;
 
         setSubmitting(true);
-        // Delegate to the new handler which supports parent_id. Keep translation association.
         await handlePostComment(null, content, translationId);
 
         if (translationId) setThreadInput({...threadInput, [translationId]: ''});
@@ -248,7 +230,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
         setSubmitting(false);
     };
 
-    // allow parentId to be passed in (it defaults to null for main comments)
     const handlePostComment = async (parentId = null, text = null, translationId = null) => {
         const contentToPost = text || mainCommentInput;
         if (!contentToPost.trim() || !user) return;
@@ -261,15 +242,14 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                         user_id: user.id,
                         content: contentToPost,
                         translation_id: translationId,
-                        parent_id: parentId // <--- THIS IS THE ONLY NEW FIELD
+                        parent_id: parentId
                 })
                 .select('*, profiles(username, avatar_url)')
                 .single();
 
-        // Optimistically refresh or append - for simplicity we'll refetch
         if (error) {
                 console.error(error);
-                alert(error.message);
+                toast.error(error.message);
         } else {
                 fetchData();
         }
@@ -277,7 +257,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
-    alert("Copied to clipboard!");
+    toast.success("Copied to clipboard!");
   };
 
   const generalComments = comments.filter(c => !c.translation_id);
@@ -329,7 +309,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
         ) : activeTab === 'translations' ? (
             <div className="space-y-6">
                 
-                {/* 1. OFFICIAL TRANSLATION CARD */}
+                {/* OFFICIAL TRANSLATION CARD */}
                 <div className="bg-slate-900 p-4 rounded-xl border border-primary/20 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 bg-primary/20 text-primary text-[10px] font-bold px-2 py-1 rounded-bl-lg">OFFICIAL</div>
                     
@@ -338,7 +318,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                         {defaultTranslation || "(No translation provided)"}
                     </p>
 
-                    {/* ACTIONS ROW (Clean & Subtle) */}
                     <div className="flex items-center gap-4 mb-4">
                          <button 
                             onClick={toggleVoteOriginal}
@@ -361,7 +340,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
 
                 <div className="w-full h-px bg-slate-800/50"></div>
 
-                {/* 2. COMMUNITY TRANSLATIONS */}
+                {/* COMMUNITY TRANSLATIONS */}
                 {translations.map(t => {
                     const isLiked = myVotes.has(t.id);
                     const threadComments = comments.filter(c => c.translation_id === t.id);
@@ -370,7 +349,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                     return (
                         <div key={t.id} className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-primary/30 transition-all group">
                             
-                            {/* Author Info */}
                             <div className="flex justify-between items-center mb-3">
                                 <div className="flex items-center gap-2">
                                     <img src={t.profiles?.avatar_url || '/default-avatar.png'} className="w-6 h-6 rounded-full object-cover" />
@@ -383,10 +361,8 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                                 </div>
                             </div>
                             
-                            {/* Content */}
                             <p className="text-white text-base font-medium mb-3 leading-relaxed">{t.content}</p>
                             
-                            {/* ACTIONS ROW (Clean & Subtle) */}
                             <div className="flex items-center gap-4 mb-4 pl-1">
                                 <button 
                                     onClick={() => toggleVoteCommunity(t.id, t.votes || 0)}
@@ -407,7 +383,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                                 </button>
                             </div>
 
-                            {/* THREADED COMMENTS AREA */}
                             {isExpanded && (
                                 <div className="mb-4 bg-slate-950/30 rounded-lg p-3 border border-slate-800/50">
                                     {threadComments.length > 0 && (
@@ -422,7 +397,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                                                                 <span className="text-[10px] text-slate-600">{new Date(tc.created_at).toLocaleDateString()}</span>
                                                             </div>
                                                             
-                                                            {/* COMMENT ACTIONS (Like/Delete) */}
                                                             <div className="flex items-center gap-2 opacity-0 group-hover/comment:opacity-100 transition-opacity">
                                                                 <button 
                                                                     onClick={() => toggleVoteComment(tc.id, tc.votes || 0)}
@@ -444,7 +418,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                                         </div>
                                     )}
                                     
-                                    {/* Reply Input */}
                                     <form onSubmit={(e) => handleSubmitComment(e, t.id)} className="flex gap-2 mt-2">
                                         <input
                                             value={threadInput[t.id] || ''}
@@ -468,7 +441,6 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
                 })}
             </div>
         ) : (
-            /* GENERAL DISCUSSION TAB */
             <div className="space-y-4">
                 {(() => {
                     const rootComments = comments.filter(c => !c.parent_id);

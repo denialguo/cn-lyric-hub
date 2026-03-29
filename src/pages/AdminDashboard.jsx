@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Check, Clock, AlertCircle, ArrowLeft, Trash2, Edit3, Sparkles, Music, ArrowRight } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { user, profile, loading: authLoading } = useAuth();
+  const { toast, confirm } = useToast();
   const navigate = useNavigate();
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,13 +68,15 @@ const AdminDashboard = () => {
   }, [profile]);
 
   const handleReject = async (id) => {
-    if (!window.confirm("Permanently delete this submission?")) return;
+    const ok = await confirm("Permanently delete this submission?", { destructive: true, confirmLabel: 'Delete' });
+    if (!ok) return;
     try {
       const { error } = await supabase.from('song_submissions').delete().eq('id', id);
       if (error) throw error;
       setSubmissions(prev => prev.filter(s => s.id !== id));
+      toast.success('Submission deleted');
     } catch (error) {
-      alert("❌ Failed to delete: " + error.message);
+      toast.error("Failed to delete: " + error.message);
     }
   };
 

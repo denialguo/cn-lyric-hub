@@ -1,32 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Send, Trash2, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// --- NEW: SMART TIME FORMATTER ---
 const timeAgo = (dateString) => {
   const now = new Date();
   const date = new Date(dateString);
   const seconds = Math.floor((now - date) / 1000);
 
   if (seconds < 60) return "Just now";
-  
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
-  
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  
-  return date.toLocaleDateString(); // Fallback to normal date for old stuff
+  return date.toLocaleDateString();
 };
-// ---------------------------------
 
 const CommentsSection = ({ songId }) => {
   const { user } = useAuth();
+  const { toast, confirm } = useToast();
   const navigate = useNavigate();
   
   const [comments, setComments] = useState([]);
@@ -34,7 +30,6 @@ const CommentsSection = ({ songId }) => {
   const [loading, setLoading] = useState(false);
   const [myProfile, setMyProfile] = useState(null);
 
-  // 1. Fetch User Profile
   useEffect(() => {
     const fetchMyProfile = async () => {
       if (!user) return;
@@ -44,7 +39,6 @@ const CommentsSection = ({ songId }) => {
     fetchMyProfile();
   }, [user]);
 
-  // 2. Fetch Comments
   useEffect(() => {
     if (songId) fetchComments();
   }, [songId]);
@@ -60,27 +54,22 @@ const CommentsSection = ({ songId }) => {
     else setComments(data || []);
   };
 
-  // 3. Post Comment
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
-        if(confirm("You need to login to comment. Go to login?")) navigate('/auth');
+        const ok = await confirm("You need to log in to comment. Go to login?", { confirmLabel: 'Log In' });
+        if (ok) navigate('/login');
         return;
     }
     if (!newComment.trim()) return;
 
     setLoading(true);
-
     const { error } = await supabase
       .from('comments')
-      .insert([{ 
-          content: newComment, 
-          song_id: songId, 
-          user_id: user.id 
-      }]);
+      .insert([{ content: newComment, song_id: songId, user_id: user.id }]);
 
     if (error) {
-      alert("Error posting: " + error.message);
+      toast.error("Error posting: " + error.message);
     } else {
       setNewComment('');
       fetchComments(); 
@@ -89,7 +78,8 @@ const CommentsSection = ({ songId }) => {
   };
 
   const handleDelete = async (commentId) => {
-    if (!confirm("Delete this comment?")) return;
+    const ok = await confirm("Delete this comment?", { destructive: true, confirmLabel: 'Delete' });
+    if (!ok) return;
     const { error } = await supabase.from('comments').delete().eq('id', commentId);
     if (!error) setComments(comments.filter(c => c.id !== commentId));
   };
@@ -103,7 +93,6 @@ const CommentsSection = ({ songId }) => {
         Comments <span className="text-slate-500 text-sm">({comments.length})</span>
       </h3>
 
-      {/* INPUT FORM */}
       <form onSubmit={handleSubmit} className="mb-8 flex gap-4">
         <div className="w-10 h-10 rounded-full bg-slate-800 flex-shrink-0 overflow-hidden border border-slate-700">
              <img src={user ? myAvatar : "/default-avatar.png"} className="w-full h-full object-cover" />
@@ -126,7 +115,6 @@ const CommentsSection = ({ songId }) => {
         </div>
       </form>
 
-      {/* COMMENTS LIST */}
       <div className="space-y-6">
         {comments.length === 0 ? (
             <p className="text-slate-600 italic text-sm ml-14">Be the first to comment!</p>
@@ -142,13 +130,9 @@ const CommentsSection = ({ songId }) => {
                             <span className="text-white font-bold text-sm">
                                 {comment.profiles?.username || 'Unknown'}
                             </span>
-                            
-                            {/* --- UPDATED: USE SMART TIME --- */}
                             <span className="text-slate-500 text-xs">
                                 {timeAgo(comment.created_at)}
                             </span>
-                            {/* ------------------------------- */}
-
                         </div>
                         <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
                             {comment.content}

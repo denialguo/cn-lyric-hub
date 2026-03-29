@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabaseClient';
 import { User, Save, ArrowLeft, Camera, Music, Clock, AtSign, Loader2, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 const ProfilePage = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const fileInputRef = useRef(null); // Reference to the hidden file input
+  const fileInputRef = useRef(null);
   
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
-  const [uploading, setUploading] = useState(false); // New state for image upload
+  const [uploading, setUploading] = useState(false);
   
-  // Username Checking States
   const [usernameStatus, setUsernameStatus] = useState('idle'); 
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -27,7 +28,6 @@ const ProfilePage = () => {
   const [mySongs, setMySongs] = useState([]);
   const [mySubmissions, setMySubmissions] = useState([]);
 
-  // 1. Fetch Data & Auto-Fill
   useEffect(() => {
     const loadData = async () => {
       if (!user) return;
@@ -98,7 +98,6 @@ const ProfilePage = () => {
     loadData();
   }, [user]);
 
-  // 2. Live Username Checker
   useEffect(() => {
       if (usernameStatus !== 'checking') return;
 
@@ -132,7 +131,6 @@ const ProfilePage = () => {
 
   }, [profile.username, usernameStatus, user?.id]);
 
-  // --- NEW: AVATAR UPLOAD HANDLER ---
   const handleAvatarUpload = async (event) => {
     try {
       setUploading(true);
@@ -145,26 +143,22 @@ const ProfilePage = () => {
       const fileName = `${user.id}-${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 1. Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // 2. Get Public URL
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      
-      // 3. Update State
       setProfile(prev => ({ ...prev, avatar_url: data.publicUrl }));
+      toast.success('Avatar uploaded!');
 
     } catch (error) {
-      alert('Error uploading avatar: ' + error.message);
+      toast.error('Upload failed: ' + error.message);
     } finally {
       setUploading(false);
     }
   };
-  // ----------------------------------
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -183,13 +177,9 @@ const ProfilePage = () => {
     const { error } = await supabase.from('profiles').upsert(updates);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
     } else {
-      const btn = document.getElementById('save-btn');
-      if(btn) {
-          btn.innerText = "Saved!";
-          setTimeout(() => btn.innerText = "Save Changes", 2000);
-      }
+      toast.success('Profile saved!');
     }
     setLoading(false);
   };
@@ -219,10 +209,9 @@ const ProfilePage = () => {
 
                     <form onSubmit={handleSave} className="space-y-4">
                         
-                        {/* --- CLICKABLE AVATAR UPLOAD --- */}
                         <div className="flex justify-center mb-6 relative">
                             <div 
-                                onClick={() => fileInputRef.current.click()} // Trigger hidden input
+                                onClick={() => fileInputRef.current.click()}
                                 className="relative w-24 h-24 rounded-full overflow-hidden bg-slate-800 border-2 border-slate-700 group cursor-pointer hover:border-primary transition-colors"
                             >
                                 {uploading ? (
@@ -243,19 +232,12 @@ const ProfilePage = () => {
                                     </div>
                                 )}
                             </div>
-                            {/* Hidden Input */}
                             <input
-                                type="file"
-                                id="avatar-upload"
-                                ref={fileInputRef}
-                                accept="image/*"
-                                onChange={handleAvatarUpload}
-                                className="hidden"
+                                type="file" id="avatar-upload" ref={fileInputRef}
+                                accept="image/*" onChange={handleAvatarUpload} className="hidden"
                             />
                         </div>
-                        {/* ------------------------------- */}
 
-                        {/* Username Input */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Username (Unique)</label>
                             <div className="relative">
@@ -289,7 +271,6 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Display Name */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Display Name</label>
                             <input 
@@ -301,7 +282,6 @@ const ProfilePage = () => {
                             />
                         </div>
 
-                        {/* Avatar URL (Keep as read-only or manual override) */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avatar URL</label>
                             <div className="relative">
@@ -319,7 +299,6 @@ const ProfilePage = () => {
                             <p className="text-[10px] text-slate-600 mt-1 ml-1">Click the image above to upload, or paste a URL here.</p>
                         </div>
 
-                        {/* Bio */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bio</label>
                             <textarea 
@@ -347,10 +326,8 @@ const ProfilePage = () => {
                 </div>
             </div>
 
-            {/* RIGHT COLUMN: DASHBOARD */}
             <div className="lg:col-span-2 space-y-6">
                 
-                {/* 1. MY LIVE SONGS */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="bg-emerald-500/10 p-2 rounded-lg text-emerald-500">
@@ -379,7 +356,6 @@ const ProfilePage = () => {
                     )}
                 </div>
 
-                {/* 2. MY SUBMISSIONS */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="bg-yellow-500/10 p-2 rounded-lg text-yellow-500">
@@ -398,7 +374,6 @@ const ProfilePage = () => {
                                         <img src={sub.cover_url} className="w-10 h-10 rounded-lg object-cover opacity-50" />
                                         <div>
                                             <h4 className="text-slate-300 font-medium text-sm">{sub.title_zh || sub.title_en}</h4>
-                                            
                                             <div className="mt-1">
                                                 {sub.status === 'pending' && (
                                                     <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-0.5 rounded flex items-center gap-1 w-fit">
