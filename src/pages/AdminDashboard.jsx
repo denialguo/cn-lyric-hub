@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { Check, Clock, AlertCircle, ArrowLeft, Trash2, Edit3, Sparkles, Music } from 'lucide-react';
+import { Check, Clock, AlertCircle, ArrowLeft, Trash2, Edit3, Sparkles, Music, ArrowRight } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { user, profile, loading: authLoading } = useAuth();
@@ -76,20 +76,50 @@ const AdminDashboard = () => {
     }
   };
 
+  // Returns array of { label, oldVal, newVal } for each changed field
   const getChangedFields = (sub, orig) => {
       if (!orig) return [];
       const changes = [];
-      if (sub.title_en !== orig.title_en) changes.push("Title (EN)");
-      if (sub.title_zh !== orig.title_zh) changes.push("Title (ZH)");
-      if (sub.artist_en !== orig.artist_en || sub.artist_zh !== orig.artist_zh) changes.push("Artists");
-      if (sub.lyrics_chinese !== orig.lyrics_chinese) changes.push("Chinese Lyrics");
-      if (sub.lyrics_pinyin !== orig.lyrics_pinyin) changes.push("Pinyin");
-      if (sub.lyrics_english !== orig.lyrics_english) changes.push("English Lyrics");
-      if (sub.youtube_url !== orig.youtube_url) changes.push("YouTube URL");
-      if (sub.cover_url !== orig.cover_url) changes.push("Cover URL");
-      if (sub.credits !== orig.credits) changes.push("Credits");
+
+      const fields = [
+        { key: 'title_en',        label: 'Title (EN)' },
+        { key: 'title_zh',        label: 'Title (ZH)' },
+        { key: 'artist_en',       label: 'Artist (EN)' },
+        { key: 'artist_zh',       label: 'Artist (ZH)' },
+        { key: 'cover_url',       label: 'Cover URL' },
+        { key: 'youtube_url',     label: 'YouTube URL' },
+        { key: 'credits',         label: 'Credits' },
+        { key: 'lyrics_chinese',  label: 'Chinese Lyrics' },
+        { key: 'lyrics_pinyin',   label: 'Pinyin' },
+        { key: 'lyrics_english',  label: 'English Lyrics' },
+      ];
+
+      for (const { key, label } of fields) {
+        const oldVal = orig[key] || '';
+        const newVal = sub[key] || '';
+        if (oldVal !== newVal) {
+          changes.push({ label, key, oldVal, newVal });
+        }
+      }
+
+      // Tags comparison (arrays)
+      const oldTags = (orig.tags || []).join(', ');
+      const newTags = (sub.tags || []).join(', ');
+      if (oldTags !== newTags) {
+        changes.push({ label: 'Tags', key: 'tags', oldVal: oldTags || '(none)', newVal: newTags || '(none)' });
+      }
+
       return changes;
   };
+
+  // Truncate long values for display (lyrics etc)
+  const truncate = (str, max = 60) => {
+    if (!str) return '(empty)';
+    return str.length > max ? str.slice(0, max) + '…' : str;
+  };
+
+  // Is this a long-form field where we just show "modified" instead of full diff?
+  const isLongField = (key) => ['lyrics_chinese', 'lyrics_pinyin', 'lyrics_english', 'credits'].includes(key);
 
   if (authLoading || loading) return <div className="p-10 text-white">Loading...</div>;
 
@@ -125,14 +155,18 @@ const AdminDashboard = () => {
                 
                 const changedFields = isEdit ? getChangedFields(item, item.originalData) : [];
 
+                // Split into metadata changes vs content changes for cleaner display
+                const metadataChanges = changedFields.filter(c => !isLongField(c.key));
+                const contentChanges = changedFields.filter(c => isLongField(c.key));
+
                 return (
                   <div key={item.id} className="p-6 hover:bg-slate-800/30 transition-colors">
                     <div className="flex flex-col md:flex-row justify-between gap-6">
                       
-                      {/* --- UPGRADED LEFT SIDE (IMAGE + TEXT) --- */}
+                      {/* LEFT SIDE (IMAGE + TEXT) */}
                       <div className="flex-1 flex flex-col sm:flex-row gap-5">
                         
-                        {/* THE COVER IMAGE */}
+                        {/* Cover Image */}
                         <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center shadow-lg">
                             {item.cover_url ? (
                                 <img src={item.cover_url} alt="Cover" className="w-full h-full object-cover" />
@@ -167,20 +201,44 @@ const AdminDashboard = () => {
                             </p>
                             
                             {isEdit ? (
-                                <div className="bg-purple-950/20 border border-purple-900/50 p-4 rounded-lg">
-                                    <p className="text-xs text-purple-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                                        <AlertCircle size={14} /> Modifications Detected
+                                <div className="bg-purple-950/20 border border-purple-900/50 p-4 rounded-lg space-y-3">
+                                    <p className="text-xs text-purple-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                                        <AlertCircle size={14} /> {changedFields.length} Field{changedFields.length !== 1 ? 's' : ''} Modified
                                     </p>
-                                    {changedFields.length > 0 ? (
-                                        <div className="flex flex-wrap gap-2">
-                                            {changedFields.map((field, idx) => (
-                                                <span key={idx} className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs px-2 py-1 rounded">
-                                                    {field}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-slate-500 italic">No text changes detected.</p>
+
+                                    {changedFields.length === 0 && (
+                                        <p className="text-xs text-slate-500 italic">No detectable changes from original.</p>
+                                    )}
+
+                                    {/* Metadata changes — show old → new */}
+                                    {metadataChanges.length > 0 && (
+                                      <div className="space-y-2">
+                                        {metadataChanges.map((change, idx) => (
+                                          <div key={idx} className="bg-slate-950/50 rounded-lg p-3 border border-purple-900/30">
+                                            <p className="text-[10px] text-purple-400 font-bold uppercase tracking-wider mb-1.5">{change.label}</p>
+                                            <div className="flex items-start gap-2 text-xs font-mono">
+                                              <span className="text-red-400 bg-red-400/10 px-2 py-1 rounded flex-1 break-all">
+                                                {truncate(change.oldVal)}
+                                              </span>
+                                              <ArrowRight size={14} className="text-slate-600 flex-shrink-0 mt-1" />
+                                              <span className="text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded flex-1 break-all">
+                                                {truncate(change.newVal)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Content changes — just show labels since they're too long */}
+                                    {contentChanges.length > 0 && (
+                                      <div className="flex flex-wrap gap-2 pt-1">
+                                        {contentChanges.map((change, idx) => (
+                                          <span key={idx} className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs px-2 py-1 rounded flex items-center gap-1.5">
+                                            <Edit3 size={10} /> {change.label}
+                                          </span>
+                                        ))}
+                                      </div>
                                     )}
                                 </div>
                             ) : (
@@ -198,7 +256,7 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
-                      {/* --- RIGHT SIDE (BUTTONS) --- */}
+                      {/* RIGHT SIDE (BUTTONS) */}
                       <div className="flex md:flex-col gap-3 justify-center min-w-[140px] pt-2 md:pt-0">
                         <button 
                           onClick={() => navigate(`/admin/review/${item.id}`)}
