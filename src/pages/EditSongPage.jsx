@@ -7,11 +7,13 @@ import LyricsEditor from '../components/LyricsEditor';
 import ArtistSearch from '../components/ArtistSearch';
 import { pinyin } from 'pinyin-pro';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const EditSongPage = ({ isReviewMode = false }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { toast, confirm } = useToast();
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -31,7 +33,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
       const { data: song, error } = await supabase.from(tableName).select('*').eq('id', id).single();
 
       if (error) {
-        alert('Error loading data');
+        toast.error('Error loading data');
         navigate('/admin');
         return;
       }
@@ -100,7 +102,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
     if (selectedArtists.length === 0) {
       setLoading(false);
-      return alert('Please add at least one artist.');
+      return toast.warning('Please add at least one artist.');
     }
 
     const artistEnString = selectedArtists.map((a) => a.name_en).join(', ');
@@ -167,7 +169,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
         }
 
         await supabase.from('song_submissions').delete().eq('id', id);
-        alert('Approved & Published!');
+        toast.success('Approved & Published!');
         navigate('/admin');
       } else {
         if (profile?.role === 'admin') {
@@ -185,18 +187,19 @@ const EditSongPage = ({ isReviewMode = false }) => {
           };
           const { error } = await supabase.from('song_submissions').insert([submissionPayload]);
           if (error) throw error;
-          alert("Edit suggested! An admin will review your changes.");
+          toast.success("Edit suggested! An admin will review your changes.");
           navigate(`/song/${formData.slug}`);
         }
       }
     } catch (error) {
-      alert('Error: ' + error.message);
+      toast.error('Error: ' + error.message);
     }
     setLoading(false);
   };
 
   const handleReject = async () => {
-    if (!window.confirm('Delete this submission?')) return;
+    const ok = await confirm('Delete this submission?', { destructive: true, confirmLabel: 'Delete' });
+    if (!ok) return;
     setLoading(true);
     await supabase.from('song_submissions').delete().eq('id', id);
     navigate('/admin');

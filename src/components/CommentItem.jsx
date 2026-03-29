@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Reply, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useToast } from '../context/ToastContext';
 
 const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
+  const { toast } = useToast();
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
 
-  // 1. Fetch Likes on Mount
   useEffect(() => {
     const fetchLikes = async () => {
-      // Get count
       const { count } = await supabase
         .from('comment_likes')
         .select('*', { count: 'exact', head: true })
         .eq('comment_id', comment.id);
       setLikesCount(count || 0);
 
-      // Check if WE liked it
       if (user) {
         const { data } = await supabase
           .from('comment_likes')
@@ -32,9 +31,8 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
     fetchLikes();
   }, [comment.id, user]);
 
-  // 2. Handle Like Click
   const toggleLike = async () => {
-    if (!user) return alert("Please sign in to like comments!");
+    if (!user) return toast.info("Please sign in to like comments.");
     
     const newStatus = !isLiked;
     setIsLiked(newStatus);
@@ -47,7 +45,6 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
     }
   };
 
-  // 3. Handle Reply Submission
   const submitReply = async (e) => {
     e.preventDefault();
     if (!replyText.trim()) return;
@@ -60,7 +57,6 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
 
   return (
     <div className="flex gap-3 group">
-      {/* Avatar */}
       <div className="flex-shrink-0 w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center overflow-hidden border border-slate-700">
         {comment.profiles?.avatar_url ? (
            <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" alt="avi" />
@@ -70,7 +66,6 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
       </div>
 
       <div className="flex-1">
-        {/* Header */}
         <div className="flex items-baseline justify-between">
             <div className="flex items-baseline gap-2">
                 <span className="text-sm font-bold text-slate-200">{comment.profiles?.username || "Unknown"}</span>
@@ -83,10 +78,8 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
             )}
         </div>
 
-        {/* Content */}
         <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">{comment.content}</p>
 
-        {/* Actions Bar */}
         <div className="flex items-center gap-4 mt-2">
             <button 
                 onClick={toggleLike}
@@ -103,7 +96,6 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
             </button>
         </div>
 
-        {/* Reply Input Box */}
         {isReplying && (
             <form onSubmit={submitReply} className="mt-3 flex gap-2 animate-in fade-in slide-in-from-top-1">
                 <input 
@@ -119,7 +111,6 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
             </form>
         )}
 
-        {/* NESTED REPLIES (Recursive Rendering) */}
         {replies.length > 0 && (
             <div className="mt-4 pl-4 border-l-2 border-slate-800 space-y-4">
                 {replies.map(reply => (
@@ -127,8 +118,8 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
                         key={reply.id} 
                         comment={reply} 
                         user={user} 
-                        replies={[]} // We usually only go 1 level deep for simplicity
-                        onReply={onReply} // Replies to replies just thread under parent
+                        replies={[]}
+                        onReply={onReply}
                         onDelete={onDelete}
                     />
                 ))}

@@ -7,10 +7,12 @@ import LyricsEditor from '../components/LyricsEditor';
 import ArtistSearch from '../components/ArtistSearch';
 import { pinyin } from 'pinyin-pro';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const AddSongPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast, confirm } = useToast();
   const [loading, setLoading] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
 
@@ -46,13 +48,16 @@ const AddSongPage = () => {
     }
   }, [formData, tags, selectedArtists]);
 
-  const clearDraft = () => {
-    if (window.confirm('Delete draft?')) {
-      localStorage.removeItem('song_draft_form');
-      localStorage.removeItem('song_draft_tags');
-      localStorage.removeItem('song_draft_artists_obj');
-      window.location.reload();
-    }
+  const clearDraft = async () => {
+    const ok = await confirm('Delete your current draft?', { destructive: true, confirmLabel: 'Delete' });
+    if (!ok) return;
+    localStorage.removeItem('song_draft_form');
+    localStorage.removeItem('song_draft_tags');
+    localStorage.removeItem('song_draft_artists_obj');
+    setFormData({ title_zh: '', title_en: '', cover_url: '', youtube_url: '', lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '' });
+    setTags([]);
+    setSelectedArtists([]);
+    toast.success('Draft cleared');
   };
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -83,8 +88,8 @@ const AddSongPage = () => {
     e.preventDefault();
     if (loading) return;
 
-    if (selectedArtists.length === 0) return alert('Please add at least one artist.');
-    if (!formData.title_zh.trim() && !formData.title_en.trim()) return alert('Please add a song title.');
+    if (selectedArtists.length === 0) return toast.warning('Please add at least one artist.');
+    if (!formData.title_zh.trim() && !formData.title_en.trim()) return toast.warning('Please add a song title.');
 
     setLoading(true);
 
@@ -149,10 +154,10 @@ const AddSongPage = () => {
       localStorage.removeItem('song_draft_tags');
       localStorage.removeItem('song_draft_artists_obj');
 
-      alert(user ? 'Song published successfully!' : 'Submitted for review!');
+      toast.success(user ? 'Song published successfully!' : 'Submitted for review!');
       navigate('/');
     } catch (err) {
-      alert('Error: ' + err.message);
+      toast.error('Error: ' + err.message);
     } finally {
       setLoading(false);
     }

@@ -8,7 +8,7 @@ import ThemeSettings from '../components/ThemeSettings';
 import { tify, sify } from 'chinese-conv'; 
 
 const HomePage = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [songs, setSongs] = useState([]);
   const [activeTab, setActiveTab] = useState('all'); 
@@ -18,34 +18,29 @@ const HomePage = () => {
   const [scriptMode, setScriptMode] = useState('simplified'); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-useEffect(() => {
-  const fetchSongs = async () => {
-    // This query gets songs and their like counts using a Supabase view or a count join
-    // For now, let's just fetch them. To do real trending, 
-    // we'll eventually want to order by a 'likes_count' column.
-    const { data } = await supabase
-      .from('songs')
-      .select('*, song_likes(count)') 
-      .order('created_at', { ascending: false });
-    
-    if (data) setSongs(data);
-    setLoading(false);
-  };
-  fetchSongs();
-}, []);
+  useEffect(() => {
+    const fetchSongs = async () => {
+      const { data } = await supabase
+        .from('songs')
+        .select('*, song_likes(count)') 
+        .order('created_at', { ascending: false });
+      
+      if (data) setSongs(data);
+      setLoading(false);
+    };
+    fetchSongs();
+  }, []);
 
   const toggleScript = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload(); 
+    await signOut();
+    setIsMenuOpen(false);
   };
 
-  // --- ROBUST FILTER LOGIC ---
   const filteredSongs = songs.filter(song => {
-    // 1. Search Filter
     const query = searchQuery.toLowerCase();
     const cnTitle = song.title_zh || "";
     const enTitle = song.title_en || "";
@@ -58,39 +53,31 @@ useEffect(() => {
       artist.toLowerCase().includes(query) ||
       cnArtist.includes(query);
 
-    // 2. Tab Filter
     let matchesTab = true;
     const tags = Array.isArray(song.tags) ? song.tags.map(t => t.toLowerCase()) : [];
 
     if (activeTab === 'new') {
-        // "Fresh Drops" - show top 10 newest (already sorted by date)
-        // or just return true if you want 'All' sorted by date
         matchesTab = true; 
     } 
     else if (activeTab === 'classics') {
-        // Check for common 'old' tags
         matchesTab = tags.some(t => ['ballad', 'classic', 'opera', 'traditional', '90s', '80s'].includes(t));
     } 
     else if (activeTab === 'trending') {
-        // Show songs that have at least 1 like, or you can sort by likes
         matchesTab = song.song_likes && song.song_likes[0]?.count > 0;
     }
 
     return matchesSearch && matchesTab;
   });
 
-const getDisplayName = () => {
-  // If the user is anonymous (no email), they are a Guest
-  if (!user || user.is_anonymous || !user.email) return 'Guest';
-  
-  if (profile?.username) return profile.username;
-  return user.email.split('@')[0];
-};
+  const getDisplayName = () => {
+    if (!user || user.is_anonymous || !user.email) return 'Guest';
+    if (profile?.username) return profile.username;
+    return user.email.split('@')[0];
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500 relative">
       
-      {/* Navbar */}
       <nav className="sticky top-0 z-[100] bg-slate-950/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
@@ -98,7 +85,6 @@ const getDisplayName = () => {
             <span className="font-bold text-xl tracking-tight text-white">CN Lyric Hub</span>
           </div>
 
-          {/* Search Bar (Hidden on mobile, visible on desktop) */}
           <div className="hidden md:flex flex-1 max-w-lg mx-8 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
             <input 
@@ -121,9 +107,7 @@ const getDisplayName = () => {
 
             <ThemeSettings />
 
-            {/* USER MENU */}
-            {user && !user.is_anonymous && !user.is_anonymous ? (
-                // Show the full User Menu (Profile, Admin, Logout)
+            {user && !user.is_anonymous ? (
                 <div className="relative">
                     <button 
                       onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -167,7 +151,6 @@ const getDisplayName = () => {
                     )}
                 </div>
             ) : (
-                // Show the "Sign In" button for Guests/Anonymous
                 <button 
                     onClick={() => navigate('/login')}
                     className="flex items-center gap-2 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"
@@ -187,7 +170,6 @@ const getDisplayName = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
       <div className="relative overflow-hidden border-b border-white/5">
         <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-primary/20 rounded-full blur-[120px] -z-10 transition-colors duration-700" />
         
@@ -223,7 +205,6 @@ const getDisplayName = () => {
         </div>
       </div>
 
-      {/* Song Grid */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         <h2 className="text-2xl font-bold text-white mb-6">
           {searchQuery ? `Search Results for "${searchQuery}"` : 
@@ -244,9 +225,7 @@ const getDisplayName = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredSongs.map((song) => {
-                // FIX: Use 'title_zh' (Database Column Name), NOT 'title_chinese'
                 const rawChinese = song.title_zh || song.title_en || "Untitled";
-                
                 const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
                 
                 const songForCard = {

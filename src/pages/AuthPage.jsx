@@ -1,23 +1,22 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { useToast } from '../context/ToastContext';
 import { Mail, Lock, User, ArrowLeft, Loader2 } from 'lucide-react';
 
 const AuthPage = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', username: '' });
 
-  // 1. UPDATED GOOGLE LOGIC (WITH THE FIX)
   const handleGoogleLogin = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // --- THE MAGIC FIX IS HERE ---
           redirectTo: window.location.origin, 
-          // -----------------------------
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -26,7 +25,7 @@ const AuthPage = () => {
       });
       if (error) throw error;
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message);
     }
   };
 
@@ -44,7 +43,7 @@ const AuthPage = () => {
           },
         });
         if (error) throw error;
-        alert('Account created! Please check your email to verify.');
+        toast.success('Account created! Check your email to verify.');
         setIsSignUp(false);
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -55,7 +54,7 @@ const AuthPage = () => {
         navigate('/');
       }
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -80,7 +79,6 @@ const AuthPage = () => {
           </p>
         </div>
 
-        {/* GOOGLE BUTTON */}
         <button
           onClick={handleGoogleLogin}
           className="w-full bg-white text-slate-900 font-bold py-3 rounded-xl transition-transform hover:scale-[1.02] flex items-center justify-center gap-3 mb-6"
@@ -108,9 +106,7 @@ const AuthPage = () => {
             <div className="relative group">
               <User className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
               <input
-                type="text"
-                placeholder="Username"
-                required
+                type="text" placeholder="Username" required
                 className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
@@ -121,9 +117,7 @@ const AuthPage = () => {
           <div className="relative group">
             <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
             <input
-              type="email"
-              placeholder="Email address"
-              required
+              type="email" placeholder="Email address" required
               className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
               value={formData.email}
               onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -133,9 +127,7 @@ const AuthPage = () => {
           <div className="relative group">
             <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
             <input
-              type="password"
-              placeholder="Password"
-              required
+              type="password" placeholder="Password" required
               className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-xl py-3 pl-10 pr-4 text-white outline-none transition-colors"
               value={formData.password}
               onChange={(e) => setFormData({...formData, password: e.target.value})}
