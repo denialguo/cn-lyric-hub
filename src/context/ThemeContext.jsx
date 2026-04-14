@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 
 const ThemeContext = createContext();
 
@@ -11,6 +11,8 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
+  const isFirstRender = useRef(true);
+
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme-mode');
     return saved ? saved === 'dark' : true;
@@ -23,6 +25,13 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const html = document.documentElement;
     
+    // Only animate after the first render (skip initial page load)
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+    } else {
+      html.classList.add('theme-transitioning');
+    }
+    
     if (isDarkMode) {
       html.classList.add('dark');
       html.classList.remove('light');
@@ -32,6 +41,9 @@ export const ThemeProvider = ({ children }) => {
     }
     
     localStorage.setItem('theme-mode', isDarkMode ? 'dark' : 'light');
+    
+    const timer = setTimeout(() => html.classList.remove('theme-transitioning'), 400);
+    return () => clearTimeout(timer);
   }, [isDarkMode]);
 
   useEffect(() => {

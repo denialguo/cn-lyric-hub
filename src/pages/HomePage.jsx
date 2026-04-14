@@ -19,6 +19,7 @@ const HomePage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileSearchRef = useRef(null);
+  const [userLikedIds, setUserLikedIds] = useState(new Set());
 
   useEffect(() => {
     const fetchSongs = async () => {
@@ -32,6 +33,19 @@ const HomePage = () => {
     };
     fetchSongs();
   }, []);
+
+  // Batch-fetch which songs the current user has liked (1 query instead of N)
+  useEffect(() => {
+    const fetchUserLikes = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('song_likes')
+        .select('song_id')
+        .eq('user_id', user.id);
+      if (data) setUserLikedIds(new Set(data.map(d => d.song_id)));
+    };
+    fetchUserLikes();
+  }, [user]);
 
   const toggleScript = () => {
     setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
@@ -272,7 +286,12 @@ const HomePage = () => {
                 };
 
                 return (
-                  <SongCard key={song.id} song={songForCard} />
+                  <SongCard 
+                    key={song.id} 
+                    song={songForCard} 
+                    initialLikeCount={song.song_likes?.[0]?.count || 0}
+                    initialIsLiked={userLikedIds.has(song.id)}
+                  />
                 );
             })}
           </div>

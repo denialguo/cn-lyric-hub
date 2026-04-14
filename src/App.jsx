@@ -13,6 +13,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ProfilePage from './pages/ProfilePage';
 import PublicProfile from './pages/PublicProfile';
 import ArtistPage from './pages/ArtistPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 const App = () => {
   return (
@@ -30,6 +31,7 @@ const App = () => {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/user/:username" element={<PublicProfile />} />
             <Route path="/artist/:name" element={<ArtistPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
           
           <Analytics />
