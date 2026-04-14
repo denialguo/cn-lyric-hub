@@ -124,3 +124,18 @@ body {
 
 .light .opacity-80 { opacity: 1 !important; }
 .light .aspect-video { background-color: #000 !important; }
+
+/* ============================================
+   RUBY PINYIN ANNOTATIONS
+   ============================================ */
+ruby {
+  ruby-align: center;
+}
+
+ruby rt {
+  font-family: 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding-bottom: 2px;
+  user-select: none;
+}

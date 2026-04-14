@@ -92,6 +92,7 @@ const AdminDashboard = () => {
         { key: 'artist_zh',       label: 'Artist (ZH)' },
         { key: 'cover_url',       label: 'Cover URL' },
         { key: 'youtube_url',     label: 'YouTube URL' },
+        { key: 'bio',             label: 'About' },
         { key: 'credits',         label: 'Credits' },
         { key: 'lyrics_chinese',  label: 'Chinese Lyrics' },
         { key: 'lyrics_pinyin',   label: 'Pinyin' },
@@ -123,7 +124,7 @@ const AdminDashboard = () => {
   };
 
   // Is this a long-form field where we just show "modified" instead of full diff?
-  const isLongField = (key) => ['lyrics_chinese', 'lyrics_pinyin', 'lyrics_english', 'credits'].includes(key);
+  const isLongField = (key) => ['lyrics_chinese', 'lyrics_pinyin', 'lyrics_english'].includes(key);
 
   if (authLoading || loading) return <div className="p-10 text-white">Loading...</div>;
 

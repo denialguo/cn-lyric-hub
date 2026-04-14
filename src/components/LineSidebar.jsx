@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
 import CommentItem from './CommentItem';
 
-const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, onClose, onSelectTranslation }) => {
+const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation }) => {
   const { user } = useAuth();
   const { toast, confirm } = useToast();
   
@@ -282,13 +282,21 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
       </div>
 
       {/* CONTEXT */}
-      <div className="p-4 bg-slate-950 border-b border-slate-800">
-        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 italic text-slate-300 text-sm border-l-4 border-l-primary relative group">
-            "{originalContent}"
-            <button onClick={() => handleCopy(originalContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="p-4 bg-slate-950 border-b border-slate-800 space-y-2">
+        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 border-l-4 border-l-primary relative group">
+            <p className="italic text-slate-300 text-sm pr-8">"{originalContent}"</p>
+            <button onClick={() => handleCopy(originalContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" title="Copy characters">
                 <Copy size={14} />
             </button>
         </div>
+        {pinyinContent && (
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 relative group">
+            <p className="text-slate-500 text-xs font-mono pr-8">{pinyinContent}</p>
+            <button onClick={() => handleCopy(pinyinContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" title="Copy pinyin">
+                <Copy size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* TABS */}
