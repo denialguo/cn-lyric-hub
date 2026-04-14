@@ -4,16 +4,27 @@ import { Play, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
-const SongCard = ({ song }) => {
+const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
   const navigate = useNavigate();
   const { user, ensureUser } = useAuth();
   
-  const [likesCount, setLikesCount] = useState(0);
-  const [isLiked, setIsLiked] = useState(false);
+  // Use pre-fetched data when available (from HomePage batch query)
+  const hasInitialData = initialLikeCount !== undefined;
+  const [likesCount, setLikesCount] = useState(hasInitialData ? initialLikeCount : 0);
+  const [isLiked, setIsLiked] = useState(initialIsLiked || false);
 
+  // Only fetch individually if no pre-fetched data was passed (e.g. ArtistPage, PublicProfile)
   useEffect(() => {
-    fetchLikes();
+    if (!hasInitialData) fetchLikes();
   }, [song.id, user]);
+
+  // Sync when parent passes new initial data (e.g. user logs in, HomePage re-fetches)
+  useEffect(() => {
+    if (hasInitialData) {
+      setLikesCount(initialLikeCount);
+      setIsLiked(initialIsLiked || false);
+    }
+  }, [initialLikeCount, initialIsLiked]);
 
   const fetchLikes = async () => {
     const { count } = await supabase
