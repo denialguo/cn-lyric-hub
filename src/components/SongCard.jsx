@@ -6,9 +6,8 @@ import { useAuth } from '../context/AuthContext';
 
 const SongCard = ({ song }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, ensureUser } = useAuth();
   
-  // Local state for immediate feedback
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
 
@@ -17,7 +16,6 @@ const SongCard = ({ song }) => {
   }, [song.id, user]);
 
   const fetchLikes = async () => {
-    // 1. Get total count
     const { count } = await supabase
       .from('song_likes')
       .select('*', { count: 'exact', head: true })
@@ -25,7 +23,6 @@ const SongCard = ({ song }) => {
     
     setLikesCount(count || 0);
 
-    // 2. Check if current user liked it
     if (user) {
       const { data } = await supabase
         .from('song_likes')
@@ -39,18 +36,20 @@ const SongCard = ({ song }) => {
   };
 
   const handleLike = async (e) => {
-    e.stopPropagation(); // Don't navigate to the song page
-    // if (!user) return alert("Please sign in to like songs!"); commented out because not a big deal at this stage in development. 
+    e.stopPropagation();
+    
+    // Lazy auth — creates anonymous session only on first interaction
+    const currentUser = await ensureUser();
+    if (!currentUser) return;
 
-    // Optimistic Update
     const newLikedStatus = !isLiked;
     setIsLiked(newLikedStatus);
     setLikesCount(prev => newLikedStatus ? prev + 1 : prev - 1);
 
     if (newLikedStatus) {
-      await supabase.from('song_likes').insert({ song_id: song.id, user_id: user.id });
+      await supabase.from('song_likes').insert({ song_id: song.id, user_id: currentUser.id });
     } else {
-      await supabase.from('song_likes').delete().eq('song_id', song.id).eq('user_id', user.id);
+      await supabase.from('song_likes').delete().eq('song_id', song.id).eq('user_id', currentUser.id);
     }
   };
 

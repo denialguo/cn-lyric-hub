@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 const AuthContext = createContext({});
@@ -17,9 +17,7 @@ export const AuthProvider = ({ children }) => {
         setUser(session.user);
         fetchProfile(session.user.id);
       } else {
-        // Quietly sign in as guest so they can like things
-        const { data } = await supabase.auth.signInAnonymously();
-        if (data?.user) setUser(data.user);
+        // Don't create anonymous session on load — wait until they interact
         setLoading(false);
       }
     };
@@ -46,6 +44,18 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
+  // Lazy anonymous auth — only called when a visitor actually does something (like a song)
+  // Returns the user object, creating an anonymous session if needed
+  const ensureUser = useCallback(async () => {
+    if (user) return user;
+    const { data } = await supabase.auth.signInAnonymously();
+    if (data?.user) {
+      setUser(data.user);
+      return data.user;
+    }
+    return null;
+  }, [user]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -53,7 +63,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut, ensureUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );
