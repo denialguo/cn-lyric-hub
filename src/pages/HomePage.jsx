@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Music, Flame, Sparkles, Disc, Globe, User, LogOut, LogIn, LayoutDashboard } from 'lucide-react'; 
+import { Search, Plus, Music, Flame, Sparkles, Disc, Globe, User, LogOut, LogIn, LayoutDashboard, X } from 'lucide-react'; 
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import SongCard from '../components/SongCard';
@@ -17,6 +17,8 @@ const HomePage = () => {
   
   const [scriptMode, setScriptMode] = useState('simplified'); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchRef = useRef(null);
 
   useEffect(() => {
     const fetchSongs = async () => {
@@ -97,6 +99,17 @@ const HomePage = () => {
           </div>
 
           <div className="flex items-center gap-4 relative">
+             {/* Mobile search toggle */}
+             <button 
+              onClick={() => {
+                setMobileSearchOpen(!mobileSearchOpen);
+                setTimeout(() => mobileSearchRef.current?.focus(), 100);
+              }}
+              className="md:hidden p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            >
+              {mobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+            </button>
+
              <button 
               onClick={toggleScript}
               className="hidden sm:flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 hover:border-primary hover:text-primary transition-all"
@@ -168,6 +181,31 @@ const HomePage = () => {
             </button>
           </div>
         </div>
+
+        {/* Mobile search bar */}
+        {mobileSearchOpen && (
+          <div className="md:hidden px-4 pb-3 animate-in slide-in-from-top fade-in duration-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+              <input 
+                ref={mobileSearchRef}
+                type="text" 
+                placeholder="Search songs, artists..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-10 py-2.5 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm text-white"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="relative overflow-hidden border-b border-white/5">

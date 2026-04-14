@@ -85,13 +85,18 @@ const LineSidebar = ({ songId, lineIndex, originalContent, defaultTranslation, o
             });
         }
 
-        const { data: commentVotes } = await supabase
-            .from('comment_votes')
-            .select('comment_id')
-            .eq('user_id', user.id);
-            
-        if (commentVotes) {
-            commentVotes.forEach(v => myCommentVotedIds.add(v.comment_id));
+        // Only check votes for comments on THIS line (not the entire site)
+        const commentIds = (comms || []).map(c => c.id);
+        if (commentIds.length > 0) {
+            const { data: commentVotes } = await supabase
+                .from('comment_votes')
+                .select('comment_id')
+                .eq('user_id', user.id)
+                .in('comment_id', commentIds);
+                
+            if (commentVotes) {
+                commentVotes.forEach(v => myCommentVotedIds.add(v.comment_id));
+            }
         }
     }
 
