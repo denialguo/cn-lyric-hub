@@ -21,7 +21,7 @@ const AddSongPage = () => {
 
   const [formData, setFormData] = useState({
     title_zh: '', title_en: '', cover_url: '', youtube_url: '',
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '',
+    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '',
   });
 
   // --- LOAD DRAFT ---
@@ -211,8 +211,29 @@ const AddSongPage = () => {
             </div>
           </div>
 
-          <div className="w-full">
-            <LyricsEditor label="Credits / About" name="credits" value={formData.credits} onChange={handleChange} placeholder="Song bio..." />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm font-bold">About This Song</label>
+              <textarea
+                name="bio"
+                value={formData.bio}
+                onChange={handleChange}
+                placeholder="Background, meaning, cultural context..."
+                rows={4}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-primary outline-none transition-colors resize-none leading-relaxed"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm font-bold">Credits</label>
+              <textarea
+                name="credits"
+                value={formData.credits}
+                onChange={handleChange}
+                placeholder="Lyrics by, composed by, arranged by..."
+                rows={4}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-primary outline-none transition-colors resize-none leading-relaxed"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">

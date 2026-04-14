@@ -243,6 +243,13 @@ const SongPage = () => {
            </div>
 
            {/* Credits & Comments */}
+           {song.bio && (
+             <div className="mt-16 pt-10 border-t border-slate-800/50">
+               <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6"><Info className="w-5 h-5" /> About This Song</h3>
+               <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800 text-slate-300 leading-relaxed whitespace-pre-wrap">{song.bio}</div>
+             </div>
+           )}
+
            {song.credits && (
              <div className="mt-16 pt-10 border-t border-slate-800/50">
                <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6"><Info className="w-5 h-5" /> About This Song</h3>
@@ -283,6 +290,7 @@ const SongPage = () => {
                 songId={song.id}
                 lineIndex={selectedLine}
                 originalContent={chineseLines[selectedLine]}
+                pinyinContent={pinyinLines[selectedLine]}
                 defaultTranslation={englishLines[selectedLine] || "No default translation"} 
                 onClose={() => setSelectedLine(null)}
                 onSelectTranslation={handleSelectTranslation}

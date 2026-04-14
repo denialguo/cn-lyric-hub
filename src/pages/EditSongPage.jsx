@@ -24,7 +24,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
   const [formData, setFormData] = useState({
     title_en: '', title_zh: '', cover_url: '', youtube_url: '', slug: '',
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '',
+    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '',
   });
 
   useEffect(() => {
@@ -121,7 +121,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
       title_en: formData.title_en, title_zh: formData.title_zh, cover_url: formData.cover_url,
       youtube_url: formData.youtube_url, lyrics_chinese: formData.lyrics_chinese,
       lyrics_pinyin: formData.lyrics_pinyin, lyrics_english: formData.lyrics_english,
-      credits: formData.credits, artist_en: artistEnString, artist_zh: artistZhString, tags,
+      credits: formData.credits, bio: formData.bio, artist_en: artistEnString, artist_zh: artistZhString, tags,
     };
 
     // Helper: resolve an artist to a DB id, creating if needed
@@ -294,11 +294,41 @@ const EditSongPage = ({ isReviewMode = false }) => {
             )}
           </div>
 
-          <div className="w-full">
-            <LyricsEditor
-              label="Credits" name="credits" value={formData.credits || ''} onChange={handleChange}
-              placeholder="Credits..." minHeight="100px" originalValue={originalData?.credits}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {(() => {
+              const bioChanged = originalData && (originalData.bio || '') !== (formData.bio || '');
+              return (
+                <div className={`space-y-2 p-3 rounded-lg border transition-colors ${bioChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
+                  <label className="text-slate-400 text-sm font-bold flex justify-between items-center">
+                    About This Song
+                    {bioChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">Edited</span>}
+                  </label>
+                  <textarea
+                    name="bio" value={formData.bio || ''} onChange={handleChange}
+                    placeholder="Background, meaning, cultural context..."
+                    rows={4}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-primary outline-none transition-colors resize-none leading-relaxed"
+                  />
+                </div>
+              );
+            })()}
+            {(() => {
+              const creditsChanged = originalData && (originalData.credits || '') !== (formData.credits || '');
+              return (
+                <div className={`space-y-2 p-3 rounded-lg border transition-colors ${creditsChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
+                  <label className="text-slate-400 text-sm font-bold flex justify-between items-center">
+                    Credits
+                    {creditsChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">Edited</span>}
+                  </label>
+                  <textarea
+                    name="credits" value={formData.credits || ''} onChange={handleChange}
+                    placeholder="Lyrics by, composed by, arranged by..."
+                    rows={4}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-primary outline-none transition-colors resize-none leading-relaxed"
+                  />
+                </div>
+              );
+            })()}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
