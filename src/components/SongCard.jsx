@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Play, Heart } from 'lucide-react';
+import { Play, Heart, Music } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -75,7 +75,14 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
       className="group relative bg-slate-900 rounded-2xl overflow-hidden hover:-translate-y-2 transition-all duration-300 border border-slate-800 hover:shadow-2xl hover:shadow-primary/20 cursor-pointer"
     >
       <div className="aspect-square overflow-hidden relative">
-        <img src={song.cover_url} alt={mainTitle} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+        {song.cover_url ? (
+          <img src={song.cover_url} alt={mainTitle} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center gap-3 transition-transform duration-700 group-hover:scale-110">
+            <Music className="w-10 h-10 text-slate-600" />
+            <span className="text-slate-600 text-2xl font-bold">{(mainTitle || '?')[0]}</span>
+          </div>
+        )}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-[2px]">
           <button className="bg-primary text-white p-3 rounded-full transform scale-50 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-primary/90">
             <Play fill="currentColor" className="w-6 h-6 ml-1" />

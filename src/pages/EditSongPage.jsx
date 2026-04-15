@@ -117,11 +117,14 @@ const EditSongPage = ({ isReviewMode = false }) => {
         '-' + Math.floor(Math.random() * 1000);
     }
 
+    const editorName = user ? (user.user_metadata?.username || profile?.username || user.email?.split('@')[0]) : 'Unknown';
+
     const safePayload = {
       title_en: formData.title_en, title_zh: formData.title_zh, cover_url: formData.cover_url,
       youtube_url: formData.youtube_url, lyrics_chinese: formData.lyrics_chinese,
       lyrics_pinyin: formData.lyrics_pinyin, lyrics_english: formData.lyrics_english,
       credits: formData.credits, bio: formData.bio, artist_en: artistEnString, artist_zh: artistZhString, tags,
+      last_edited_by: editorName,
     };
 
     // Helper: resolve an artist to a DB id, creating if needed
