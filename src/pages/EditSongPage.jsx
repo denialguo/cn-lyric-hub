@@ -263,8 +263,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
         <form onSubmit={handleSave} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-            {renderTextInput('Title (English)', 'title_en', true)}
-            {renderTextInput('Title (Chinese)', 'title_zh')}
+            {renderTextInput('Primary Title', 'title_zh', true)}
+            {renderTextInput('Secondary Title', 'title_en')}
 
             <div className="lg:col-span-2 p-3 rounded-lg border border-transparent">
               <ArtistSearch selectedArtists={selectedArtists} onSelect={handleSelectArtist} onRemove={handleRemoveArtist} />
