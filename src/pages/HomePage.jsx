@@ -13,7 +13,7 @@ const HomePage = () => {
   const { scriptMode } = useTheme();
   const navigate = useNavigate();
   const [songs, setSongs] = useState([]);
-  const [activeTab, setActiveTab] = useState('all'); 
+  const [activeTab, setActiveTab] = useState('trending'); 
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [userLikedIds, setUserLikedIds] = useState(new Set());
