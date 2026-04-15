@@ -110,8 +110,10 @@ const SongPage = () => {
   const maxLines = Math.max(chineseLines.length, pinyinLines.length, englishLines.length);
   const lines = Array.from({ length: maxLines });
 
-  const rawTitle = song.title_zh || "";
-  const displayTitle = scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle);
+  const rawTitle = song.title_zh || song.title_en || "";
+  const displayTitle = song.title_zh 
+    ? (scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle))
+    : rawTitle;
   const displayArtist = scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh);
 
   // Reusable size control
@@ -186,7 +188,9 @@ const SongPage = () => {
           <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={displayTitle} />
           <div className="mb-4 flex-1">
             <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">{displayTitle}</h1>
-            {song.title_en && <p className="text-2xl text-slate-400 font-medium mb-4 italic">{song.title_en}</p>}
+            {song.title_en && song.title_en !== song.title_zh && (
+              <p className="text-2xl text-slate-400 font-medium mb-4 italic">{song.title_en}</p>
+            )}
             <p className="text-2xl text-primary font-medium">{song.artist_en} <span className="text-slate-300 text-lg ml-2">{displayArtist}</span></p>
           </div>
         </div>

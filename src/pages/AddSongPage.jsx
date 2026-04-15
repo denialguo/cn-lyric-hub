@@ -183,12 +183,12 @@ const AddSongPage = () => {
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-6 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
             <div className="space-y-2">
-              <label className="text-slate-400 text-sm">Song Title (Chinese) <span className="text-primary">*</span></label>
-              <input name="title_zh" value={formData.title_zh} onChange={handleChange} placeholder="e.g. 有点甜" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" required />
+              <label className="text-slate-400 text-sm">Primary Title <span className="text-primary">*</span></label>
+              <input name="title_zh" value={formData.title_zh} onChange={handleChange} placeholder="e.g. 有点甜 or A Little Sweet" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
             </div>
             <div className="space-y-2">
-              <label className="text-slate-400 text-sm">Song Title (English)</label>
-              <input name="title_en" value={formData.title_en} onChange={handleChange} placeholder="e.g. A Little Sweet" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
+              <label className="text-slate-400 text-sm">Secondary Title</label>
+              <input name="title_en" value={formData.title_en} onChange={handleChange} placeholder="e.g. translation or alternate name" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
             </div>
 
             <div className="lg:col-span-2">
