@@ -191,9 +191,19 @@ const SongPage = () => {
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10" />
-        <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="Background" />
+        {song.cover_url ? (
+          <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="Background" />
+        ) : (
+          <div className="w-full h-full bg-slate-900" />
+        )}
         <div className="absolute bottom-0 left-0 z-20 p-6 md:p-12 w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end gap-8">
-          <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={displayTitle} />
+          {song.cover_url ? (
+            <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={displayTitle} />
+          ) : (
+            <div className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+              <Music className="w-16 h-16 text-slate-600" />
+            </div>
+          )}
           <div className="mb-4 flex-1">
             <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">{displayTitle}</h1>
             {song.title_en && song.title_en !== song.title_zh && (
@@ -345,9 +355,40 @@ const SongPage = () => {
              <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
                 <h4 className="font-bold text-white mb-4">Song Details</h4>
                 <div className="space-y-3 text-sm">
-                   <div className="flex flex-wrap gap-2">
-                      {song.tags?.map((tag, i) => <span key={i} className="text-xs bg-slate-800 text-primary px-2 py-1 rounded border border-slate-700">#{tag}</span>)}
+                   <div className="flex justify-between text-slate-400">
+                     <span>Added</span>
+                     <span className="text-slate-300">{new Date(song.created_at).toLocaleDateString()}</span>
                    </div>
+                   {song.submitted_by && (
+                     <div className="flex justify-between text-slate-400">
+                       <span>Submitted by</span>
+                       <Link to={`/user/${song.submitted_by}`} className="text-primary hover:underline">{song.submitted_by}</Link>
+                     </div>
+                   )}
+                   {song.last_edited_by && (
+                     <div className="flex justify-between text-slate-400">
+                       <span>Last edited by</span>
+                       <Link to={`/user/${song.last_edited_by}`} className="text-primary hover:underline">{song.last_edited_by}</Link>
+                     </div>
+                   )}
+                   <div className="flex justify-between text-slate-400">
+                     <span>Lines</span>
+                     <span className="text-slate-300">{chineseLines.filter(l => l.trim()).length}</span>
+                   </div>
+                   {englishLines.some(l => l.trim()) && (
+                     <div className="flex justify-between text-slate-400">
+                       <span>Translation</span>
+                       <span className="text-emerald-400 text-xs font-bold">Available</span>
+                     </div>
+                   )}
+                   {song.tags && song.tags.length > 0 && (
+                     <>
+                       <div className="h-px bg-slate-800 my-1" />
+                       <div className="flex flex-wrap gap-2">
+                         {song.tags.map((tag, i) => <span key={i} className="text-xs bg-slate-800 text-primary px-2 py-1 rounded border border-slate-700">#{tag}</span>)}
+                       </div>
+                     </>
+                   )}
                 </div>
             </div>
           </div>
