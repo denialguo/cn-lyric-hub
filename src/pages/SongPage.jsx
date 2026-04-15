@@ -190,7 +190,7 @@ const SongPage = () => {
 
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10 pointer-events-none" />
         {song.cover_url ? (
           <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="Background" />
         ) : (

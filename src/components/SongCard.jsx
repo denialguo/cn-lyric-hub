@@ -83,7 +83,7 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
             <span className="text-slate-600 text-2xl font-bold">{(mainTitle || '?')[0]}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-[2px]">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-[2px] pointer-events-none group-hover:pointer-events-auto">
           <button className="bg-primary text-white p-3 rounded-full transform scale-50 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-primary/90">
             <Play fill="currentColor" className="w-6 h-6 ml-1" />
           </button>
