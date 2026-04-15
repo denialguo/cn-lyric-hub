@@ -23,5 +23,5 @@ const NotFoundPage = () => {
     </div>
   );
 };
-// meow
+
 export default NotFoundPage;
