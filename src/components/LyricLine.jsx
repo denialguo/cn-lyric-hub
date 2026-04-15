@@ -2,8 +2,6 @@ import React, { useMemo } from 'react';
 import { pinyin as getPinyin } from 'pinyin-pro';
 
 const isChinese = (char) => /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(char);
-
-// Strip punctuation from a pinyin token so "nǎ," becomes "nǎ"
 const cleanToken = (t) => t.replace(/[,.\-!?;:，。！？、；：()（）""''「」…~·]/g, '').trim();
 
 const LyricLine = ({ 
@@ -12,35 +10,34 @@ const LyricLine = ({
   pinyin,
   translatedText, 
   isActive, 
-  fontSettings = { pinyin: 1, zh: 2, en: 1 },
+  fontSettings = { pinyin: 1, zh: 3, en: 2 },
+  lyricColors = { pinyin: 'default', hanzi: 'default', english: 'default' },
   onClick 
 }) => {
 
-  const zhSizes = ['text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl'];
-  const enSizes = ['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl'];
-  const rtSizes = ['text-[8px]', 'text-[10px]', 'text-xs', 'text-sm', 'text-base'];
+  // 7 steps (0-6): each row scales independently
+  const zhSizes =     ['text-base', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-6xl'];
+  const enSizes =     ['text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'];
+  const rtSizes =     ['text-[6px]', 'text-[8px]', 'text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg'];
 
   const zhClass = zhSizes[fontSettings.zh] || 'text-2xl';
-  const enClass = enSizes[fontSettings.en] || 'text-base';
-  const rtClass = rtSizes[fontSettings.pinyin] || 'text-xs';
+  const enClass = enSizes[fontSettings.en] || 'text-sm';
+  const rtClass = rtSizes[fontSettings.pinyin] || 'text-[10px]';
   const showPinyin = fontSettings.pinyin >= 0;
 
-  // Build ruby data: pair each Chinese character with its pinyin syllable
+  const pinyinColor = lyricColors.pinyin !== 'default' ? lyricColors.pinyin : null;
+  const hanziColor = lyricColors.hanzi !== 'default' ? lyricColors.hanzi : null;
+  const englishColor = lyricColors.english !== 'default' ? lyricColors.english : null;
+
   const rubyElements = useMemo(() => {
     if (!originalText) return null;
 
     const chars = [...originalText];
     const chineseChars = chars.filter(isChinese);
 
-    // Try to align stored pinyin to characters
     let syllables = null;
     if (pinyin) {
-      const tokens = pinyin
-        .split(/\s+/)
-        .map(cleanToken)
-        .filter(Boolean);
-
-      // Only use stored pinyin if syllable count matches Chinese character count
+      const tokens = pinyin.split(/\s+/).map(cleanToken).filter(Boolean);
       if (tokens.length === chineseChars.length) {
         syllables = tokens;
       }
@@ -50,7 +47,6 @@ const LyricLine = ({
 
     return chars.map((char, i) => {
       if (isChinese(char)) {
-        // Use stored syllable if aligned, otherwise fall back to pinyin-pro
         const py = syllables
           ? syllables[syllableIndex++]
           : getPinyin(char, { toneType: 'symbol' });
@@ -59,7 +55,10 @@ const LyricLine = ({
           <ruby key={i}>
             {char}
             {showPinyin && (
-              <rt className={`${rtClass} text-slate-500 font-normal tracking-wide`}>
+              <rt 
+                className={`${rtClass} font-normal tracking-wide ${pinyinColor ? '' : 'text-slate-500'}`}
+                style={{ color: pinyinColor || undefined }}
+              >
                 {py}
               </rt>
             )}
@@ -68,7 +67,9 @@ const LyricLine = ({
       }
       return <span key={i} className="inline">{char}</span>;
     });
-  }, [originalText, pinyin, rtClass, showPinyin]);
+  }, [originalText, pinyin, rtClass, showPinyin, pinyinColor]);
+
+  const zhDefaultClass = isActive ? 'text-primary' : 'text-slate-200';
 
   return (
     <div 
@@ -80,14 +81,22 @@ const LyricLine = ({
       }`}
     >
       {/* CHINESE WITH RUBY PINYIN */}
-      <div className={`${zhClass} font-medium mb-2 transition-[font-size,colors] duration-200 leading-relaxed ${
-        isActive ? 'text-primary' : 'text-slate-200'
-      }`}>
+      <div 
+        className={`${zhClass} font-medium mb-2 transition-[font-size,colors] duration-200 leading-relaxed ${
+          hanziColor ? '' : zhDefaultClass
+        }`}
+        style={hanziColor ? { color: hanziColor } : undefined}
+      >
         {rubyElements}
       </div>
 
       {/* ENGLISH */}
-      <div className={`${enClass} text-slate-400 leading-relaxed transition-[font-size] duration-200`}>
+      <div 
+        className={`${enClass} leading-relaxed transition-[font-size] duration-200 ${
+          englishColor ? '' : 'text-slate-400'
+        }`}
+        style={englishColor ? { color: englishColor } : undefined}
+      >
         {translatedText || <span className="italic text-slate-600">No translation available</span>}
       </div>
     </div>
