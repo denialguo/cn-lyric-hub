@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Music, Youtube, Info, Type, Plus, Minus, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
@@ -191,7 +191,21 @@ const SongPage = () => {
             {song.title_en && song.title_en !== song.title_zh && (
               <p className="text-2xl text-slate-400 font-medium mb-4 italic">{song.title_en}</p>
             )}
-            <p className="text-2xl text-primary font-medium">{song.artist_en} <span className="text-slate-300 text-lg ml-2">{displayArtist}</span></p>
+            <p className="text-2xl font-medium">
+              {(song.artist_en || song.artist_zh || 'Unknown').split(',').map((artist, i, arr) => (
+                <span key={i}>
+                  <Link to={`/artist/${artist.trim()}`} className="text-primary hover:underline transition-colors">
+                    {artist.trim()}
+                  </Link>
+                  {i < arr.length - 1 && ', '}
+                </span>
+              ))}
+              {song.artist_zh && song.artist_en && (
+                <span className="text-slate-300 text-lg ml-2">
+                  {displayArtist}
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </div>
