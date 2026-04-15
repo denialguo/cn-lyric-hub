@@ -268,7 +268,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   const generalComments = comments.filter(c => !c.translation_id);
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full md:w-[450px] bg-slate-900 border-l border-slate-800 shadow-2xl z-50 flex flex-col">
+    <div className="fixed right-0 top-0 h-full w-full md:w-[450px] bg-slate-900 border-l border-slate-800 shadow-2xl z-[150] flex flex-col">
       
       {/* HEADER */}
       <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">

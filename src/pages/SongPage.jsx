@@ -1,29 +1,38 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Music, Youtube, Info, Globe, Type, Settings, Plus, Minus } from 'lucide-react';
+import { Music, Youtube, Info, Type, Plus, Minus, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
 import { useTheme } from '../context/ThemeContext'; 
 import { Helmet } from 'react-helmet-async'; 
 import CommentsSection from '../components/CommentsSection';
-
+import Navbar from '../components/Navbar';
 import LyricLine from '../components/LyricLine';
 import LineSidebar from '../components/LineSidebar';
+
+// Color swatches for the picker
+const colorSwatches = [
+  { id: 'default', hex: null, label: 'Default' },
+  { id: 'cyan',    hex: '#06b6d4', label: 'Cyan' },
+  { id: 'rose',    hex: '#f43f5e', label: 'Rose' },
+  { id: 'violet',  hex: '#8b5cf6', label: 'Violet' },
+  { id: 'amber',   hex: '#f59e0b', label: 'Amber' },
+  { id: 'emerald', hex: '#10b981', label: 'Emerald' },
+  { id: 'blue',    hex: '#3b82f6', label: 'Blue' },
+  { id: 'pink',    hex: '#ec4899', label: 'Pink' },
+];
 
 const SongPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { isDarkMode } = useTheme(); 
+  const { scriptMode, toggleScript, lyricColors, setLyricColors } = useTheme(); 
   
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scriptMode, setScriptMode] = useState('simplified'); 
 
-  // --- NEW GRANULAR FONT STATE ---
-  // We use numbers 0-4 to represent sizes: XS, S, M, L, XL
   const [fontSettings, setFontSettings] = useState(() => {
     const saved = localStorage.getItem('lyric_font_settings');
-    return saved ? JSON.parse(saved) : { pinyin: 1, zh: 2, en: 1 }; // Default values
+    return saved ? JSON.parse(saved) : { pinyin: 1, zh: 3, en: 2 };
   });
 
   const [showSettings, setShowSettings] = useState(false);
@@ -35,7 +44,6 @@ const SongPage = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Save prefs
   useEffect(() => {
     localStorage.setItem(`prefs_${slug}`, JSON.stringify(customTranslations));
   }, [customTranslations, slug]);
@@ -44,7 +52,6 @@ const SongPage = () => {
     localStorage.setItem('lyric_font_settings', JSON.stringify(fontSettings));
   }, [fontSettings]);
 
-  // Click outside listener
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
@@ -64,15 +71,16 @@ const SongPage = () => {
     fetchSong();
   }, [slug]);
 
-  // Helper to safely update size
   const updateSize = (type, increment) => {
     setFontSettings(prev => {
-        const current = prev[type];
-        const next = current + increment;
-        // Clamp between 0 (Tiny) and 4 (Huge)
-        if (next < 0 || next > 4) return prev;
+        const next = prev[type] + increment;
+        if (next < 0 || next > 6) return prev;
         return { ...prev, [type]: next };
     });
+  };
+
+  const updateColor = (type, swatch) => {
+    setLyricColors(prev => ({ ...prev, [type]: swatch.hex || 'default' }));
   };
 
   const getYoutubeId = (url) => {
@@ -102,71 +110,81 @@ const SongPage = () => {
   const maxLines = Math.max(chineseLines.length, pinyinLines.length, englishLines.length);
   const lines = Array.from({ length: maxLines });
 
-  const toggleScript = () => {
-    setScriptMode(prev => prev === 'simplified' ? 'traditional' : 'simplified');
-  };
-
   const rawTitle = song.title_zh || "";
   const displayTitle = scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle);
   const displayArtist = scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh);
 
-  // Reusable Control Row Component
-  const ControlRow = ({ label, type }) => (
+  // Reusable size control
+  const SizeControl = ({ label, type }) => (
     <div className="flex items-center justify-between gap-4 mb-2">
-        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-12">{label}</span>
+        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
         <div className="flex items-center gap-3 bg-slate-950 rounded-lg p-1 border border-slate-700">
-            <button 
-                onClick={() => updateSize(type, -1)}
-                className="p-1 hover:text-white text-slate-500 transition-colors"
-                disabled={fontSettings[type] <= 0}
-            >
+            <button onClick={() => updateSize(type, -1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] <= 0}>
                 <Minus size={14} />
             </button>
-            
-            {/* Visual Indicator of Size */}
             <div className="flex gap-1">
-                {[0, 1, 2, 3, 4].map(i => (
-                    <div 
-                        key={i} 
-                        className={`w-1.5 h-3 rounded-full ${i <= fontSettings[type] ? 'bg-primary' : 'bg-slate-800'}`} 
-                    />
+                {[0, 1, 2, 3, 4, 5, 6].map(i => (
+                    <div key={i} className={`w-1.5 h-3 rounded-full ${i <= fontSettings[type] ? 'bg-primary' : 'bg-slate-800'}`} />
                 ))}
             </div>
-
-            <button 
-                onClick={() => updateSize(type, 1)}
-                className="p-1 hover:text-white text-slate-500 transition-colors"
-                disabled={fontSettings[type] >= 4}
-            >
+            <button onClick={() => updateSize(type, 1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] >= 6}>
                 <Plus size={14} />
             </button>
         </div>
     </div>
   );
 
+  // Reusable color picker row
+  const ColorRow = ({ label, type }) => {
+    const current = lyricColors[type];
+    return (
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {colorSwatches.map(s => {
+            const isSelected = s.hex ? current === s.hex : current === 'default';
+            return (
+              <button
+                key={s.id}
+                onClick={() => updateColor(type, s)}
+                title={s.label}
+                className={`w-5 h-5 rounded-full transition-all ${
+                  isSelected 
+                    ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900 scale-110' 
+                    : 'opacity-60 hover:opacity-100 hover:scale-105'
+                }`}
+                style={{ 
+                  backgroundColor: s.hex || 'transparent',
+                  border: !s.hex ? '2px dashed rgb(71 85 105)' : 'none'
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20 transition-colors duration-500">
+    <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20">
       <Helmet>
         <title>{displayTitle} - {song.artist_en} | CN Lyric Hub</title>
         <meta name="description" content={`Chinese lyrics, Pinyin, and English translation for ${song.title_en} (${song.title_zh}) by ${song.artist_en}.`} />
-        
-        {/* Open Graph / Facebook / Discord Previews */}
         <meta property="og:title" content={`${displayTitle} - ${song.artist_en}`} />
         <meta property="og:description" content={`Learn the lyrics to ${song.title_en} with Pinyin and English translations.`} />
         <meta property="og:image" content={song.cover_url} />
         <meta property="og:type" content="music.song" />
       </Helmet>
 
+      <Navbar />
+
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
-        <div className={`absolute inset-0 bg-gradient-to-b from-slate-900/50 ${isDarkMode ? 'to-slate-950' : 'to-[#f8fafc]'} z-10`} />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10" />
         <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="Background" />
         <div className="absolute bottom-0 left-0 z-20 p-6 md:p-12 w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end gap-8">
           <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={displayTitle} />
           <div className="mb-4 flex-1">
-             <button onClick={() => navigate('/')} className="text-slate-200 hover:text-white flex items-center mb-6 text-sm font-bold bg-white/10 w-fit px-4 py-2 rounded-full backdrop-blur-md transition-colors">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back to Library
-            </button>
             <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">{displayTitle}</h1>
             {song.title_en && <p className="text-2xl text-slate-400 font-medium mb-4 italic">{song.title_en}</p>}
             <p className="text-2xl text-primary font-medium">{song.artist_en} <span className="text-slate-300 text-lg ml-2">{displayArtist}</span></p>
@@ -196,17 +214,39 @@ const SongPage = () => {
                     </button>
                     
                     {showSettings && (
-                      <div className="absolute right-0 top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-64 animate-in fade-in zoom-in-95 duration-200">
-                          <ControlRow label="Pinyin" type="pinyin" />
-                          <ControlRow label="Hanzi" type="zh" />
-                          <ControlRow label="English" type="en" />
+                      <div className="absolute right-0 top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80 animate-in fade-in zoom-in-95 duration-200">
                           
-                          <div className="h-px bg-slate-800 my-3" />
+                          {/* SIZE CONTROLS */}
+                          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-3">Size</p>
+                          <SizeControl label="Pinyin" type="pinyin" />
+                          <SizeControl label="Hanzi" type="zh" />
+                          <SizeControl label="English" type="en" />
                           
+                          <div className="h-px bg-slate-800 my-4" />
+                          
+                          {/* COLOR CONTROLS */}
+                          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-3">Colors</p>
+                          <ColorRow label="Pinyin" type="pinyin" />
+                          <ColorRow label="Hanzi" type="hanzi" />
+                          <ColorRow label="English" type="english" />
+
+                          {/* Reset colors */}
+                          {(lyricColors.pinyin !== 'default' || lyricColors.hanzi !== 'default' || lyricColors.english !== 'default') && (
+                            <button 
+                              onClick={() => setLyricColors({ pinyin: 'default', hanzi: 'default', english: 'default' })}
+                              className="w-full mt-2 text-[10px] text-slate-500 hover:text-white flex items-center justify-center gap-1 py-1 transition-colors"
+                            >
+                              <RotateCcw size={10} /> Reset colors
+                            </button>
+                          )}
+
+                          <div className="h-px bg-slate-800 my-4" />
+                          
+                          {/* SCRIPT TOGGLE */}
                           <div className="flex justify-between items-center">
                               <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Script</span>
-                              <button onClick={toggleScript} className="text-xs bg-slate-950 border border-slate-700 px-3 py-1 rounded-lg text-slate-300 hover:text-white">
-                                {scriptMode === 'simplified' ? 'Simplified' : 'Traditional'}
+                              <button onClick={toggleScript} className="text-sm bg-slate-950 border border-slate-700 px-4 py-1.5 rounded-lg text-white hover:border-primary hover:text-primary transition-colors font-medium">
+                                {scriptMode === 'simplified' ? '简体字' : '繁体字'}
                               </button>
                           </div>
                       </div>
@@ -221,7 +261,7 @@ const SongPage = () => {
            <div className="space-y-4">
             {lines.map((_, index) => {
               const line = chineseLines[index] || ""; 
-              const pinyin = pinyinLines[index] || ""; 
+              const py = pinyinLines[index] || ""; 
               const defaultEnglish = englishLines[index] || "";
               const activeTranslation = customTranslations[index] || defaultEnglish;
 
@@ -232,17 +272,18 @@ const SongPage = () => {
                     key={index}
                     index={index}
                     originalText={line}
-                    pinyin={pinyin}
+                    pinyin={py}
                     translatedText={activeTranslation}
                     isActive={selectedLine === index}
-                    fontSettings={fontSettings} // <--- PASS THE WHOLE OBJECT
+                    fontSettings={fontSettings}
+                    lyricColors={lyricColors}
                     onClick={handleLineClick}
                 />
               );
             })}
            </div>
 
-           {/* Credits & Comments */}
+           {/* Bio */}
            {song.bio && (
              <div className="mt-16 pt-10 border-t border-slate-800/50">
                <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6"><Info className="w-5 h-5" /> About This Song</h3>
@@ -250,9 +291,10 @@ const SongPage = () => {
              </div>
            )}
 
+           {/* Credits */}
            {song.credits && (
-             <div className="mt-16 pt-10 border-t border-slate-800/50">
-               <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6"><Info className="w-5 h-5" /> About This Song</h3>
+             <div className="mt-10 pt-10 border-t border-slate-800/50">
+               <h3 className="text-xl font-bold text-slate-400 flex items-center gap-2 mb-6"><Info className="w-5 h-5" /> Credits</h3>
                <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800 text-slate-300 leading-relaxed whitespace-pre-wrap">{song.credits}</div>
              </div>
            )}
@@ -262,7 +304,7 @@ const SongPage = () => {
            </div>
         </div>
 
-        {/* Sidebar etc... (Keep existing Media Column & Sidebar) */}
+        {/* SIDEBAR */}
         <div className="lg:col-span-1">
           <div className="sticky top-24 space-y-6">
             {videoId ? (

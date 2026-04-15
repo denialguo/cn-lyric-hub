@@ -48,13 +48,16 @@
    Only active during mode switch — does NOT 
    interfere with normal hover/focus transitions
    ============================================ */
+.theme-transitioning,
 .theme-transitioning *,
 .theme-transitioning *::before,
 .theme-transitioning *::after {
-  transition: background-color 0.35s ease,
-              color 0.35s ease,
-              border-color 0.35s ease,
-              box-shadow 0.35s ease !important;
+  transition: background-color 0.3s ease,
+              color 0.3s ease,
+              border-color 0.3s ease,
+              box-shadow 0.3s ease,
+              opacity 0.3s ease !important;
+  transition-delay: 0s !important;
 }
 
 /* Global Styles */
@@ -124,6 +127,12 @@ body {
 
 .light .opacity-80 { opacity: 1 !important; }
 .light .aspect-video { background-color: #000 !important; }
+.light .hero-gradient { background: linear-gradient(to bottom, rgb(15 23 42 / 0.5), #f8fafc) !important; }
+
+/* Logo swap */
+.logo-light { display: none; }
+.light .logo-dark { display: none !important; }
+.light .logo-light { display: block !important; }
 
 /* ============================================
    RUBY PINYIN ANNOTATIONS
