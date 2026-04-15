@@ -114,7 +114,15 @@ const SongPage = () => {
   const displayTitle = song.title_zh 
     ? (scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle))
     : rawTitle;
-  const displayArtist = scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh);
+  const primaryArtist = song.artist_en || song.artist_zh || 'Unknown';
+  const displayArtist = song.artist_zh 
+    ? (scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh))
+    : '';
+  // Skip showing secondary name if it's essentially the same as primary
+  const showSecondaryArtist = displayArtist 
+    && song.artist_en 
+    && song.artist_zh
+    && sify(song.artist_en) !== sify(song.artist_zh);
 
   // Reusable size control
   const SizeControl = ({ label, type }) => (
@@ -192,7 +200,7 @@ const SongPage = () => {
               <p className="text-2xl text-slate-400 font-medium mb-4 italic">{song.title_en}</p>
             )}
             <p className="text-2xl font-medium">
-              {(song.artist_en || song.artist_zh || 'Unknown').split(',').map((artist, i, arr) => (
+              {primaryArtist.split(',').map((artist, i, arr) => (
                 <span key={i}>
                   <Link to={`/artist/${artist.trim()}`} className="text-primary hover:underline transition-colors">
                     {artist.trim()}
@@ -200,7 +208,7 @@ const SongPage = () => {
                   {i < arr.length - 1 && ', '}
                 </span>
               ))}
-              {song.artist_zh && song.artist_en && (
+              {showSecondaryArtist && (
                 <span className="text-slate-300 text-lg ml-2">
                   {displayArtist}
                 </span>

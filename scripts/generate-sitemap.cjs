@@ -30,7 +30,7 @@ async function generateSitemap() {
   console.log('Fetching songs...');
   const { data: songs, error } = await supabase
     .from('songs')
-    .select('slug, created_at');
+    .select('slug, updated_at');
 
   if (error) {
     console.error('Error fetching songs:', error.message);
@@ -47,7 +47,7 @@ async function generateSitemap() {
   </url>
   ${(songs || []).map(song => `<url>
     <loc>${DOMAIN}/song/${song.slug}</loc>
-    <lastmod>${new Date(song.created_at || Date.now()).toISOString()}</lastmod>
+    <lastmod>${new Date(song.updated_at || Date.now()).toISOString()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`).join('\n  ')}
