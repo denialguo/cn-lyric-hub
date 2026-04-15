@@ -9,27 +9,29 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
   const { user, profile, signOut } = useAuth();
   const { scriptMode, toggleScript } = useTheme();
   const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState(null); // null | 'menu' | 'theme'
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileSearchRef = useRef(null);
-  const menuRef = useRef(null);
 
-  // Close menu on click outside
+  // Escape key closes any open panel
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setIsMenuOpen(false);
-      }
-    };
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMenuOpen]);
+    const handleEsc = (e) => { if (e.key === 'Escape') setOpenPanel(null); };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  // Close panels on navigation
+  useEffect(() => {
+    setOpenPanel(null);
+  }, []);
+
+  const togglePanel = (panel) => {
+    setOpenPanel(prev => prev === panel ? null : panel);
+  };
 
   const handleLogout = async () => {
     await signOut();
-    setIsMenuOpen(false);
+    setOpenPanel(null);
   };
 
   const getDisplayName = () => {
@@ -84,60 +86,62 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
             {scriptMode === 'simplified' ? '简体 Simplified' : '繁體 Traditional'}
           </button>
 
-          <ThemeSettings />
+          <div className="flex items-center gap-3">
+            <ThemeSettings isOpen={openPanel === 'theme'} onToggle={() => togglePanel('theme')} />
 
-          {/* User Menu */}
-          {user && !user.is_anonymous ? (
-            <div className="relative" ref={menuRef}>
-              <button 
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`p-2 rounded-lg hover:bg-white/10 transition-colors ${isMenuOpen ? 'text-white bg-white/10' : 'text-slate-400'}`}
-              >
-                <User className="w-5 h-5" />
-              </button>
+            {/* User Menu */}
+            {user && !user.is_anonymous ? (
+              <div className="relative">
+                <button 
+                  onClick={() => togglePanel('menu')}
+                  className={`p-2 rounded-lg hover:bg-white/10 transition-colors ${openPanel === 'menu' ? 'text-white bg-white/10' : 'text-slate-400'}`}
+                >
+                  <User className="w-5 h-5" />
+                </button>
 
-              {isMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-slate-800/50">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Signed in as</p>
-                    <p className="text-sm font-bold text-white truncate">{getDisplayName()}</p>
-                  </div>
+                {openPanel === 'menu' && (
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden z-50">
+                    <div className="px-4 py-3 border-b border-slate-800/50">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Signed in as</p>
+                      <p className="text-sm font-bold text-white truncate">{getDisplayName()}</p>
+                    </div>
 
-                  {profile?.role === 'admin' && (
+                    {profile?.role === 'admin' && (
+                      <button 
+                        onClick={() => { navigate('/admin'); setOpenPanel(null); }}
+                        className="w-full text-left px-4 py-3 text-sm text-yellow-500 hover:bg-slate-800 hover:text-yellow-400 flex items-center gap-3 transition-colors font-bold"
+                      >
+                        <LayoutDashboard size={16} /> Admin Dashboard
+                      </button>
+                    )}
+
                     <button 
-                      onClick={() => { navigate('/admin'); setIsMenuOpen(false); }}
-                      className="w-full text-left px-4 py-3 text-sm text-yellow-500 hover:bg-slate-800 hover:text-yellow-400 flex items-center gap-3 transition-colors font-bold"
+                      onClick={() => { navigate('/profile'); setOpenPanel(null); }}
+                      className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-3 transition-colors"
                     >
-                      <LayoutDashboard size={16} /> Admin Dashboard
+                      <User size={16} className="text-primary" /> My Profile
                     </button>
-                  )}
+                    
+                    <div className="h-px bg-slate-800 mx-4" />
 
-                  <button 
-                    onClick={() => { navigate('/profile'); setIsMenuOpen(false); }}
-                    className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-3 transition-colors"
-                  >
-                    <User size={16} className="text-primary" /> My Profile
-                  </button>
-                  
-                  <div className="h-px bg-slate-800 mx-4" />
-
-                  <button 
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors"
-                  >
-                    <LogOut size={16} /> Log Out
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <button 
-              onClick={() => navigate('/login')}
-              className="flex items-center gap-2 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"
-            >
-              <LogIn size={16} /> Sign In
-            </button>
-          )}
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors"
+                    >
+                      <LogOut size={16} /> Log Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-2 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"
+              >
+                <LogIn size={16} /> Sign In
+              </button>
+            )}
+          </div>
 
           <button
             onClick={() => navigate('/add')}
