@@ -18,17 +18,17 @@ const ThemeSettings = ({ isOpen, onToggle }) => {
   const { isDarkMode, setIsDarkMode, accentColor, setAccentColor } = useTheme();
 
   return (
-    <div className="relative">
+    <div className="relative isolate">
       <button 
         onClick={onToggle}
-        className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+        className="relative z-20 p-2.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
         aria-label="Theme settings"
       >
         <Palette className="w-5 h-5" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[280px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 z-50">
+        <div className="absolute right-0 mt-2 w-[280px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 z-10">
           <div className="flex justify-between items-center mb-4">
             <span className="text-sm font-bold text-slate-200">Appearance</span>
             <button 

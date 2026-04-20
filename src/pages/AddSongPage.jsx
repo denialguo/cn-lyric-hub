@@ -76,10 +76,19 @@ const AddSongPage = () => {
     if (!formData.lyrics_chinese) return;
     const lines = formData.lyrics_chinese.split('\n');
     const pinyinLines = lines.map((line) => {
+      if (!line.trim()) return '';
       const cleanLine = line
         .replace(/，/g, ',').replace(/。/g, '.').replace(/！/g, '!')
         .replace(/？/g, '?').replace(/\u3000/g, ' ').replace(/\s+/g, ' ').trim();
-      return pinyin(cleanLine, { toneType: 'symbol', nonZh: 'spaced' });
+      
+      // Split into segments: Chinese vs non-Chinese
+      // Only convert Chinese segments, pass everything else through as-is
+      return cleanLine.split(/([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+)/g).map(segment => {
+        if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(segment)) {
+          return pinyin(segment, { toneType: 'symbol' });
+        }
+        return segment;
+      }).join('');
     });
     setFormData((prev) => ({ ...prev, lyrics_pinyin: pinyinLines.join('\n') }));
   };

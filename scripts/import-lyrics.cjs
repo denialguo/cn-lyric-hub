@@ -18,13 +18,14 @@ const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { pinyin } = require('pinyin-pro');
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: fs.existsSync('.env.local') ? '.env.local' : '.env' });
+
 // --- CONFIG ---
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
+  console.error('❌ Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
   process.exit(1);
 }
 
@@ -92,7 +93,14 @@ function generatePinyin(lyrics) {
     const clean = line
       .replace(/，/g, ',').replace(/。/g, '.').replace(/！/g, '!')
       .replace(/？/g, '?').replace(/\u3000/g, ' ').replace(/\s+/g, ' ').trim();
-    return pinyin(clean, { toneType: 'symbol', nonZh: 'spaced' });
+    
+    // Split into Chinese vs non-Chinese segments, only convert Chinese
+    return clean.split(/([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+)/g).map(segment => {
+      if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(segment)) {
+        return pinyin(segment, { toneType: 'symbol' });
+      }
+      return segment;
+    }).join('');
   }).join('\n');
 }
 
@@ -193,6 +201,7 @@ async function main() {
           cover_url: '',
           youtube_url: '',
           tags: [],
+          status: 'active',
         })
         .select()
         .single();

@@ -322,13 +322,14 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         ) : activeTab === 'translations' ? (
             <div className="space-y-6">
                 
-                {/* OFFICIAL TRANSLATION CARD */}
-                <div className="bg-slate-900 p-4 rounded-xl border border-primary/20 relative overflow-hidden group">
+                {/* OFFICIAL TRANSLATION CARD — only when translation exists */}
+                {defaultTranslation ? (
+                  <div className="bg-slate-900 p-4 rounded-xl border border-primary/20 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 bg-primary/20 text-primary text-[10px] font-bold px-2 py-1 rounded-bl-lg">OFFICIAL</div>
                     
                     <p className="text-slate-400 text-xs font-bold uppercase mb-2">Original Translation</p>
                     <p className="text-white text-base font-medium mb-3 leading-relaxed italic opacity-90">
-                        {defaultTranslation || "(No translation provided)"}
+                        {defaultTranslation}
                     </p>
 
                     <div className="flex items-center gap-4 mb-4">
@@ -349,7 +350,13 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                     >
                         <RotateCcw size={14} /> Use Original
                     </button>
-                </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-900/50 p-4 rounded-xl border border-dashed border-slate-700 text-center">
+                    <p className="text-slate-500 text-sm">No translation yet</p>
+                    <p className="text-slate-600 text-xs mt-1">Be the first to contribute one below!</p>
+                  </div>
+                )}
 
                 <div className="w-full h-px bg-slate-800/50"></div>
 
