@@ -91,16 +91,16 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
 
             {/* User Menu */}
             {user && !user.is_anonymous ? (
-              <div className="relative">
+              <div className="relative isolate">
                 <button 
                   onClick={() => togglePanel('menu')}
-                  className={`p-2 rounded-lg hover:bg-white/10 transition-colors ${openPanel === 'menu' ? 'text-white bg-white/10' : 'text-slate-400'}`}
+                  className={`relative z-20 p-2.5 rounded-lg hover:bg-white/10 transition-colors ${openPanel === 'menu' ? 'text-white bg-white/10' : 'text-slate-400'}`}
                 >
                   <User className="w-5 h-5" />
                 </button>
 
                 {openPanel === 'menu' && (
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden z-50">
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden z-10">
                     <div className="px-4 py-3 border-b border-slate-800/50">
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Signed in as</p>
                       <p className="text-sm font-bold text-white truncate">{getDisplayName()}</p>

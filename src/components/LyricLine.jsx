@@ -70,6 +70,11 @@ const LyricLine = ({
   }, [originalText, pinyin, rtClass, showPinyin, pinyinColor]);
 
   const zhDefaultClass = isActive ? 'text-primary' : 'text-slate-200';
+  
+  // Check if line has any Chinese characters
+  const hasChinese = originalText && /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(originalText);
+  // Latin-only lines use a smaller, more natural size
+  const latinOnlyClass = enSizes[Math.min(fontSettings.zh, 4)] || 'text-base';
 
   return (
     <div 
@@ -80,25 +85,27 @@ const LyricLine = ({
           : 'bg-transparent border-transparent hover:bg-slate-900/50'
       }`}
     >
-      {/* CHINESE WITH RUBY PINYIN */}
+      {/* CHINESE WITH RUBY PINYIN (or Latin-only line) */}
       <div 
-        className={`${zhClass} font-medium mb-2 transition-[font-size,colors] duration-200 leading-relaxed ${
-          hanziColor ? '' : zhDefaultClass
+        className={`${hasChinese ? zhClass : latinOnlyClass} font-medium mb-2 transition-[font-size,colors] duration-200 leading-relaxed ${
+          hanziColor ? '' : (hasChinese ? zhDefaultClass : (isActive ? 'text-primary' : 'text-slate-400 italic'))
         }`}
         style={hanziColor ? { color: hanziColor } : undefined}
       >
-        {rubyElements}
+        {hasChinese ? rubyElements : originalText}
       </div>
 
-      {/* ENGLISH */}
-      <div 
-        className={`${enClass} leading-relaxed transition-[font-size] duration-200 ${
-          englishColor ? '' : 'text-slate-400'
-        }`}
-        style={englishColor ? { color: englishColor } : undefined}
-      >
-        {translatedText || <span className="italic text-slate-600">No translation available</span>}
-      </div>
+      {/* ENGLISH — only show when there's actually a translation */}
+      {translatedText && (
+        <div 
+          className={`${enClass} leading-relaxed transition-[font-size] duration-200 ${
+            englishColor ? '' : 'text-slate-400'
+          }`}
+          style={englishColor ? { color: englishColor } : undefined}
+        >
+          {translatedText}
+        </div>
+      )}
     </div>
   );
 };

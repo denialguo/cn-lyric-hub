@@ -400,7 +400,7 @@ const SongPage = () => {
                 lineIndex={selectedLine}
                 originalContent={chineseLines[selectedLine]}
                 pinyinContent={pinyinLines[selectedLine]}
-                defaultTranslation={englishLines[selectedLine] || "No default translation"} 
+                defaultTranslation={englishLines[selectedLine] || ""} 
                 onClose={() => setSelectedLine(null)}
                 onSelectTranslation={handleSelectTranslation}
             />
