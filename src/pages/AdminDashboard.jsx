@@ -94,6 +94,7 @@ const AdminDashboard = () => {
         { key: 'youtube_url',     label: 'YouTube URL' },
         { key: 'bio',             label: 'About' },
         { key: 'credits',         label: 'Credits' },
+        { key: 'year',            label: 'Release Year' },
         { key: 'lyrics_chinese',  label: 'Chinese Lyrics' },
         { key: 'lyrics_pinyin',   label: 'Pinyin' },
         { key: 'lyrics_english',  label: 'English Lyrics' },

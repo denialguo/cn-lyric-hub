@@ -22,11 +22,16 @@ require('dotenv').config({ path: fs.existsSync('.env.local') ? '.env.local' : '.
 
 // --- CONFIG ---
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
+  console.error('❌ Missing VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or VITE_SUPABASE_ANON_KEY) in .env');
   process.exit(1);
+}
+
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('⚠️  No SUPABASE_SERVICE_ROLE_KEY found — using anon key. This may fail due to RLS policies.');
+  console.warn('   Add SUPABASE_SERVICE_ROLE_KEY to your .env.local (find it in Supabase → Settings → API)\n');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -61,13 +66,15 @@ function parseArtistFolder(folderName) {
 
 function parseSongFile(fileName) {
   // "切肤之痛_28310579.txt" → title: "切肤之痛", id: "28310579"
-  // "天梯 (国语版)_28633174.txt" → title: "天梯 (国语版)", id: "28633174"
+  // "hui_se_gui_ji_-_album_version_28310579.txt" → title: "hui se gui ji - album version"
   const withoutExt = fileName.replace('.txt', '');
   const lastUnderscore = withoutExt.lastIndexOf('_');
   if (lastUnderscore === -1) return { title: withoutExt, netease_id: null };
 
-  const title = withoutExt.substring(0, lastUnderscore);
+  const rawTitle = withoutExt.substring(0, lastUnderscore);
   const netease_id = withoutExt.substring(lastUnderscore + 1);
+  // Replace underscores with spaces for cleaner display
+  const title = rawTitle.replace(/_/g, ' ').trim();
   return { title, netease_id };
 }
 
@@ -177,6 +184,21 @@ async function main() {
         continue;
       }
 
+      // Check for existing song with same title + artist
+      const checkArtist = artistNameEn || artistNameZh || artistName;
+      const { data: existing } = await supabase
+        .from('songs')
+        .select('id')
+        .eq('title_zh', title)
+        .eq('artist_en', checkArtist)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
       const slug = generateSlug(title);
       const lyricsPinyin = generatePinyin(lyrics);
 
@@ -201,7 +223,6 @@ async function main() {
           cover_url: '',
           youtube_url: '',
           tags: [],
-          status: 'active',
         })
         .select()
         .single();

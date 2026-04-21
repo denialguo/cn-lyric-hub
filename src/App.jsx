@@ -13,6 +13,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ProfilePage from './pages/ProfilePage';
 import PublicProfile from './pages/PublicProfile';
 import ArtistPage from './pages/ArtistPage';
+import StatsPage from './pages/StatsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 const App = () => {
@@ -31,6 +32,7 @@ const App = () => {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/user/:username" element={<PublicProfile />} />
             <Route path="/artist/:name" element={<ArtistPage />} />
+            <Route path="/stats" element={<StatsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
           

@@ -359,6 +359,12 @@ const SongPage = () => {
                      <span>Added</span>
                      <span className="text-slate-300">{new Date(song.created_at).toLocaleDateString()}</span>
                    </div>
+                   {song.year && (
+                     <div className="flex justify-between text-slate-400">
+                       <span>Released</span>
+                       <span className="text-slate-300">{song.year}</span>
+                     </div>
+                   )}
                    {song.submitted_by && (
                      <div className="flex justify-between text-slate-400">
                        <span>Submitted by</span>
