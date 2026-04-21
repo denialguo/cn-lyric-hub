@@ -21,7 +21,7 @@ const AddSongPage = () => {
 
   const [formData, setFormData] = useState({
     title_zh: '', title_en: '', cover_url: '', youtube_url: '',
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '',
+    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '', year: '',
   });
 
   // --- LOAD DRAFT ---
@@ -54,7 +54,7 @@ const AddSongPage = () => {
     localStorage.removeItem('song_draft_form');
     localStorage.removeItem('song_draft_tags');
     localStorage.removeItem('song_draft_artists_obj');
-    setFormData({ title_zh: '', title_en: '', cover_url: '', youtube_url: '', lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '' });
+    setFormData({ title_zh: '', title_en: '', cover_url: '', youtube_url: '', lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '', year: '' });
     setTags([]);
     setSelectedArtists([]);
     toast.success('Draft cleared');
@@ -116,6 +116,7 @@ const AddSongPage = () => {
 
       const songPayload = {
         ...formData,
+        year: formData.year ? parseInt(formData.year) : null,
         slug: generatedSlug,
         tags,
         artist_en: artistEnString,
@@ -214,9 +215,13 @@ const AddSongPage = () => {
               <input name="cover_url" value={formData.cover_url} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
             </div>
 
-            <div className="lg:col-span-2 space-y-2">
+            <div className="space-y-2">
               <label className="text-slate-400 text-sm">YouTube Video URL</label>
               <input name="youtube_url" value={formData.youtube_url} onChange={handleChange} className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Release Year</label>
+              <input name="year" type="number" min="1900" max="2099" value={formData.year} onChange={handleChange} placeholder="e.g. 2019" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
             </div>
           </div>
 

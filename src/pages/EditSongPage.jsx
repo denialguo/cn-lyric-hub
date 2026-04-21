@@ -24,7 +24,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
   const [formData, setFormData] = useState({
     title_en: '', title_zh: '', cover_url: '', youtube_url: '', slug: '',
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '',
+    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '', year: '',
   });
 
   useEffect(() => {
@@ -133,7 +133,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
       title_en: formData.title_en, title_zh: formData.title_zh, cover_url: formData.cover_url,
       youtube_url: formData.youtube_url, lyrics_chinese: formData.lyrics_chinese,
       lyrics_pinyin: formData.lyrics_pinyin, lyrics_english: formData.lyrics_english,
-      credits: formData.credits, bio: formData.bio, artist_en: artistEnString, artist_zh: artistZhString, tags,
+      credits: formData.credits, bio: formData.bio, year: formData.year ? parseInt(formData.year) : null,
+      artist_en: artistEnString, artist_zh: artistZhString, tags,
       last_edited_by: editorName,
     };
 
@@ -290,9 +291,20 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
             {renderTextInput('Cover URL', 'cover_url')}
 
-            <div className="lg:col-span-2">
-              {renderTextInput('YouTube URL', 'youtube_url')}
-            </div>
+            {renderTextInput('YouTube URL', 'youtube_url')}
+            
+            {(() => {
+              const isChanged = originalData && (originalData.year || '') !== (formData.year || '');
+              return (
+                <div className={`space-y-2 p-3 rounded-lg border transition-colors ${isChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
+                  <label className="text-slate-400 text-sm flex justify-between items-center">
+                    Release Year
+                    {isChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">Edited</span>}
+                  </label>
+                  <input name="year" type="number" min="1900" max="2099" value={formData.year || ''} onChange={handleChange} placeholder="e.g. 2019" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
+                </div>
+              );
+            })()}
 
             {!isReviewMode && (
               <div className="space-y-2 lg:col-span-2 p-3">
