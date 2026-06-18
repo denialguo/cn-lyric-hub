@@ -21,23 +21,13 @@ const timeAgo = (dateString) => {
 };
 
 const CommentsSection = ({ songId }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast, confirm } = useToast();
   const navigate = useNavigate();
   
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
-  const [myProfile, setMyProfile] = useState(null);
-
-  useEffect(() => {
-    const fetchMyProfile = async () => {
-      if (!user) return;
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      if (data) setMyProfile(data);
-    };
-    fetchMyProfile();
-  }, [user]);
 
   useEffect(() => {
     if (songId) fetchComments();
@@ -84,7 +74,7 @@ const CommentsSection = ({ songId }) => {
     if (!error) setComments(comments.filter(c => c.id !== commentId));
   };
 
-  const myAvatar = myProfile?.avatar_url || user?.user_metadata?.avatar_url || "/default-avatar.png";
+  const myAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || "/default-avatar.png";
 
   return (
     <div className="max-w-2xl">

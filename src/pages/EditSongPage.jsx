@@ -8,6 +8,8 @@ import ArtistSearch from '../components/ArtistSearch';
 import { pinyin } from 'pinyin-pro';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { generatePinyin } from '../utils/lyrics';
+import { useArtistSelection } from '../hooks/useArtistSelection';
 
 const EditSongPage = ({ isReviewMode = false }) => {
   const { id } = useParams();
@@ -19,7 +21,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
   const [fetching, setFetching] = useState(true);
 
   const [tags, setTags] = useState([]);
-  const [selectedArtists, setSelectedArtists] = useState([]);
+  const { selectedArtists, setSelectedArtists, handleSelectArtist, handleRemoveArtist } = useArtistSelection();
   const [originalData, setOriginalData] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -77,33 +79,9 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleSelectArtist = (artist) => {
-    if (!selectedArtists.some((a) => a.id === artist.id && !a.isNew)) {
-      setSelectedArtists([...selectedArtists, artist]);
-    }
-  };
-
-  const handleRemoveArtist = (index) => {
-    setSelectedArtists((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleAutoPinyin = () => {
-    if (!formData.lyrics_chinese) return;
-    const lines = formData.lyrics_chinese.split('\n');
-    const pinyinLines = lines.map((line) => {
-      if (!line.trim()) return '';
-      const cleanLine = line
-        .replace(/，/g, ',').replace(/。/g, '.').replace(/！/g, '!')
-        .replace(/？/g, '?').replace(/\u3000/g, ' ').replace(/\s+/g, ' ').trim();
-      
-      return cleanLine.split(/([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+)/g).map(segment => {
-        if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(segment)) {
-          return pinyin(segment, { toneType: 'symbol' });
-        }
-        return segment;
-      }).join('');
-    });
-    setFormData((prev) => ({ ...prev, lyrics_pinyin: pinyinLines.join('\n') }));
+    const result = generatePinyin(formData.lyrics_chinese);
+    if (result) setFormData((prev) => ({ ...prev, lyrics_pinyin: result }));
   };
 
   const handleSave = async (e) => {
