@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { ArrowLeft, Mic2, Disc } from 'lucide-react';
+import SongCard from '../components/SongCard';
 
 const ArtistPage = () => {
   const { name } = useParams(); // Gets 'Jay Chou' from url
@@ -87,25 +88,7 @@ const ArtistPage = () => {
         ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {songs.map(song => (
-                    <div 
-                        key={song.id} 
-                        onClick={() => navigate(`/song/${song.slug}`)}
-                        className="bg-slate-900/50 group hover:bg-slate-800 border border-slate-800 hover:border-slate-600 rounded-2xl p-4 transition-all cursor-pointer flex gap-4 items-center"
-                    >
-                        <img 
-                            src={song.cover_url} 
-                            alt={song.title_zh}
-                            className="w-20 h-20 rounded-lg object-cover shadow-lg group-hover:scale-105 transition-transform"
-                        />
-                        <div className="overflow-hidden">
-                            <h3 className="font-bold text-lg truncate text-slate-100 group-hover:text-primary transition-colors">
-                                {song.title_zh || song.title_en}
-                            </h3>
-                            <p className="text-sm text-slate-500 truncate">
-                                {song.title_en}
-                            </p>
-                        </div>
-                    </div>
+                    <SongCard key={song.id} song={song} />
                 ))}
             </div>
         )}

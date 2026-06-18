@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { pinyin as getPinyin } from 'pinyin-pro';
 
-const isChinese = (char) => /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(char);
+import { isChinese } from '../utils/lyrics';
 const cleanToken = (t) => t.replace(/[,.\-!?;:，。！？、；：()（）""''「」…~·]/g, '').trim();
 
 const LyricLine = ({ 
