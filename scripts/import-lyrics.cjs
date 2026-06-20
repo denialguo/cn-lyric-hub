@@ -223,6 +223,7 @@ async function main() {
           cover_url: '',
           youtube_url: '',
           tags: [],
+          source: 'import',
         })
         .select()
         .single();

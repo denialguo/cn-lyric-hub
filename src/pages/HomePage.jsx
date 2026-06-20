@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Music, Flame, Sparkles, Disc } from 'lucide-react'; 
+import { Music, Flame, Sparkles, Disc } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -8,27 +7,94 @@ import SongCard from '../components/SongCard';
 import Navbar from '../components/Navbar';
 import { tify, sify } from 'chinese-conv'; 
 
+const PAGE_SIZE = 36;
+
 const HomePage = () => {
   const { user } = useAuth();
   const { scriptMode } = useTheme();
-  const navigate = useNavigate();
   const [songs, setSongs] = useState([]);
-  const [activeTab, setActiveTab] = useState('trending'); 
+  const [activeTab, setActiveTab] = useState('trending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [userLikedIds, setUserLikedIds] = useState(new Set());
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
+  // Debounce search input so we don't hit the DB on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Reset pagination whenever the view changes
+  useEffect(() => { setPage(0); }, [activeTab, debouncedQuery]);
+
+  // Query-driven fetch: the catalog holds thousands of unlisted imports, so we
+  // filter at the DB level rather than pull everything (Supabase caps at 1000 rows)
   useEffect(() => {
     const fetchSongs = async () => {
-      const { data } = await supabase
+      // Searching spans every song, imports included (overrides tabs)
+      if (debouncedQuery) {
+        setLoading(true);
+        const term = debouncedQuery.replace(/[,%()]/g, ' ');
+        const { data } = await supabase
+          .from('songs')
+          .select('*, song_likes(count)')
+          .or(`title_zh.ilike.%${term}%,title_en.ilike.%${term}%,artist_en.ilike.%${term}%,artist_zh.ilike.%${term}%`)
+          .order('created_at', { ascending: false })
+          .limit(60);
+        setSongs(data || []);
+        setHasMore(false);
+        setLoading(false);
+        return;
+      }
+
+      // All Songs: full catalog gated on completeness (listed OR has a cover), paginated
+      if (activeTab === 'all') {
+        if (page === 0) setLoading(true); else setLoadingMore(true);
+        const { data } = await supabase
+          .from('songs')
+          .select('*, song_likes(count)')
+          .or('source.eq.user,cover_url.neq.""')
+          .order('created_at', { ascending: false })
+          .range(0, (page + 1) * PAGE_SIZE - 1);
+        setSongs(data || []);
+        setHasMore((data || []).length === (page + 1) * PAGE_SIZE);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
+      // Trending / Fresh Drops / Classics: curated set (listed songs + liked imports)
+      setLoading(true);
+      const { data: userSongs } = await supabase
         .from('songs')
-        .select('*, song_likes(count)') 
-        .order('created_at', { ascending: false });
-      if (data) setSongs(data);
+        .select('*, song_likes(count)')
+        .eq('source', 'user')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      const { data: liked } = await supabase.from('song_likes').select('song_id');
+      const likedIds = [...new Set((liked || []).map(l => l.song_id))];
+
+      let likedImports = [];
+      if (likedIds.length) {
+        const { data } = await supabase
+          .from('songs')
+          .select('*, song_likes(count)')
+          .in('id', likedIds)
+          .eq('source', 'import');
+        likedImports = data || [];
+      }
+
+      setSongs([...(userSongs || []), ...likedImports]);
+      setHasMore(false);
       setLoading(false);
     };
     fetchSongs();
-  }, []);
+  }, [debouncedQuery, activeTab, page]);
 
   useEffect(() => {
     const fetchUserLikes = async () => {
@@ -42,25 +108,19 @@ const HomePage = () => {
     fetchUserLikes();
   }, [user]);
 
-  const filteredSongs = songs.filter(song => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = 
-      (song.title_zh || '').toLowerCase().includes(query) ||
-      (song.title_en || '').toLowerCase().includes(query) ||
-      (song.artist_en || '').toLowerCase().includes(query) ||
-      (song.artist_zh || '').includes(query);
-
-    let matchesTab = true;
-    const tags = Array.isArray(song.tags) ? song.tags.map(t => t.toLowerCase()) : [];
-
-    if (activeTab === 'classics') {
-      matchesTab = tags.some(t => ['ballad', 'classic', 'opera', 'traditional', '90s', '80s'].includes(t));
-    } else if (activeTab === 'trending') {
-      matchesTab = song.song_likes && song.song_likes[0]?.count > 0;
-    }
-
-    return matchesSearch && matchesTab;
-  });
+  // Search and All Songs are already filtered server-side; other tabs filter the curated set
+  const filteredSongs = (debouncedQuery || activeTab === 'all')
+    ? songs
+    : songs.filter(song => {
+        const tags = Array.isArray(song.tags) ? song.tags.map(t => t.toLowerCase()) : [];
+        if (activeTab === 'classics') {
+          return tags.some(t => ['ballad', 'classic', 'opera', 'traditional', '90s', '80s'].includes(t));
+        }
+        if (activeTab === 'trending') {
+          return song.song_likes?.[0]?.count > 0;
+        }
+        return true;
+      });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 relative">
@@ -128,6 +188,18 @@ const HomePage = () => {
                   />
                 );
             })}
+          </div>
+        )}
+
+        {activeTab === 'all' && !debouncedQuery && hasMore && !loading && (
+          <div className="flex justify-center mt-10">
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={loadingMore}
+              className="px-8 py-2.5 rounded-full text-sm font-medium bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white transition-all disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Load More'}
+            </button>
           </div>
         )}
       </main>
