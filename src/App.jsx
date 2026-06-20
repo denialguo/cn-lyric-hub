@@ -14,7 +14,9 @@ import ProfilePage from './pages/ProfilePage';
 import PublicProfile from './pages/PublicProfile';
 import ArtistPage from './pages/ArtistPage';
 import StatsPage from './pages/StatsPage';
+import FaqPage from './pages/FaqPage';
 import NotFoundPage from './pages/NotFoundPage';
+import Footer from './components/Footer';
 
 const App = () => {
   return (
@@ -33,9 +35,12 @@ const App = () => {
             <Route path="/user/:username" element={<PublicProfile />} />
             <Route path="/artist/:name" element={<ArtistPage />} />
             <Route path="/stats" element={<StatsPage />} />
+            <Route path="/faq" element={<FaqPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
-          
+
+          <Footer />
+
           <Analytics />
           <SpeedInsights />
         </div>
