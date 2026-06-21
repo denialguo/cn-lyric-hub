@@ -178,12 +178,26 @@ const SongPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20">
       <Helmet>
-        <title>{displayTitle} - {song.artist_en} | CN Lyric Hub</title>
-        <meta name="description" content={`Chinese lyrics, Pinyin, and English translation for ${song.title_en} (${song.title_zh}) by ${song.artist_en}.`} />
-        <meta property="og:title" content={`${displayTitle} - ${song.artist_en}`} />
-        <meta property="og:description" content={`Learn the lyrics to ${song.title_en} with Pinyin and English translations.`} />
-        <meta property="og:image" content={song.cover_url} />
+        <title>{displayTitle} - {primaryArtist} | CN Lyric Hub</title>
+        <meta name="description" content={`Read ${displayTitle} by ${primaryArtist} with character-by-character Pinyin and English translation on CN Lyric Hub.`} />
+        <link rel="canonical" href={`https://cn-lyric-hub.vercel.app/song/${song.slug}`} />
+        <meta property="og:title" content={`${displayTitle} - ${primaryArtist}`} />
+        <meta property="og:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
+        <meta property="og:image" content={song.cover_url || 'https://cn-lyric-hub.vercel.app/logo.png'} />
         <meta property="og:type" content="music.song" />
+        <meta property="og:url" content={`https://cn-lyric-hub.vercel.app/song/${song.slug}`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'MusicComposition',
+          name: song.title_zh || song.title_en,
+          alternativeHeadline: song.title_en || undefined,
+          inLanguage: 'zh',
+          url: `https://cn-lyric-hub.vercel.app/song/${song.slug}`,
+          image: song.cover_url || undefined,
+          datePublished: song.year ? String(song.year) : undefined,
+          composer: primaryArtist !== 'Unknown' ? { '@type': 'MusicGroup', name: primaryArtist } : undefined,
+        })}</script>
       </Helmet>
 
       <Navbar />
