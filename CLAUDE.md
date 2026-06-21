@@ -7,7 +7,7 @@ Community-driven Chinese lyrics platform. Users browse Chinese songs with pinyin
 - **Frontend**: React 18 + Vite, Tailwind CSS, deployed on Vercel
 - **Backend**: Supabase (PostgreSQL + Auth + RLS)
 - **Key libraries**: `pinyin-pro` (pinyin generation), `opencc-js` (simplified ↔ traditional via `sify()`/`tify()`), `recharts` (stats charts), `lucide-react` (icons)
-- **Domain**: https://cn-lyric-hub.vercel.app
+- **Domain**: https://cnlyrichub.vercel.app
 
 ## File Structure
 - `src/components/` — Navbar, SongCard, LyricLine, LineSidebar, CommentsSection, CommentItem, ArtistSearch, LyricsEditor, ThemeSettings, TagInput

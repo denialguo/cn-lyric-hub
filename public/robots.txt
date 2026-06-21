@@ -8,4 +8,4 @@ Disallow: /edit/
 Disallow: /login
 Disallow: /profile
 
-Sitemap: https://cn-lyric-hub.vercel.app/sitemap.xml
+Sitemap: https://cnlyrichub.vercel.app/sitemap.xml
