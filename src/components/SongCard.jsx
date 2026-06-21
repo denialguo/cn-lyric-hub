@@ -76,7 +76,7 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
     >
       <div className="aspect-square overflow-hidden relative">
         {song.cover_url ? (
-          <img src={song.cover_url} alt={mainTitle} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+          <img src={song.cover_url} alt={`Album cover for ${mainTitle} by ${artistString}`} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center gap-3 transition-transform duration-700 group-hover:scale-110">
             <Music className="w-10 h-10 text-slate-600" />

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
 import { ArrowLeft, Mic2, Disc } from 'lucide-react';
 import SongCard from '../components/SongCard';
@@ -61,8 +62,13 @@ const ArtistPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 md:p-12 text-white">
+      <Helmet>
+        <title>{artistName} — CN Lyric Hub</title>
+        <meta name="description" content={`Browse all songs by ${artistName} with Pinyin and English translations on CN Lyric Hub.`} />
+        <link rel="canonical" href={`https://cnlyrichub.vercel.app/artist/${encodeURIComponent(artistName)}`} />
+      </Helmet>
       <div className="max-w-6xl mx-auto">
-        
+
         <button onClick={() => navigate('/')} className="flex items-center text-slate-400 hover:text-white mb-8 transition-colors">
           <ArrowLeft className="w-5 h-5 mr-2" /> Back to Library
         </button>

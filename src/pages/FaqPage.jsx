@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, HelpCircle, BookOpen, Scale } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
 import Navbar from '../components/Navbar';
 
 const SECTIONS = [
@@ -91,6 +92,20 @@ const FaqPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
+      <Helmet>
+        <title>FAQ — CN Lyric Hub</title>
+        <meta name="description" content="Frequently asked questions about CN Lyric Hub — how Pinyin works, script toggling, community translations, adding songs, and DMCA takedown requests." />
+        <link rel="canonical" href="https://cnlyrichub.vercel.app/faq" />
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: SECTIONS.flatMap(s => s.items.filter(i => typeof i.a === 'string').map(i => ({
+            '@type': 'Question',
+            name: i.q,
+            acceptedAnswer: { '@type': 'Answer', text: i.a },
+          }))),
+        })}</script>
+      </Helmet>
       <Navbar />
 
       <div className="max-w-3xl mx-auto px-6 py-16">
