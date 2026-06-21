@@ -198,6 +198,21 @@ const SongPage = () => {
           datePublished: song.year ? String(song.year) : undefined,
           composer: primaryArtist !== 'Unknown' ? { '@type': 'MusicGroup', name: primaryArtist } : undefined,
         })}</script>
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://cnlyrichub.vercel.app/' },
+            ...(primaryArtist !== 'Unknown' ? [{
+              '@type': 'ListItem', position: 2, name: primaryArtist,
+              item: `https://cnlyrichub.vercel.app/artist/${encodeURIComponent(primaryArtist)}`,
+            }] : []),
+            {
+              '@type': 'ListItem', position: primaryArtist !== 'Unknown' ? 3 : 2, name: displayTitle,
+              item: `https://cnlyrichub.vercel.app/song/${song.slug}`,
+            },
+          ],
+        })}</script>
       </Helmet>
 
       <Navbar />
@@ -206,13 +221,13 @@ const SongPage = () => {
       <div className="relative h-[50vh] overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10 pointer-events-none" />
         {song.cover_url ? (
-          <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="Background" />
+          <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="" loading="lazy" decoding="async" />
         ) : (
           <div className="w-full h-full bg-slate-900" />
         )}
         <div className="absolute bottom-0 left-0 z-20 p-6 md:p-12 w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end gap-8">
           {song.cover_url ? (
-            <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={displayTitle} />
+            <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={`Album cover for ${displayTitle} by ${primaryArtist}`} />
           ) : (
             <div className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
               <Music className="w-16 h-16 text-slate-600" />

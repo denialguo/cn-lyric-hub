@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, Music, Users, Type, Heart, TrendingUp, Hash, Sparkles, MessageSquare, Globe, Calendar, Repeat, BookOpen, Fingerprint, Ghost, Mic } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
 import Navbar from '../components/Navbar';
 import { pinyin as getPinyin } from 'pinyin-pro';
@@ -454,6 +455,11 @@ const StatsPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
+      <Helmet>
+        <title>Stats — CN Lyric Hub</title>
+        <meta name="description" content="Explore analytics across the CN Lyric Hub catalog — most common characters, mood analysis, artist breakdowns, and more." />
+        <link rel="canonical" href="https://cnlyrichub.vercel.app/stats" />
+      </Helmet>
       <Navbar />
 
       {/* HERO */}

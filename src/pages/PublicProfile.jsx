@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
 import { User, Music, ArrowLeft, Globe, ExternalLink } from 'lucide-react';
 import SongCard from '../components/SongCard';
@@ -45,6 +46,9 @@ const PublicProfile = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 md:p-12">
+      <Helmet>
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
       <div className="max-w-6xl mx-auto">
         
         <button 
