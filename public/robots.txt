@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Utility pages — not content, keep crawl budget on songs
+Disallow: /admin
+Disallow: /add
+Disallow: /edit/
+Disallow: /login
+Disallow: /profile
+
+Sitemap: https://cn-lyric-hub.vercel.app/sitemap.xml
