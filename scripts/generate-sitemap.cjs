@@ -2,7 +2,7 @@ const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const DOMAIN = 'https://cn-lyric-hub.vercel.app'; // Update if your Vercel URL is different, or when you get a custom domain
+const DOMAIN = 'https://cnlyrichub.vercel.app';
 
 const url = process.env.VITE_SUPABASE_URL;
 const key = process.env.VITE_SUPABASE_ANON_KEY;

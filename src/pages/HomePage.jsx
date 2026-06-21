@@ -128,11 +128,11 @@ const HomePage = () => {
       <Helmet>
         <title>CN Lyric Hub — Chinese Lyrics with Pinyin & English Translations</title>
         <meta name="description" content="Browse a community database of Chinese song lyrics with character-by-character Pinyin and English translations. Read along, learn the language, and contribute." />
-        <link rel="canonical" href="https://cn-lyric-hub.vercel.app/" />
+        <link rel="canonical" href="https://cnlyrichub.vercel.app/" />
         <meta property="og:title" content="CN Lyric Hub — Chinese Lyrics with Pinyin & Translations" />
         <meta property="og:description" content="A community database of Chinese lyrics with full Pinyin and English translations." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://cn-lyric-hub.vercel.app/" />
+        <meta property="og:url" content="https://cnlyrichub.vercel.app/" />
       </Helmet>
 
       <Navbar showSearch searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
