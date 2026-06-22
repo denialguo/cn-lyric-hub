@@ -3,10 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Play, Heart, Music } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
   const navigate = useNavigate();
   const { user, ensureUser } = useAuth();
+  const { toast } = useToast();
   
   // Use pre-fetched data when available (from HomePage batch query)
   const hasInitialData = initialLikeCount !== undefined;
@@ -53,14 +55,22 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
     const currentUser = await ensureUser();
     if (!currentUser) return;
 
+    // Snapshot for rollback if the write fails
+    const prevLiked = isLiked;
+    const prevCount = likesCount;
+
     const newLikedStatus = !isLiked;
     setIsLiked(newLikedStatus);
     setLikesCount(prev => newLikedStatus ? prev + 1 : prev - 1);
 
-    if (newLikedStatus) {
-      await supabase.from('song_likes').insert({ song_id: song.id, user_id: currentUser.id });
-    } else {
-      await supabase.from('song_likes').delete().eq('song_id', song.id).eq('user_id', currentUser.id);
+    const { error } = newLikedStatus
+      ? await supabase.from('song_likes').insert({ song_id: song.id, user_id: currentUser.id })
+      : await supabase.from('song_likes').delete().eq('song_id', song.id).eq('user_id', currentUser.id);
+
+    if (error) {
+      setIsLiked(prevLiked);
+      setLikesCount(prevCount);
+      toast.error("Couldn't save your like. Try again.");
     }
   };
 
