@@ -122,12 +122,16 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
   const toggleVoteCommunity = async (translationId, currentCount) => {
     const isLiked = myVotes.has(translationId);
-    
+
+    // Snapshot for rollback if a write fails
+    const prevTranslations = translations;
+    const prevMyVotes = myVotes;
+
     setTranslations(prev => prev.map(t => {
         if (t.id !== translationId) return t;
         return { ...t, votes: isLiked ? (t.votes || 0) - 1 : (t.votes || 0) + 1 };
     }));
-    
+
     setMyVotes(prev => {
         const newSet = new Set(prev);
         if (isLiked) newSet.delete(translationId);
@@ -136,17 +140,29 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         return newSet;
     });
 
+    let error;
     if (isLiked) {
-        if (user) await supabase.from('line_votes').delete().eq('user_id', user.id).eq('translation_id', translationId);
-        await supabase.from('line_translations').update({ votes: currentCount - 1 }).eq('id', translationId);
+        if (user) ({ error } = await supabase.from('line_votes').delete().eq('user_id', user.id).eq('translation_id', translationId));
+        if (!error) ({ error } = await supabase.from('line_translations').update({ votes: currentCount - 1 }).eq('id', translationId));
     } else {
-        await supabase.from('line_votes').insert({ user_id: user ? user.id : null, song_id: songId, line_index: lineIndex, translation_id: translationId });
-        await supabase.from('line_translations').update({ votes: currentCount + 1 }).eq('id', translationId);
+        ({ error } = await supabase.from('line_votes').insert({ user_id: user ? user.id : null, song_id: songId, line_index: lineIndex, translation_id: translationId }));
+        if (!error) ({ error } = await supabase.from('line_translations').update({ votes: currentCount + 1 }).eq('id', translationId));
+    }
+
+    if (error) {
+        setTranslations(prevTranslations);
+        setMyVotes(prevMyVotes);
+        localStorage.setItem(`votes_${songId}`, JSON.stringify([...prevMyVotes]));
+        toast.error("Vote didn't save. Please try again.");
     }
   };
 
   const toggleVoteComment = async (commentId, currentVotes) => {
     const isLiked = myCommentVotes.has(commentId);
+
+    // Snapshot for rollback if a write fails
+    const prevComments = comments;
+    const prevMyCommentVotes = myCommentVotes;
 
     setComments(prev => prev.map(c => {
         if (c.id !== commentId) return c;
@@ -161,20 +177,34 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         return newSet;
     });
 
+    let error;
     if (isLiked) {
-        if (user) await supabase.from('comment_votes').delete().eq('user_id', user.id).eq('comment_id', commentId);
-        await supabase.from('line_comments').update({ votes: currentVotes - 1 }).eq('id', commentId);
+        if (user) ({ error } = await supabase.from('comment_votes').delete().eq('user_id', user.id).eq('comment_id', commentId));
+        if (!error) ({ error } = await supabase.from('line_comments').update({ votes: currentVotes - 1 }).eq('id', commentId));
     } else {
-        await supabase.from('comment_votes').insert({ user_id: user ? user.id : null, comment_id: commentId });
-        await supabase.from('line_comments').update({ votes: currentVotes + 1 }).eq('id', commentId);
+        ({ error } = await supabase.from('comment_votes').insert({ user_id: user ? user.id : null, comment_id: commentId }));
+        if (!error) ({ error } = await supabase.from('line_comments').update({ votes: currentVotes + 1 }).eq('id', commentId));
+    }
+
+    if (error) {
+        setComments(prevComments);
+        setMyCommentVotes(prevMyCommentVotes);
+        localStorage.setItem(`comment_votes_${songId}`, JSON.stringify([...prevMyCommentVotes]));
+        toast.error("Vote didn't save. Please try again.");
     }
   };
 
   const toggleVoteOriginal = async () => {
-    setOriginalVotes(prev => hasLikedOriginal ? prev - 1 : prev + 1);
-    setHasLikedOriginal(!hasLikedOriginal);
-
     const isLiked = hasLikedOriginal;
+
+    // Snapshot for rollback if the write fails
+    const prevVotes = originalVotes;
+    const prevLiked = hasLikedOriginal;
+    const prevMyVotes = myVotes;
+
+    setOriginalVotes(prev => isLiked ? prev - 1 : prev + 1);
+    setHasLikedOriginal(!isLiked);
+
     setMyVotes(prev => {
         const newSet = new Set(prev);
         const key = `ORG_${lineIndex}`;
@@ -184,10 +214,19 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         return newSet;
     });
 
-    if (hasLikedOriginal) {
-        if (user) await supabase.from('line_votes').delete().eq('user_id', user.id).eq('song_id', songId).eq('line_index', lineIndex).is('translation_id', null);
+    let error;
+    if (isLiked) {
+        if (user) ({ error } = await supabase.from('line_votes').delete().eq('user_id', user.id).eq('song_id', songId).eq('line_index', lineIndex).is('translation_id', null));
     } else {
-        await supabase.from('line_votes').insert({ user_id: user ? user.id : null, song_id: songId, line_index: lineIndex, translation_id: null });
+        ({ error } = await supabase.from('line_votes').insert({ user_id: user ? user.id : null, song_id: songId, line_index: lineIndex, translation_id: null }));
+    }
+
+    if (error) {
+        setOriginalVotes(prevVotes);
+        setHasLikedOriginal(prevLiked);
+        setMyVotes(prevMyVotes);
+        localStorage.setItem(`votes_${songId}`, JSON.stringify([...prevMyVotes]));
+        toast.error("Vote didn't save. Please try again.");
     }
   };
 
