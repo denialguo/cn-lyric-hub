@@ -9,6 +9,8 @@ import { Helmet } from 'react-helmet-async';
 import { tify, sify } from 'chinese-conv'; 
 
 const PAGE_SIZE = 36;
+// The grid only needs card fields — skip the heavy lyrics columns
+const CARD_COLUMNS = 'id, slug, title_zh, title_en, cover_url, artist_en, artist_zh, tags, source, song_likes(count)';
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -38,17 +40,27 @@ const HomePage = () => {
     const fetchSongs = async () => {
       // Searching spans every song, imports included (overrides tabs)
       if (debouncedQuery) {
-        setLoading(true);
+        if (page === 0) setLoading(true); else setLoadingMore(true);
         const term = debouncedQuery.replace(/[,%()]/g, ' ');
+        // The DB stores one script form (mostly simplified), so match the Chinese
+        // columns against both simplified and traditional versions of what was typed
+        const variants = [...new Set([term, sify(term), tify(term)])];
+        const conditions = [
+          `title_en.ilike.%${term}%`,
+          `artist_en.ilike.%${term}%`,
+          ...variants.flatMap(v => [`title_zh.ilike.%${v}%`, `artist_zh.ilike.%${v}%`]),
+        ];
         const { data } = await supabase
           .from('songs')
-          .select('*, song_likes(count)')
-          .or(`title_zh.ilike.%${term}%,title_en.ilike.%${term}%,artist_en.ilike.%${term}%,artist_zh.ilike.%${term}%`)
-          .order('created_at', { ascending: false })
-          .limit(60);
+          .select(CARD_COLUMNS)
+          .or(conditions.join(','))
+          // Recently-edited first so freshly-curated songs surface, not buried by import date
+          .order('updated_at', { ascending: false })
+          .range(0, (page + 1) * PAGE_SIZE - 1);
         setSongs(data || []);
-        setHasMore(false);
+        setHasMore((data || []).length === (page + 1) * PAGE_SIZE);
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
@@ -57,7 +69,7 @@ const HomePage = () => {
         if (page === 0) setLoading(true); else setLoadingMore(true);
         const { data } = await supabase
           .from('songs')
-          .select('*, song_likes(count)')
+          .select(CARD_COLUMNS)
           .or('source.eq.user,cover_url.neq.""')
           .order('created_at', { ascending: false })
           .range(0, (page + 1) * PAGE_SIZE - 1);
@@ -72,7 +84,7 @@ const HomePage = () => {
       setLoading(true);
       const { data: userSongs } = await supabase
         .from('songs')
-        .select('*, song_likes(count)')
+        .select(CARD_COLUMNS)
         .eq('source', 'user')
         .order('created_at', { ascending: false })
         .limit(200);
@@ -84,7 +96,7 @@ const HomePage = () => {
       if (likedIds.length) {
         const { data } = await supabase
           .from('songs')
-          .select('*, song_likes(count)')
+          .select(CARD_COLUMNS)
           .in('id', likedIds)
           .eq('source', 'import');
         likedImports = data || [];
@@ -201,7 +213,7 @@ const HomePage = () => {
           </div>
         )}
 
-        {activeTab === 'all' && !debouncedQuery && hasMore && !loading && (
+        {(debouncedQuery || activeTab === 'all') && hasMore && !loading && (
           <div className="flex justify-center mt-10">
             <button
               onClick={() => setPage(p => p + 1)}
