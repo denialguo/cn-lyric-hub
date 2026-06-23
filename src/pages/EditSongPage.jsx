@@ -146,7 +146,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
     try {
       if (isReviewMode) {
-        const payloadForLiveDB = { ...safePayload, slug: finalSlug };
+        // A reviewed/published song is curated content — lift it into the listed catalog
+        const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
 
         if (formData.original_song_id) {
           const { error: updateError } = await supabase
@@ -165,7 +166,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
         navigate('/admin');
       } else {
         if (profile?.role === 'admin') {
-          const payloadForLiveDB = { ...safePayload, slug: finalSlug };
+          // Admin editing a song curates it — lift imports into the listed catalog
+          const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
           const { error } = await supabase.from('songs').update(payloadForLiveDB).eq('id', id);
           if (error) throw error;
           await linkArtists(id);
@@ -284,17 +286,6 @@ const EditSongPage = ({ isReviewMode = false }) => {
               );
             })()}
 
-            {!isReviewMode && (
-              <div className="space-y-2 lg:col-span-2 p-3">
-                <label className="text-slate-400 text-sm">Slug</label>
-                <input
-                  name="slug"
-                  value={formData.slug || ''}
-                  disabled
-                  className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-slate-500 w-full"
-                />
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
