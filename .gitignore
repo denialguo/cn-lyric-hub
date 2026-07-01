@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Agent skill tooling (vendored skills + local symlinks; .mcp.json is kept/shared)
+.agents/
+.claude/skills/
+skills-lock.json
