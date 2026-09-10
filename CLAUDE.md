@@ -131,7 +131,10 @@ Consequences to remember:
 Worth knowing before building features that sort or filter on these:
 - `lyrics_english` non-empty: **7 of 1608**. The site's English-translation promise is essentially unfulfilled.
 - `tags`: **4 of 1000** sampled rows have any tag. The Classics tab used to filter on tags and rendered **zero cards**.
-- `year`: 322 of 1608 (`year < 2000` → 112). `fetch-years.cjs` needs more runs.
+- `year`: **1277 of 1608** after two `fetch-years.cjs` passes on 2026-09-10 (`year < 2000` → **383**, was 112). The remaining **331 were attempted and genuinely did not match** — live cuts, `(talk)` tracks, medleys, radio-drama themes. Re-running the script as written will not improve this; it would re-query the same 331 failures.
+  - ⚠️ **~40% of years on older material are reissue dates, not original releases.** iTunes returns whatever album surfaces first, which for back-catalogue artists is a compilation. Measured: of 214 dated Teresa Teng songs, **83 (39%) are dated after she died in 1995** — provably wrong. The decade histogram is skewed late for the same reason. No impossible years (<1930 or >2026) exist.
+  - The fix, if it matters: take the **minimum** `releaseDate` across results whose `artistName` matches, instead of `results[0]`. `searchYear()` in `fetch-years.cjs` currently reads the first result only.
+  - ⚠️ `year` is not just internal — `SongPage` renders it, and `prerender.cjs` writes "Released {year}" into the body **and the meta description**, plus `datePublished` in the JSON-LD. That last one states a wrong release date to Google as structured data.
 - `category`: all 1608 rows are `'pop'` — a constant, read by nothing. Dead column.
 - `translation_credit`: 2 non-null rows.
 - `cover_url`: 1340 have one; 176 are `''` (never NULL — `cover_url.neq.""` depends on that).
