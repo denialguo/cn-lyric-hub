@@ -110,6 +110,17 @@ The app is a client-rendered SPA, so **every URL used to serve the same 915-byte
 
 `scripts/prerender.cjs` runs after `vite build` and writes `dist/song/<slug>/index.html`, `dist/artist/<name>/index.html` and the static routes, each with a unique title, description, canonical, OG tags, JSON-LD and the real lyrics in the markup (915 B → ~8 KB; 1608 distinct titles and descriptions verified). **Vercel resolves static files before `rewrites`**, so these win over the SPA shell and the shell still handles anything not prerendered. The script exits 0 on failure so SEO can never break a deploy.
 
+**Three non-obvious constraints — easy to regress, each found by testing rather than assumption:**
+1. **Files are written flat as `<route>.html`, never `<route>/index.html`.** Directory-index resolution only matches with a *trailing slash* on many static servers (`vite preview` included), and our canonicals and sitemap use the slash-less form — which is what Googlebot requests. Verified: the directory form served the generic SPA shell for `/song/foo` and only worked for `/song/foo/`.
+2. **`vercel.json` needs `"cleanUrls": true`** (plus `"trailingSlash": false`) for Vercel to serve `song/foo.html` at `/song/foo`. Without it the SPA rewrite wins and the prerender is dead weight.
+3. **Artist filenames use the RAW name, not `encodeURIComponent(name)`.** A server percent-decodes the request path before matching the filesystem, so `/artist/%E5%91%A8%E6%9D%B0%E4%BC%A6` looks for `artist/周杰伦.html`. Encoded filenames never match. Names containing `/ \ : * ? " < > |` are skipped — a mangled filename couldn't match its URL anyway.
+
+⚠️ **Verify after the next deploy** — the above was proven against a local server that emulates Vercel's resolution order (static file → `.html` → SPA rewrite), which is not Vercel itself:
+```
+curl -s https://cnlyrichub.vercel.app/song/xin-tian-di-live-live-5061 | grep -o '<title>[^<]*'
+```
+Should print the song's own title, not "CN Lyric Hub — Chinese Lyrics with…". If it prints the generic one, `cleanUrls` isn't taking effect.
+
 Consequences to remember:
 - Prerendered HTML is **stale until the next deploy**. Users always see live data (React refetches); only crawlers see the snapshot.
 - Adding a new page route means adding it to `STATIC_ROUTES` in `prerender.cjs` *and* to `generate-sitemap.cjs`, or it serves the homepage's title.

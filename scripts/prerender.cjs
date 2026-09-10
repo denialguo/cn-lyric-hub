@@ -141,10 +141,20 @@ function songBody(song, chineseLines, pinyinLines, englishLines) {
   );
 }
 
+/**
+ * Write as `<route>.html`, NOT `<route>/index.html`.
+ *
+ * Directory-index resolution only matches with a trailing slash on some static
+ * servers (vite preview included), and our canonicals and sitemap use the
+ * slash-less form — which is what Googlebot requests. Vercel serves `foo.html`
+ * at the extensionless path `/foo`, made explicit by `cleanUrls: true` in
+ * vercel.json. A route with no file falls through to the SPA rewrite, so
+ * newly-added songs still work before the next deploy.
+ */
 function writePage(routePath, html) {
-  const dir = path.join(DIST, routePath);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'index.html'), html);
+  const target = path.join(DIST, `${routePath}.html`);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, html);
 }
 
 // Static routes serve the same shell as the homepage, so they were duplicates of
@@ -277,8 +287,12 @@ async function main() {
   // Artist pages have the same duplicate-shell problem.
   let artistCount = 0;
   for (const [name, songCount] of artists) {
-    // encodeURIComponent can emit '/', which would nest a directory.
-    if (name.includes('/') || name.includes('\\')) continue;
+    // The file must be named with the RAW name, not the percent-encoded one: a
+    // server percent-decodes the request path before matching the filesystem, so
+    // "/artist/%E5%91%A8%E6%9D%B0%E4%BC%A6" looks for "artist/周杰伦.html".
+    // Skip names carrying characters that can't be a path segment — a mangled
+    // filename wouldn't match its URL anyway.
+    if (/[/\\:*?"<>|]/.test(name)) continue;
     const canonical = `${DOMAIN}/artist/${encodeURIComponent(name)}`;
     const html = render({
       title: `${name} — Song Lyrics with Pinyin & English | CN Lyric Hub`,
@@ -295,7 +309,7 @@ async function main() {
         `<p class="text-slate-400">${songCount} song${songCount === 1 ? '' : 's'} with Pinyin and English translations.</p>` +
         `</main></div>`,
     });
-    writePage(path.join('artist', encodeURIComponent(name)), html);
+    writePage(path.join('artist', name), html);
     artistCount++;
   }
 
