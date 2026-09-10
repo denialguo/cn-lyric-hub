@@ -8,7 +8,7 @@
     "build": "node scripts/generate-sitemap.cjs && vite build && node scripts/prerender.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test src/**/*.test.js",
+    "test": "node --test src scripts",
     "verify:rls": "node scripts/verify-rls.cjs",
     "prerender": "node scripts/prerender.cjs",
     "backup": "node scripts/backup.cjs"
