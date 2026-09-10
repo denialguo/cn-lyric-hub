@@ -9,9 +9,10 @@
  *   node scripts/fetch-years.cjs --limit 50
  *   node scripts/fetch-years.cjs --refresh    # re-evaluate songs that already have a year
  *
- * ⚠️ --refresh REWRITES existing years, including back to null when no confident
- * match exists. Take a backup first (`npm run backup`). It is for correcting the
- * reissue-date skew described in bestReleaseYear(); a plain run only fills nulls.
+ * --refresh REWRITES existing years, but only where a confident match is found;
+ * an unmatchable song keeps whatever it had. Add --clear-unverified to null those
+ * out instead — that costs about half the catalogue's coverage, so measure first.
+ * Take a backup either way (`npm run backup`). A plain run only fills nulls.
  */
 
 const fs = require('fs');
@@ -31,6 +32,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const refresh = args.includes('--refresh');
+// Clearing is opt-in, and deliberately so. Measured on a live run: 52% of songs
+// produced no confident match — far worse than the 20% a Teresa Teng sample
+// suggested, because live cuts, talk tracks and medleys dominate some
+// catalogues. Clearing by default would have traded 1277 dated songs for ~600.
+const clearUnverified = args.includes('--clear-unverified');
 const limitArg = args.indexOf('--limit');
 const limit = limitArg !== -1 ? parseInt(args[limitArg + 1]) : Infinity;
 
@@ -95,14 +101,15 @@ async function main() {
       console.log(`  ✅ ${display} → ${year}${delta}`);
       found++;
     } else {
-      // In --refresh mode an existing year with no confident match is cleared: a
-      // wrong year is shown to readers as fact, a null renders as nothing.
-      if (refresh && song.year) cleared++;
-      console.log(`  ⬜ ${display}${refresh && song.year ? ` (clearing ${song.year})` : ''}`);
+      // No confident match. Keep whatever the row had unless explicitly told to
+      // clear: an unverifiable year may still be right, and a blank Classics tab
+      // is a worse outcome than an approximate date.
+      if (clearUnverified && song.year) cleared++;
+      console.log(`  ⬜ ${display}${clearUnverified && song.year ? ` (clearing ${song.year})` : ''}`);
       notFound++;
     }
 
-    if (!dryRun && (year || (refresh && song.year))) {
+    if (!dryRun && (year || (clearUnverified && song.year))) {
       const { error: writeError } = await supabase
         .from('songs').update({ year: year ?? null }).eq('id', song.id);
       // The old code ignored this, so a failed write counted as a success.
