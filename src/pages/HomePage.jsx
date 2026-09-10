@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 import { Helmet } from 'react-helmet-async';
 import { tify, sify } from 'chinese-conv';
 import { searchSongs, listSongs, trendingSongs, freshSongs, classicSongs, likedSongIds } from '../lib/queries';
+import { readString, writeString } from '../lib/storage';
 
 const PAGE_SIZE = 36;
 
@@ -22,7 +23,10 @@ const HomePage = () => {
   const { user } = useAuth();
   const { scriptMode } = useTheme();
   const [songs, setSongs] = useState([]);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = readString('homeTab', 'trending');
+    return Object.hasOwn(TAB_QUERY, saved) ? saved : 'trending';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -32,6 +36,8 @@ const HomePage = () => {
   const [userLikedIds, setUserLikedIds] = useState(new Set());
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+
+  useEffect(() => { writeString('homeTab', activeTab); }, [activeTab]);
 
   // Debounce search input so we don't hit the DB on every keystroke
   useEffect(() => {
