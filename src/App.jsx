@@ -20,6 +20,8 @@ const ArtistPage = lazy(() => import('./pages/ArtistPage'));
 const StatsPage = lazy(() => import('./pages/StatsPage'));
 const FaqPage = lazy(() => import('./pages/FaqPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
 
 const RouteFallback = () => (
   <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -46,6 +48,8 @@ const App = () => {
               <Route path="/artist/:name" element={<ArtistPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/faq" element={<FaqPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>

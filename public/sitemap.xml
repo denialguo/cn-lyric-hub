@@ -16,6 +16,16 @@
     <priority>0.5</priority>
   </url>
   <url>
+    <loc>https://cnlyrichub.vercel.app/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://cnlyrichub.vercel.app/terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://cnlyrichub.vercel.app/song/long-zheng-hu-dou-live-6334</loc>
     <lastmod>2026-06-23T01:09:17.488Z</lastmod>
     <changefreq>weekly</changefreq>
@@ -8333,7 +8343,7 @@
   </url>
   <url>
     <loc>https://cnlyrichub.vercel.app/song/xin-tian-di-live-live-5061</loc>
-    <lastmod>2026-06-20T04:50:20.061Z</lastmod>
+    <lastmod>2026-09-10T01:38:13.706Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -9659,7 +9669,7 @@
   </url>
   <url>
     <loc>https://cnlyrichub.vercel.app/song/let-the-wind-tell-you</loc>
-    <lastmod>2026-04-21T21:29:26.329Z</lastmod>
+    <lastmod>2026-09-08T05:41:23.832Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
