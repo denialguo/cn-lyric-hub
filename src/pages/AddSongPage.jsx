@@ -10,50 +10,48 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
+import { isAdmin, isRealAccount, submitterName } from '../lib/identity';
+import { readJson, writeJson, removeKeys } from '../lib/storage';
+
+// One definition, so "Clear Draft" can't miss a field the form has (it used to drop `bio`).
+const EMPTY_FORM = {
+  title_zh: '', title_en: '', cover_url: '', youtube_url: '',
+  lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '', year: '',
+};
 
 const AddSongPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast, confirm } = useToast();
   const [loading, setLoading] = useState(false);
 
   const [tags, setTags] = useState([]);
   const { selectedArtists, setSelectedArtists, handleSelectArtist, handleRemoveArtist } = useArtistSelection();
 
-  const [formData, setFormData] = useState({
-    title_zh: '', title_en: '', cover_url: '', youtube_url: '',
-    lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '', year: '',
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   // --- LOAD DRAFT ---
   useEffect(() => {
-    const savedData = localStorage.getItem('song_draft_form');
-    const savedTags = localStorage.getItem('song_draft_tags');
-    const savedArtists = localStorage.getItem('song_draft_artists_obj');
-
-    if (savedData) {
-      setFormData(JSON.parse(savedData));
-    }
-    if (savedTags) setTags(JSON.parse(savedTags));
-    if (savedArtists) setSelectedArtists(JSON.parse(savedArtists));
+    const draft = readJson('song_draft_form', null);
+    if (draft) setFormData((prev) => ({ ...prev, ...draft }));
+    setTags(readJson('song_draft_tags', []));
+    setSelectedArtists(readJson('song_draft_artists_obj', []));
   }, []);
 
   // --- SAVE DRAFT ---
   useEffect(() => {
     if (Object.values(formData).some((x) => x) || tags.length || selectedArtists.length) {
-      localStorage.setItem('song_draft_form', JSON.stringify(formData));
-      localStorage.setItem('song_draft_tags', JSON.stringify(tags));
-      localStorage.setItem('song_draft_artists_obj', JSON.stringify(selectedArtists));
+      writeJson('song_draft_form', formData);
+      writeJson('song_draft_tags', tags);
+      writeJson('song_draft_artists_obj', selectedArtists);
     }
   }, [formData, tags, selectedArtists]);
 
   const clearDraft = async () => {
     const ok = await confirm('Delete your current draft?', { destructive: true, confirmLabel: 'Delete' });
     if (!ok) return;
-    localStorage.removeItem('song_draft_form');
-    localStorage.removeItem('song_draft_tags');
-    localStorage.removeItem('song_draft_artists_obj');
-    setFormData({ title_zh: '', title_en: '', cover_url: '', youtube_url: '', lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', credits: '', year: '' });
+    removeKeys('song_draft_form', 'song_draft_tags', 'song_draft_artists_obj');
+    setFormData(EMPTY_FORM);
     setTags([]);
     setSelectedArtists([]);
     toast.success('Draft cleared');
@@ -85,30 +83,40 @@ const AddSongPage = () => {
         rawSlugSource.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '') +
         '-' + Math.floor(Math.random() * 1000);
 
-      const artistEnString = selectedArtists.map((a) => a.name_en).join(', ');
-      const artistZhString = selectedArtists.map((a) => a.name_zh).join(', ');
+      const artistEnString = selectedArtists.map((a) => a.name_en || a.name_zh || '').filter(Boolean).join(', ');
+      const artistZhString = selectedArtists.map((a) => a.name_zh || '').join(', ');
 
-      const songPayload = {
+      // Only admins write straight to the live catalog; everyone else — signed in,
+      // anonymous, or not signed in — goes through the review queue.
+      const publishesDirectly = isAdmin(user, profile);
+
+      const shared = {
         ...formData,
         year: formData.year ? parseInt(formData.year) : null,
         slug: generatedSlug,
         tags,
-        artist_en: artistEnString,
+        artist_en: artistEnString || 'Unknown',
         artist_zh: artistZhString,
-        submitted_by: user ? (user.user_metadata?.username || user.email.split('@')[0]) : 'Community',
-        user_id: user ? user.id : null,
-        status: user ? 'active' : 'pending',
+        submitted_by: submitterName(user, profile),
+        user_id: isRealAccount(user) ? user.id : null,
       };
 
+      // The two tables have diverged: `songs` has `source` and NO `status`;
+      // `song_submissions` has `status` and NO `source`. Sending the wrong one
+      // fails the whole insert with PGRST204, so build each payload explicitly.
+      const songPayload = publishesDirectly
+        ? { ...shared, source: 'user' }
+        : { ...shared, status: 'pending' };
+
       const { data: songData, error: songError } = await supabase
-        .from(user ? 'songs' : 'song_submissions')
+        .from(publishesDirectly ? 'songs' : 'song_submissions')
         .insert([songPayload])
         .select()
         .single();
 
       if (songError) throw songError;
 
-      if (user && songData) {
+      if (publishesDirectly && songData) {
         for (const artist of selectedArtists) {
           let artistId = artist.id;
 
@@ -134,11 +142,9 @@ const AddSongPage = () => {
         }
       }
 
-      localStorage.removeItem('song_draft_form');
-      localStorage.removeItem('song_draft_tags');
-      localStorage.removeItem('song_draft_artists_obj');
+      removeKeys('song_draft_form', 'song_draft_tags', 'song_draft_artists_obj');
 
-      toast.success(user ? 'Song published successfully!' : 'Submitted for review!');
+      toast.success(publishesDirectly ? 'Song published successfully!' : 'Submitted for review! An admin will publish it.');
       navigate('/');
     } catch (err) {
       toast.error('Error: ' + err.message);
@@ -242,7 +248,7 @@ const AddSongPage = () => {
 
           <div className="fixed bottom-6 right-6 z-50">
             <button disabled={loading} className="bg-primary hover:bg-primary/90 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105">
-              <Save className="w-5 h-5" /> {loading ? 'Saving...' : user ? 'Publish Song' : 'Submit for Review'}
+              <Save className="w-5 h-5" /> {loading ? 'Saving...' : isAdmin(user, profile) ? 'Publish Song' : 'Submit for Review'}
             </button>
           </div>
         </form>

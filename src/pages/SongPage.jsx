@@ -9,6 +9,7 @@ import CommentsSection from '../components/CommentsSection';
 import Navbar from '../components/Navbar';
 import LyricLine from '../components/LyricLine';
 import LineSidebar from '../components/LineSidebar';
+import { readJson, writeJson } from '../lib/storage';
 
 // Color swatches for the picker
 const colorSwatches = [
@@ -22,6 +23,56 @@ const colorSwatches = [
   { id: 'pink',    hex: '#ec4899', label: 'Pink' },
 ];
 
+// Defined at module scope on purpose: declaring these inside SongPage's body made
+// them a new component type every render, remounting the panel on each keystroke.
+const SizeControl = ({ label, type, fontSettings, updateSize }) => (
+  <div className="flex items-center justify-between gap-4 mb-2">
+    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
+    <div className="flex items-center gap-3 bg-slate-950 rounded-lg p-1 border border-slate-700">
+      <button type="button" onClick={() => updateSize(type, -1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] <= 0} aria-label={`Decrease ${label} size`}>
+        <Minus size={14} />
+      </button>
+      <div className="flex gap-1">
+        {[0, 1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className={`w-1.5 h-3 rounded-full ${i <= fontSettings[type] ? 'bg-primary' : 'bg-slate-800'}`} />
+        ))}
+      </div>
+      <button type="button" onClick={() => updateSize(type, 1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] >= 6} aria-label={`Increase ${label} size`}>
+        <Plus size={14} />
+      </button>
+    </div>
+  </div>
+);
+
+const ColorRow = ({ label, type, lyricColors, updateColor }) => {
+  const current = lyricColors[type];
+  return (
+    <div className="flex items-center justify-between gap-4 mb-3">
+      <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
+      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+        {colorSwatches.map(sw => {
+          const isSelected = sw.hex ? current === sw.hex : current === 'default';
+          return (
+            <button
+              key={sw.id}
+              type="button"
+              onClick={() => updateColor(type, sw)}
+              title={sw.label}
+              aria-label={`${label} colour: ${sw.label}`}
+              className={`w-5 h-5 rounded-full transition-all ${
+                isSelected
+                  ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900 scale-110'
+                  : 'opacity-60 hover:opacity-100 hover:scale-105'
+              }`}
+              style={{ backgroundColor: sw.hex || 'transparent', border: !sw.hex ? '2px dashed rgb(71 85 105)' : 'none' }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const SongPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -30,26 +81,32 @@ const SongPage = () => {
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [fontSettings, setFontSettings] = useState(() => {
-    const saved = localStorage.getItem('lyric_font_settings');
-    return saved ? JSON.parse(saved) : { pinyin: 1, zh: 3, en: 2 };
-  });
+  const [fontSettings, setFontSettings] = useState(() =>
+    readJson('lyric_font_settings', { pinyin: 1, zh: 3, en: 2 })
+  );
 
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
   
   const [selectedLine, setSelectedLine] = useState(null); 
-  const [customTranslations, setCustomTranslations] = useState(() => {
-    const saved = localStorage.getItem(`prefs_${slug}`);
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [customTranslations, setCustomTranslations] = useState({});
+  const [submitterUsername, setSubmitterUsername] = useState(null);
+
+  // Reload per-song line preferences whenever the slug changes. This must be an
+  // effect, not a useState initializer — an initializer runs once per mount, and
+  // SongPage stays mounted while navigating between songs.
+  useEffect(() => {
+    setCustomTranslations(readJson(`prefs_${slug}`, {}));
+  }, [slug]);
 
   useEffect(() => {
-    localStorage.setItem(`prefs_${slug}`, JSON.stringify(customTranslations));
+    // Don't persist the empty object the slug-change reset briefly holds, or it
+    // would wipe the stored prefs for the song we're navigating to.
+    if (Object.keys(customTranslations).length) writeJson(`prefs_${slug}`, customTranslations);
   }, [customTranslations, slug]);
 
   useEffect(() => {
-    localStorage.setItem('lyric_font_settings', JSON.stringify(fontSettings));
+    writeJson('lyric_font_settings', fontSettings);
   }, [fontSettings]);
 
   useEffect(() => {
@@ -65,15 +122,32 @@ const SongPage = () => {
   useEffect(() => {
     // Guard against a slow response for an old slug landing after a newer one
     let cancelled = false;
+    // Clear the previous song first: without this, a failed fetch left the old
+    // song's lyrics on screen under the new URL.
+    setSong(null);
+    setSelectedLine(null);
+    setLoading(true);
     const fetchSong = async () => {
-      const { data } = await supabase.from('songs').select('*').eq('slug', slug).single();
+      const { data, error } = await supabase.from('songs').select('*').eq('slug', slug).single();
       if (cancelled) return;
-      if (data) setSong(data);
+      if (error) console.error('Song fetch failed:', error.message);
+      setSong(data ?? null);
       setLoading(false);
     };
     fetchSong();
     return () => { cancelled = true; };
   }, [slug]);
+
+  // Resolve the submitter to a real profile so we only ever link somewhere that
+  // exists. songs.user_id references auth.users, not profiles, so there is no FK
+  // to embed through — this is a deliberate second query.
+  useEffect(() => {
+    if (!song?.user_id) { setSubmitterUsername(null); return; }
+    let cancelled = false;
+    supabase.from('profiles').select('username').eq('id', song.user_id).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setSubmitterUsername(data?.username ?? null); });
+    return () => { cancelled = true; };
+  }, [song?.user_id]);
 
   const updateSize = (type, increment) => {
     setFontSettings(prev => {
@@ -102,8 +176,37 @@ const SongPage = () => {
     setCustomTranslations(prev => ({ ...prev, [selectedLine]: newText }));
   };
 
-  if (loading) return <div className="text-slate-500 p-10">Loading lyrics...</div>;
-  if (!song) return <div className="text-slate-500 p-10">Song not found.</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Navbar />
+        <div className="max-w-5xl mx-auto px-6 py-20 text-slate-500">Loading lyrics…</div>
+      </div>
+    );
+  }
+
+  if (!song) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Helmet>
+          <title>Song not found | CN Lyric Hub</title>
+          {/* Bad slugs must not be indexed as thin duplicates of each other */}
+          <meta name="robots" content="noindex, follow" />
+        </Helmet>
+        <Navbar />
+        <div className="max-w-2xl mx-auto px-6 py-24 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full border border-slate-800 mb-6">
+            <Music className="w-7 h-7 text-slate-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">We couldn't find that song</h1>
+          <p className="text-slate-400 mb-8">The link may be out of date, or the song may have been removed.</p>
+          <Link to="/" className="inline-flex items-center gap-2 bg-primary text-white font-bold px-6 py-3 rounded-full hover:opacity-90 transition-opacity">
+            Browse the library
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const videoId = getYoutubeId(song.youtube_url);
   const rawChinese = song.lyrics_chinese || "";
@@ -128,56 +231,6 @@ const SongPage = () => {
     && song.artist_zh
     && sify(song.artist_en) !== sify(song.artist_zh);
 
-  // Reusable size control
-  const SizeControl = ({ label, type }) => (
-    <div className="flex items-center justify-between gap-4 mb-2">
-        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
-        <div className="flex items-center gap-3 bg-slate-950 rounded-lg p-1 border border-slate-700">
-            <button onClick={() => updateSize(type, -1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] <= 0}>
-                <Minus size={14} />
-            </button>
-            <div className="flex gap-1">
-                {[0, 1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className={`w-1.5 h-3 rounded-full ${i <= fontSettings[type] ? 'bg-primary' : 'bg-slate-800'}`} />
-                ))}
-            </div>
-            <button onClick={() => updateSize(type, 1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] >= 6}>
-                <Plus size={14} />
-            </button>
-        </div>
-    </div>
-  );
-
-  // Reusable color picker row
-  const ColorRow = ({ label, type }) => {
-    const current = lyricColors[type];
-    return (
-      <div className="flex items-center justify-between gap-4 mb-3">
-        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
-        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-          {colorSwatches.map(s => {
-            const isSelected = s.hex ? current === s.hex : current === 'default';
-            return (
-              <button
-                key={s.id}
-                onClick={() => updateColor(type, s)}
-                title={s.label}
-                className={`w-5 h-5 rounded-full transition-all ${
-                  isSelected 
-                    ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900 scale-110' 
-                    : 'opacity-60 hover:opacity-100 hover:scale-105'
-                }`}
-                style={{ 
-                  backgroundColor: s.hex || 'transparent',
-                  border: !s.hex ? '2px dashed rgb(71 85 105)' : 'none'
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20">
@@ -245,7 +298,7 @@ const SongPage = () => {
             <p className="text-2xl font-medium">
               {primaryArtist.split(',').map((artist, i, arr) => (
                 <span key={i}>
-                  <Link to={`/artist/${artist.trim()}`} className="text-primary hover:underline transition-colors">
+                  <Link to={`/artist/${encodeURIComponent(artist.trim())}`} className="text-primary hover:underline transition-colors">
                     {artist.trim()}
                   </Link>
                   {i < arr.length - 1 && ', '}
@@ -287,17 +340,17 @@ const SongPage = () => {
                           
                           {/* SIZE CONTROLS */}
                           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-3">Size</p>
-                          <SizeControl label="Pinyin" type="pinyin" />
-                          <SizeControl label="Hanzi" type="zh" />
-                          <SizeControl label="English" type="en" />
+                          <SizeControl label="Pinyin" type="pinyin" fontSettings={fontSettings} updateSize={updateSize} />
+                          <SizeControl label="Hanzi" type="zh" fontSettings={fontSettings} updateSize={updateSize} />
+                          <SizeControl label="English" type="en" fontSettings={fontSettings} updateSize={updateSize} />
                           
                           <div className="h-px bg-slate-800 my-4" />
                           
                           {/* COLOR CONTROLS */}
                           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-3">Colors</p>
-                          <ColorRow label="Pinyin" type="pinyin" />
-                          <ColorRow label="Hanzi" type="hanzi" />
-                          <ColorRow label="English" type="english" />
+                          <ColorRow label="Pinyin" type="pinyin" lyricColors={lyricColors} updateColor={updateColor} />
+                          <ColorRow label="Hanzi" type="hanzi" lyricColors={lyricColors} updateColor={updateColor} />
+                          <ColorRow label="English" type="english" lyricColors={lyricColors} updateColor={updateColor} />
 
                           {/* Reset colors */}
                           {(lyricColors.pinyin !== 'default' || lyricColors.hanzi !== 'default' || lyricColors.english !== 'default') && (
@@ -398,16 +451,25 @@ const SongPage = () => {
                        <span className="text-slate-300">{song.year}</span>
                      </div>
                    )}
-                   {song.submitted_by && (
-                     <div className="flex justify-between text-slate-400">
-                       <span>Submitted by</span>
-                       <Link to={`/user/${song.submitted_by}`} className="text-primary hover:underline">{song.submitted_by}</Link>
-                     </div>
-                   )}
+                   <div className="flex justify-between text-slate-400">
+                     <span>Source</span>
+                     {/* submitted_by holds free-text display names ('Anonymous', 'admin'),
+                         not usernames, so linking it blindly produced ~1600 dead links
+                         to "User not found". Link only a confirmed profile. */}
+                     {song.source === 'import' ? (
+                       <span className="text-slate-300">Imported</span>
+                     ) : submitterUsername ? (
+                       <Link to={`/user/${encodeURIComponent(submitterUsername)}`} className="text-primary hover:underline">
+                         {submitterUsername}
+                       </Link>
+                     ) : (
+                       <span className="text-slate-300">{song.submitted_by || 'Community'}</span>
+                     )}
+                   </div>
                    {song.last_edited_by && (
                      <div className="flex justify-between text-slate-400">
                        <span>Last edited by</span>
-                       <Link to={`/user/${song.last_edited_by}`} className="text-primary hover:underline">{song.last_edited_by}</Link>
+                       <span className="text-slate-300">{song.last_edited_by}</span>
                      </div>
                    )}
                    <div className="flex justify-between text-slate-400">
