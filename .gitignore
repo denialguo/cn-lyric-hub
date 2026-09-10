@@ -39,3 +39,6 @@ CN_LYRIC_HUB_INTERVIEW_GUIDE.md
 
 # Codex agent config (mirrors .agents/, kept local)
 .codex/
+
+# Database dumps — real user data, and they would bloat the repo.
+backups/

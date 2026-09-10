@@ -156,8 +156,15 @@ const EditSongPage = ({ isReviewMode = false }) => {
       const targetSongId = isReviewMode ? formData.original_song_id : id;
       if (!await confirmLineEdit(supabase, targetSongId, formData.lyrics_chinese, confirm)) return;
       if (isReviewMode) {
-        // A reviewed/published song is curated content — lift it into the listed catalog
-        const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
+        // A reviewed/published song is curated content — lift it into the listed catalog.
+        // Credit the person who wrote the edit, not the admin approving it: safePayload
+        // took last_edited_by from the current session, which here is always the admin.
+        // ponytail: the approver isn't recorded anywhere — with one admin account that
+        // is zero information. Add a reviewed_by column if that ever stops being true.
+        const payloadForLiveDB = {
+          ...safePayload, slug: finalSlug, source: 'user',
+          last_edited_by: formData.submitted_by || editorName,
+        };
 
         if (formData.original_song_id) {
           const { error: updateError } = await supabase

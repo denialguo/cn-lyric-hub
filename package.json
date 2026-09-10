@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "node --test src/**/*.test.js",
     "verify:rls": "node scripts/verify-rls.cjs",
-    "prerender": "node scripts/prerender.cjs"
+    "prerender": "node scripts/prerender.cjs",
+    "backup": "node scripts/backup.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",
