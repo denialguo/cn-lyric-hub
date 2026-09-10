@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, UserPlus } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { searchArtists } from '../lib/queries';
 
 const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
   const [query, setQuery] = useState('');
@@ -28,12 +28,7 @@ const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
         return;
       }
       setSearching(true);
-      const { data } = await supabase
-        .from('artists')
-        .select('*')
-        .or(`name_en.ilike.%${query}%,name_zh.ilike.%${query}%`)
-        .limit(5);
-      setResults(data || []);
+      setResults(await searchArtists(query));
       setSearching(false);
     };
 

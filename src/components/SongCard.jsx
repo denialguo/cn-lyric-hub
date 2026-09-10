@@ -74,6 +74,10 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
     }
   };
 
+  // Album art is hotlinked from Apple's CDN, so a URL can go dead at any time.
+  // Fall back to the same placeholder an absent cover gets.
+  const [coverFailed, setCoverFailed] = useState(false);
+
   const mainTitle = song.display_title || song.title_zh || song.title_en;
   const subTitle = song.title_en; 
   const showSubTitle = subTitle && subTitle !== mainTitle;
@@ -85,8 +89,8 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
       className="group relative bg-slate-900 rounded-2xl overflow-hidden hover:-translate-y-2 transition-all duration-300 border border-slate-800 hover:shadow-2xl hover:shadow-primary/20 cursor-pointer"
     >
       <div className="aspect-square overflow-hidden relative">
-        {song.cover_url ? (
-          <img src={song.cover_url} alt={`Album cover for ${mainTitle} by ${artistString}`} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+        {song.cover_url && !coverFailed ? (
+          <img src={song.cover_url} alt={`Album cover for ${mainTitle} by ${artistString}`} loading="lazy" decoding="async" onError={() => setCoverFailed(true)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center gap-3 transition-transform duration-700 group-hover:scale-110">
             <Music className="w-10 h-10 text-slate-600" />

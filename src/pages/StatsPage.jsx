@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BarChart3, Music, Users, Type, Heart, TrendingUp, Hash, Sparkles, MessageSquare, Globe, Calendar, Repeat, BookOpen, Fingerprint, Ghost, Mic } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
+import { fetchAllRows } from '../lib/queries';
 import Navbar from '../components/Navbar';
 import { pinyin as getPinyin } from 'pinyin-pro';
 import {
@@ -374,13 +375,17 @@ const StatsPage = () => {
 
   useEffect(() => {
     const fetchAll = async () => {
-      const { data: songsData } = await supabase
-        .from('songs')
-        .select('id, title_zh, title_en, artist_en, artist_zh, lyrics_chinese, tags, slug, cover_url, year');
+      // These had no .range(), so PostgREST capped them at 1000 of 1608 songs and
+      // every statistic on the page silently understated by ~38%.
+      const songsData = await fetchAllRows(
+        'songs',
+        'id, title_zh, title_en, artist_en, artist_zh, lyrics_chinese, tags, slug, cover_url, year'
+      );
 
-      const { data: likedData } = await supabase
-        .from('songs')
-        .select('id, title_zh, title_en, artist_en, slug, cover_url, song_likes(count)');
+      const likedData = await fetchAllRows(
+        'songs',
+        'id, title_zh, title_en, artist_en, slug, cover_url, song_likes(count)'
+      );
 
       const { count: artists } = await supabase.from('artists').select('*', { count: 'exact', head: true });
       const { count: translations } = await supabase.from('line_translations').select('*', { count: 'exact', head: true });

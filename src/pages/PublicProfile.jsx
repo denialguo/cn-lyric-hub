@@ -2,13 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
-import { User, Music, ArrowLeft, Globe, ExternalLink } from 'lucide-react';
+import { User, Music, ArrowLeft } from 'lucide-react';
 import SongCard from '../components/SongCard';
+import Navbar from '../components/Navbar';
+import { CARD_COLUMNS, likedSongIds } from '../lib/queries';
+import { useAuth } from '../context/AuthContext';
 
 const PublicProfile = () => {
   const { username } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [profile, setProfile] = useState(null);
+  const [likedIds, setLikedIds] = useState(new Set());
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +35,7 @@ const PublicProfile = () => {
 
       const { data: songsData } = await supabase
         .from('songs')
-        .select('*')
+        .select(CARD_COLUMNS)
         .eq('user_id', profileData.id)
         .order('created_at', { ascending: false });
 
@@ -41,15 +46,40 @@ const PublicProfile = () => {
     fetchProfileData();
   }, [username]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) { setLikedIds(new Set()); return; }
+    likedSongIds(user.id).then((ids) => { if (!cancelled) setLikedIds(ids); });
+    return () => { cancelled = true; };
+  }, [user]);
+
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading profile...</div>;
-  if (!profile) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">User not found.</div>;
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Helmet>
+          <title>User not found | CN Lyric Hub</title>
+          <meta name="robots" content="noindex, follow" />
+        </Helmet>
+        <Navbar />
+        <div className="max-w-md mx-auto px-6 py-24 text-center">
+          <h1 className="text-2xl font-bold text-white mb-3">We couldn't find that profile</h1>
+          <p className="text-slate-400 mb-8">The user may have changed their username or deleted their account.</p>
+          <button onClick={() => navigate('/')} className="bg-primary text-white font-bold px-6 py-3 rounded-full hover:opacity-90 transition-opacity">
+            Back to Library
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 md:p-12">
+    <div className="min-h-screen bg-slate-950">
       <Helmet>
         <meta name="robots" content="noindex, follow" />
       </Helmet>
-      <div className="max-w-6xl mx-auto">
+      <Navbar />
+      <div className="max-w-6xl mx-auto p-6 md:p-12">
         
         <button 
           onClick={() => navigate('/')} 
@@ -79,11 +109,6 @@ const PublicProfile = () => {
                    {profile.display_name || profile.username}
                  </h1>
                  <p className="text-slate-500 text-sm">@{profile.username}</p>
-                 {profile.website && (
-                   <a href={profile.website} target="_blank" rel="noreferrer" className="inline-flex items-center text-primary hover:underline text-sm gap-1 mt-2">
-                     <Globe size={14} /> {profile.website.replace(/^https?:\/\//, '')} <ExternalLink size={12} />
-                   </a>
-                 )}
                </div>
 
                {profile.bio && (
@@ -111,7 +136,12 @@ const PublicProfile = () => {
         ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {songs.map((song) => (
-                    <SongCard key={song.id} song={song} />
+                    <SongCard
+                      key={song.id}
+                      song={song}
+                      initialLikeCount={song.song_likes?.[0]?.count || 0}
+                      initialIsLiked={likedIds.has(song.id)}
+                    />
                 ))}
             </div>
         )}
