@@ -86,7 +86,7 @@ export async function listSongs({ page = 0, pageSize = 36 } = {}) {
   return { songs: data || [], hasMore: (data || []).length === limit };
 }
 
-/** Exact artist lookup, with legacy name fallback until the reconciliation migration is applied. */
+/** Exact artist lookup; song membership comes only from the indexed junction. */
 export async function songsByArtist(artistName) {
   const name = String(artistName ?? '').trim();
   if (!name) return { songs: [], names: [] };
@@ -109,32 +109,7 @@ export async function songsByArtist(artistName) {
     return { songs, names: [matched.name_en, matched.name_zh].filter(Boolean) };
   }
 
-  // ponytail: remove this fallback AFTER artist reconciliation and the index are applied.
-  // 2. Fall back to name matching across both scripts.
-  const fallbackFilter = buildNameFilter(name, { enColumns: ['artist_en'], zhColumns: ['artist_zh'] });
-  if (!fallbackFilter) return { songs: [], names: [] };
-
-  const { data, error } = await supabase
-    .from('songs')
-    .select(CARD_COLUMNS)
-    .or(fallbackFilter)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('songsByArtist failed:', error.message);
-    return { songs: [], names: [], error };
-  }
-
-  const names = new Set();
-  for (const song of data || []) {
-    for (const col of [song.artist_en, song.artist_zh]) {
-      for (const n of (col || '').split(',')) {
-        const t = n.trim();
-        if (t) names.add(t);
-      }
-    }
-  }
-  return { songs: data || [], names: [...names] };
+  return { songs: [], names: [] };
 }
 
 /**
