@@ -299,3 +299,31 @@ The job sends `{id: true, generated_at, payload}` using the service role; payloa
 `react-is` is a required Recharts peer dependency, not an unused package. Keep it explicitly in `package.json`: `.npmrc` sets `legacy-peer-deps=true`, so clean installs do not install peers automatically. Its earlier removal was masked by the local node_modules and stale lockfile; Vercel failed resolving Recharts/ReactUtils.js. Restore it and verify with `npm ci` before building.
 
 Verified after restoring `react-is@19.2.5`: clean `npm ci`, full sitemap/Vite/prerender build, all 14 tests, and lint (0 errors, 9 existing warnings) passed. Regenerated package-lock.json also removes stale entries for the previously removed shadcn/sitemap packages.
+
+## Rollout verified — 2026-09-09 (read-only checks, no writes to existing rows)
+- **Prerender is live on Vercel.** `curl .../song/xin-tian-di-live-live-5061` returns `新天地(live) - live — Beyond | Lyrics, Pinyin | CN Lyric Hub`, and `/artist/Beyond` returns its own title. `cleanUrls` is taking effect; the flat `<route>.html` + raw-name scheme works in production. This closes the last open SEO verification.
+- **Avatars bucket is configured**: `public=true`, `file_size_limit=2097152` (2 MB), `allowed_mime_types=["image/png","image/jpeg","image/webp"]`. The dashboard fix Daniel was asked to make is done.
+- **Translation vote migration is applied.** `npm run verify:rls`: **27 passed, 0 failed**, including "author CANNOT overwrite translation vote counter". Disposable probe rows and both probe users cleaned up by exact ID.
+- Still outstanding from that list: **backups** (no `pg_dump`, no confirmed PITR). Unchanged.
+
+## Edit-history feasibility — measured 2026-09-09, nothing implemented
+Measured read-only through the REST API with the service role; no rows created or modified.
+
+**Edit volume is near zero.** Only **10 of 1608** songs have ever been edited (`last_edited_by` non-null), all by `'admin'`, most recently **2026-06-23**. `song_submissions` has **0 rows** — no community edit has ever been submitted. 27 songs have `source='user'`.
+
+**Snapshot cost.** The columns a revision would copy (titles, artists, all three lyric blobs, bio, credits, tags, cover, youtube, year, slug) total **4.78 MB across all 1608 songs**: mean **3.1 KB/row**, median 2.9 KB, p95 4.9 KB, max 49.8 KB. So one revision ≈ 3 KB before TOAST compression (Postgres compresses text over ~2 KB, so on-disk is less). Against the Free tier's 500 MB: a full baseline snapshot of the whole catalogue is ~1% of quota, and 10,000 revisions is ~30 MB. **Database space is not the constraint on this feature.** Avatars are 2 objects — nowhere near the 1 GB storage tier.
+
+⚠️ **Actual current DB usage cannot be read over REST** — `pg_database_size` needs SQL. Run this in the SQL editor for the real figure; do not substitute an estimate:
+```sql
+select pg_size_pretty(pg_database_size(current_database())) as db_total;
+select relname, pg_size_pretty(pg_total_relation_size(c.oid)) as total
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r'
+order by pg_total_relation_size(c.oid) desc;
+```
+
+**Where history would have to be captured.** Both admin paths end in `update public.songs` — `EditSongPage`'s admin branch and its review branch (`isReviewMode` + `original_song_id`). Service-role scripts (`fetch-covers`, `fetch-years`, importer) also UPDATE that table. So a `before update` trigger on `songs` is the only capture point that covers all of them, and it is atomic with the edit by construction. `song_submissions` already preserves the *proposed* content of every community edit forever (approve/reject only set `status`), so the missing history is specifically **admin direct edits** — plus any admin tweak made during review, which is currently recorded nowhere.
+
+⚠️ **A revision trigger must not fire on cover/year backfills.** Gate it on the content columns only (lyrics/titles/artists/bio/credits). Otherwise a `fetch-years` pass over a 49k-song catalogue writes 49k revisions in one run.
+
+⚠️ **History does not make restore safe, and restore is the dangerous part.** Community translations and line comments anchor by `line_index` into `lyrics_chinese` split on `\n`. `confirmLineEdit` only warns when the *line count* changes, so restoring a revision that reorders or rewords lines at the **same length** passes the guard silently and silently reattaches every contribution to different lyrics. Restore must (a) route through the same save path so the count guard runs, (b) write a new revision rather than erase history, and (c) not claim to preserve contributions. Stable anchors (store each contribution's original line text — see the proposal above) come **before** restore, not after.
