@@ -84,9 +84,22 @@ function check(name, ok, detail) {
     r = await rq('songs', { method: 'POST', body: { title_en: 'ZZ', artist_en: 'ZZ', source: 'import' } });
     check('anon CANNOT insert songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
+    // An anonymous Supabase session holds the Postgres role `authenticated`, so
+    // "authenticated" never meant "has a real account". This is the hole that let
+    // a throwaway session rewrite the whole catalogue.
     r = await rq(`songs?id=eq.${probe.id}`, { jwt, method: 'PATCH',
-      prefer: 'return=representation', body: { lyrics_chinese: 'x' } });
-    check('authenticated CAN update songs', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+      prefer: 'return=representation', body: { lyrics_chinese: 'VERIFY_ANON' } });
+    check('anonymous session CANNOT update songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await rq('songs', { jwt, method: 'POST',
+      body: { title_en: 'ZZ', artist_en: 'ZZ' } });
+    check('anonymous session CANNOT insert songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    // The review path must keep working for everyone, or non-admins lose the
+    // ability to suggest anything at all.
+    r = await rq('song_submissions', { jwt, method: 'POST', prefer: 'return=representation',
+      body: { title_en: 'ZZ_RLS_VERIFY_SUB', artist_en: 'ZZ_RLS_VERIFY_SUB', status: 'pending', user_id: uid } });
+    check('anyone CAN still submit for review', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
     console.log('\nprofiles');
     r = await rq(`profiles?id=eq.${uid}`, { jwt, method: 'PATCH',
@@ -120,10 +133,26 @@ function check(name, ok, detail) {
 
     r = await rq('song_likes', { jwt, method: 'POST', body: { song_id: FAKE_SONG, user_id: uid } });
     check('user CAN like as themselves', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    // Anonymous visitors are meant to be able to like things — they just must not
+    // be able to attribute the like to somebody else.
+    r = await rq('song_likes', { jwt, method: 'POST', body: { song_id: FAKE_SONG, user_id: uid } });
+    check('anonymous session CAN like as itself', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    // Cross-user edits/deletes of community content — these already pass, kept as
+    // regression cover since nothing else asserts them.
+    r = await rq(`line_translations?user_id=neq.${uid}`, { jwt, method: 'PATCH',
+      prefer: 'return=representation', body: { content: 'PWNED' } });
+    check('user CANNOT edit another user translation', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await rq(`line_comments?user_id=neq.${uid}`, { jwt, method: 'DELETE',
+      prefer: 'return=representation' });
+    check('user CANNOT delete another user comment', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
   } finally {
     // --- teardown ---
     await rq(`songs?id=eq.${probe.id}`, { key: SVC, method: 'DELETE' });
     await rq('songs?title_en=eq.ZZ', { key: SVC, method: 'DELETE' });
+    await rq('song_submissions?title_en=eq.ZZ_RLS_VERIFY_SUB', { key: SVC, method: 'DELETE' });
     await rq(`profiles?id=eq.${uid}`, { key: SVC, method: 'DELETE' });
     await fetch(`${URL}/auth/v1/admin/users/${uid}`, {
       method: 'DELETE', headers: { apikey: SVC, Authorization: `Bearer ${SVC}` } });
@@ -133,8 +162,8 @@ function check(name, ok, detail) {
   console.log(`  ${pass} passed, ${fail} failed`);
   console.log(`${'='.repeat(46)}\n`);
   if (fail) {
-    console.log('Apply supabase/migrations/20260831000000_tighten_rls.sql in the');
-    console.log('Supabase SQL editor, then re-run this script.\n');
+    console.log('Apply the migrations in supabase/migrations/ in the Supabase SQL');
+    console.log('editor (newest last), then re-run this script.\n');
   }
   process.exit(fail ? 1 : 0);
 })();
