@@ -9,15 +9,17 @@ Community-driven Chinese lyrics platform. Users browse Chinese songs with pinyin
 - **Key libraries**: `pinyin-pro` (pinyin generation), `chinese-conv` (simplified ↔ traditional via `sify()`/`tify()`), `recharts` (stats charts), `lucide-react` (icons), `react-router-dom` v7, `react-helmet-async`
 - **Domain**: https://cnlyrichub.vercel.app
 
-> Local build note: this machine is arm64 but Node runs as x64, so `vite build` can fail on a missing `@rollup/rollup-darwin-x64`. Vercel (linux-x64) is unaffected.
+> Local build note: `npm run build` works on this machine as of 2026-09-09 (~3s). An older note claimed `vite build` failed here on a missing `@rollup/rollup-darwin-x64` — that is no longer reproducible.
 
 ## File Structure
-- `src/components/` — Navbar, Footer, SongCard, SubmissionCard, LyricLine, LineSidebar, CommentsSection, CommentItem, ArtistSearch, LyricsEditor, ThemeSettings, TagInput
-- `src/pages/` — HomePage, SongPage, AddSongPage, EditSongPage, AdminDashboard, AuthPage, ProfilePage, PublicProfile, ArtistPage, StatsPage, FaqPage, NotFoundPage
+- `src/components/` — Navbar, Footer, SongCard, SubmissionCard, LyricLine, LineSidebar, CommentsSection, CommentItem, ArtistSearch, LyricsEditor, ThemeSettings, TagInput, **ErrorBoundary**, **LegalLayout**
+- `src/pages/` — HomePage, SongPage, AddSongPage, EditSongPage, AdminDashboard, AuthPage, ProfilePage, PublicProfile, ArtistPage, StatsPage, FaqPage, NotFoundPage, **PrivacyPage**, **TermsPage**
 - `src/context/` — AuthContext (lazy anon auth), ThemeContext (dark/light, script mode, accent color, lyric sizes/colors), ToastContext (toast.success/error/warning/info + confirm())
 - `src/hooks/` — useArtistSelection, useTagSuggestions
+- `src/lib/` — supabaseClient, **queries.js** (the shared data-access seam), **identity.js** (real-account vs anonymous), **storage.js** (localStorage that can't throw)
 - `src/utils/lyrics.js` — **the single shared pinyin module**: `isChinese`, `generatePinyin`, `alignSyllables`. Imported by the app *and* by `scripts/import-lyrics.cjs` (via dynamic import) so stored and rendered pinyin can never drift.
-- `scripts/` — import-lyrics.cjs, fetch-covers.cjs, fetch-years.cjs, itunes.cjs (shared API client), generate-sitemap.cjs, verify-rls.cjs
+- `scripts/` — import-lyrics.cjs, fetch-covers.cjs, fetch-years.cjs, itunes.cjs (shared API client), generate-sitemap.cjs, **prerender.cjs**, verify-rls.cjs
+- `AGENTS.md` is a **symlink to CLAUDE.md** — edit CLAUDE.md only. It was a copy that had drifted 108 lines.
 - `supabase/migrations/` — RLS policies as SQL. Applied by pasting into the Supabase SQL editor.
 
 ## Database Schema (Supabase)
@@ -52,10 +54,23 @@ Policies live in `supabase/migrations/`. RLS is the **only** authorization layer
 - profiles: public read ✅; own-row UPDATE only ✅; `role` frozen by `current_profile_role()` ✅ (escalation verified blocked)
 - line_translations / line_comments / comments: INSERT requires `auth.uid() = user_id` ✅; **cross-user UPDATE and DELETE verified blocked** ✅
 - line_votes / comment_votes: own-row INSERT/DELETE ✅ (forgery verified blocked)
-- ⚠️ **song_likes: NO ownership check.** Verified: a forged `user_id` is accepted, and an insert succeeds with **no auth at all** (raw anon key). The migration's block 3 would fix this but was never applied for this table.
+- ⚠️ **song_likes: NO ownership check.** Verified: a forged `user_id` is accepted, and an insert succeeds with **no auth at all** (raw anon key).
 - Bulk scripts use SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS
 
-Run `npm run verify:rls` after any policy change — it probes the REST API as an attacker would and exits non-zero if a policy regressed. Currently **2 failures, both `song_likes`** (not 5 — that count was stale).
+### 🔴 ACTION REQUIRED — one migration is written but NOT applied
+`supabase/migrations/20260909000000_likes_ownership_and_admin_song_writes.sql` closes both holes above. **Paste it into the Supabase SQL editor, then run `npm run verify:rls`.** Until then, `verify:rls` reports **4 failures**, and all four are real, exploitable, and live:
+1. anonymous session can UPDATE any song
+2. anonymous session can INSERT songs
+3. likes forgeable as another user
+4. likes insertable with no auth at all
+
+It also creates the three indexes the app actually needs and drops the duplicate `unique_username`.
+
+⚠️ **Read before applying**: it makes direct `songs` writes admin-only, and **only `danielguo1098@gmail.com` is admin** (`profiles.id = 55c256da-…`). `danieldenialdeveloping@gmail.com` (`d090e155-…`) is NOT — after applying, that account's edits become submissions instead of direct writes. The SQL contains the one-line `update` to promote it if you want that. The `role` column is frozen by RLS, so promotion is only possible from the SQL editor or dashboard, never the app.
+
+The app side is already done and is safe either way: non-admins route to `song_submissions`, and that path was verified to still work for anonymous *and* fully unauthenticated visitors.
+
+Run `npm run verify:rls` after any policy change — it probes the REST API as an attacker would and exits non-zero if a policy regressed. It is non-destructive and cleans up after itself (verified: 0 leftover rows, probe auth users deleted).
 
 ⚠️ **Never write a probe that restores a row from a `Prefer: return=representation` response after a PATCH** — that header returns the row *after* the write, so "restoring" from it re-saves the corrupted value. This destroyed `songs.lyrics_chinese` on song 391 during the 2026-09-09 audit (recovered from `~/Downloads/Chinese_Lyrics/`). Snapshot before the write, or restore from the corpus.
 
@@ -90,6 +105,29 @@ Unindexable by btree: `artist_en.ilike.%name%` (leading wildcard). Needs `pg_trg
 - **The DB is the only copy of the data.** The corpus in `~/Downloads/Chinese_Lyrics/` can restore imported `lyrics_chinese` only — it cannot restore the 27 user songs, community translations, comments, likes, curated `lyrics_english`, or script-backfilled covers/years. No `pg_dump` routine exists. Song 391 was recovered in the 2026-09-09 audit purely because the corpus happened to still be on disk.
 - Only one RPC exists (`current_profile_role`), so the non-atomic `songs`/`song_artists` insert has no server-side function to move into yet.
 
+## SEO / rendering (added 2026-09-09)
+The app is a client-rendered SPA, so **every URL used to serve the same 915-byte shell** — identical `<title>`, identical description, empty `<div id="root">`, no lyrics. `react-helmet-async` only sets those tags after JS runs. Googlebot deduped 1608 byte-identical pages into one; **only 2 pages were indexed**. The sitemap was never the problem.
+
+`scripts/prerender.cjs` runs after `vite build` and writes `dist/song/<slug>/index.html`, `dist/artist/<name>/index.html` and the static routes, each with a unique title, description, canonical, OG tags, JSON-LD and the real lyrics in the markup (915 B → ~8 KB; 1608 distinct titles and descriptions verified). **Vercel resolves static files before `rewrites`**, so these win over the SPA shell and the shell still handles anything not prerendered. The script exits 0 on failure so SEO can never break a deploy.
+
+Consequences to remember:
+- Prerendered HTML is **stale until the next deploy**. Users always see live data (React refetches); only crawlers see the snapshot.
+- Adding a new page route means adding it to `STATIC_ROUTES` in `prerender.cjs` *and* to `generate-sitemap.cjs`, or it serves the homepage's title.
+- A full corpus import (~49,760 files, see below) would write ~49k HTML files per build and push the sitemap past the 50,000-URL limit for a single file, which then needs a sitemap index.
+
+## The corpus vs the database
+`~/Downloads/Chinese_Lyrics/` holds **49,760 lyric files across 494 artist folders**. The DB has **1,608 songs from 19 artists** — roughly 3% imported. Everything in the "won't scale" column below is sized against 1608, so a full import is a 31x jump that turns each of those into a live problem at once. Import deliberately, not all at once.
+
+## Content coverage (measured 2026-09-09)
+Worth knowing before building features that sort or filter on these:
+- `lyrics_english` non-empty: **7 of 1608**. The site's English-translation promise is essentially unfulfilled.
+- `tags`: **4 of 1000** sampled rows have any tag. The Classics tab used to filter on tags and rendered **zero cards**.
+- `year`: 322 of 1608 (`year < 2000` → 112). `fetch-years.cjs` needs more runs.
+- `category`: all 1608 rows are `'pop'` — a constant, read by nothing. Dead column.
+- `translation_credit`: 2 non-null rows.
+- `cover_url`: 1340 have one; 176 are `''` (never NULL — `cover_url.neq.""` depends on that).
+- `song_likes`: 18 rows over **7 distinct songs**. Trending used to be the default tab and rendered 7 cards out of 1608; the default is now All Songs.
+
 ## Key Architecture Decisions
 - **Lyrics as parallel columns** (not a lines table) — keeps inserts atomic, editing simple, avoids hundreds of rows per song. ⚠️ Nothing in Postgres enforces equal line counts across the three columns; that invariant is application-level only.
 - **Pinyin is pre-generated at ingest, not at render** — `pinyin-pro` is handed whole Chinese runs so it resolves polyphones by word context (音乐 → `yīn yuè`, never `yīn lè`). Per-character generation loses this.
@@ -100,6 +138,11 @@ Unindexable by btree: `artist_en.ilike.%name%` (leading wildcard). Needs `pg_trg
 - **Latin-only lyric lines** — rendered at smaller italic size instead of hanzi scale.
 - **No "No translation available" message** — if no translation exists, show nothing.
 - **Toast system replaces all alert()/confirm()**
+- **One shared data-access seam** — `src/lib/queries.js` owns every query with more than one caller (search, catalogue lists, tab queries, artist lookup, `fetchAllRows` for paging past the 1000-row cap, `likedSongIds`). Before it, `supabase` was imported into 15 components and each re-decided sanitising / paging / error handling independently, which is why the same bug appeared in four variants. **Add new multi-caller queries here, not in components.**
+- **`src/lib/identity.js` is the only place that decides "is this a real account"** — a Supabase anonymous session has the Postgres role `authenticated`, so `if (user)` is true for throwaway visitors. Use `isRealAccount` / `isAdmin` / `submitterName`, never a bare `if (user)` or `user.email`.
+- **`src/lib/storage.js` wraps all localStorage** — reads and writes never throw. Accessing localStorage at all throws when a browser blocks site data, and a bare `JSON.parse` in ThemeProvider used to white-screen the whole app unrecoverably.
+- **`ErrorBoundary` is mounted outside ThemeProvider** in `main.jsx`, because ThemeProvider's own storage read was the most likely thing to throw.
+- **Direct `songs` writes are admin-only** (app + RLS). Every non-admin — signed in, anonymous, or signed out — routes through `song_submissions` for review. Approve/reject set `status`; they no longer delete the row, so submitters can see the outcome.
 
 ## Commands
 ```
@@ -140,59 +183,45 @@ No spaces after `=`. Vite exposes only VITE_ prefixed vars to the frontend — t
 
 Ranked from the full-codebase audit on **2026-09-09**. Nothing below is fixed yet — the audit was read-only by request.
 
-### P0 — broken in production right now
-- [ ] **Publishing a song fails for every signed-in user.** `AddSongPage.jsx:100` sends `status: 'active'` into `songs`, which has no such column → `PGRST204`, insert rejected. Same bug at `EditSongPage.jsx:179` (that one targets `song_submissions`, which *does* have `status`, so it survives). Proven: removing the field returns `201`. One-line fix.
-- [ ] **Anonymous-session users crash the submit path.** Both pages do `user.email.split('@')[0]`; an anonymous user has no `email` → TypeError, swallowed into a nonsense error toast. `EditSongPage.jsx:108` already uses `user.email?.split(...)` — the other two sites don't.
-- [ ] **StatsPage computes every statistic on 1000 of 1608 songs.** No `.range()` paging, so PostgREST's cap silently truncates ~38% of the catalog. Also downloads ~1.2 MB of lyrics twice.
+### ✅ Fixed 2026-09-09 (commits f3e226d → HEAD)
+Code is done for all of these; the one thing still outstanding is the RLS migration above, which only you can apply.
 
-### P1 — security (all verified live against the REST API)
-- [ ] **`song_likes` accepts forged likes with no auth at all.** Apply block 3 of `20260831000000_tighten_rls.sql` (or just the `song_likes` half), then `npm run verify:rls`.
-- [ ] **Any anonymous session can rewrite the whole catalog.** Decision made 2026-09-09: direct `songs` UPDATE should be **admin-only**; everyone else routes through `song_submissions` for review. Open question: whether anonymous sessions may submit edit *requests* at all.
-- [ ] **Translation vote counts are client-written absolute values** (`votes: currentCount + 1` in `LineSidebar.jsx`) → any user can set any count to any number, and two concurrent voters lose an update. Fix by deriving from `line_votes` or moving the increment server-side.
-- [ ] **`avatars` bucket has no size limit and no MIME allowlist, and is public.** Set `file_size_limit` (~2 MB) and `allowed_mime_types` (`image/png,image/jpeg,image/webp`) **in the Supabase dashboard** — that's the enforcement point; `accept="image/*"` in JS is bypassable. Today it's unbounded public file hosting, and an uploaded SVG is script-capable on that origin. Old avatars are never deleted (orphan per change).
-- [ ] **No backups.** The DB is the only copy of all user-generated content. A `pg_dump` on a schedule (or even monthly to a private repo) — check whether the current Supabase plan includes PITR. This and the bucket settings are the only findings in the audit whose risk is **irreversible**.
-- [ ] Add `onError` → gradient placeholder on every `<img src={cover_url}>`. 814 covers are hotlinked from Apple's CDN; when one rotates, users currently see a broken-image glyph instead of the intentional placeholder. Also consider `300x300bb` instead of `600x600bb` (halves ~2 MB/homepage, same visual size).
+- **Publishing songs** — `AddSongPage` sent `status` to `songs`, which has no such column (`PGRST204`, whole insert rejected). Payloads are now built per target table.
+- **Anonymous-session crashes** — `user.email.split('@')` on accounts with no email. All three sites use `src/lib/identity.js` now.
+- **StatsPage** analysed 1000 of 1608 songs; pages via `fetchAllRows`.
+- **Filter injection** in `ArtistPage` (×2) and `ArtistSearch` — a comma or bracket in a name produced a 400 that rendered as "no results". One sanitiser in `queries.js` now.
+- **All 5 unguarded `JSON.parse(localStorage…)`** — the ThemeProvider one white-screened the whole app irrecoverably. Everything goes through `storage.js`; `ErrorBoundary` added outside the providers.
+- **SongPage state leaked between songs** — `customTranslations` was a `useState` initializer (runs once per mount) so `/song/a → /song/b` carried A's data *and persisted it under B's key*. Now an effect on `slug`; also resets song/selectedLine/loading, and `LineSidebar` refetches on `songId`.
+- **~1600 dead "Submitted by" links** → imports read "Imported"; a link renders only for a confirmed profile.
+- **Only 2 pages indexed** → `prerender.cjs`. See the SEO section.
+- **/privacy and /terms** exist, are linked from the footer, and are in the sitemap.
+- **Anonymous users could comment as "Unknown"** — every `if (user)` gate that meant "real account" now says so.
+- **Optimistic deletes with no rollback** in LineSidebar (×2) and CommentsSection; `CommentItem` like gained rollback + a double-click guard.
+- **N+1 likes** on ArtistPage / PublicProfile — counts batched from `CARD_COLUMNS`.
+- **Soft 404s** — bad song slug, unknown artist, unknown username all render real not-found states with `noindex`. `/artist/%` no longer throws on `decodeURIComponent`.
+- **Submission outcomes invisible** — approve/reject set `status` instead of deleting, so ProfilePage's existing 'approved'/'rejected' branches finally render. (Verified the column accepts both values.)
+- **/profile signed out** hung on "Loading profile…" forever.
+- **Default tab showed 7 of 1608** → All Songs. **Classics rendered 0** → `year < 2000`. **Trending** stopped pulling every like row site-wide.
+- **Cover `onError`** → gradient placeholder, since 814 covers are hotlinked from Apple.
+- Misc: `Clear Draft` left `bio` behind; unused deps (`react-is`, `shadcn`, `sitemap`) dropped and `dotenv` moved to dev; dead `data-theme-<color>` loop removed; Navbar's fake "close on navigation" effect removed and click-outside added; avatar type/size validated; `23505` username collision reads like English; `youtube-nocookie` + security headers in `vercel.json`; `ArtistPage`/`PublicProfile` gained the Navbar they never had.
 
-### P2 — crashes and stale state
-- [ ] **Unguarded `JSON.parse(localStorage…)` in 5 places.** The worst is `ThemeContext.jsx:31`, which wraps the entire app — one corrupt value = permanent white screen with no error boundary to catch it. Others: `SongPage.jsx:34,43`, `AddSongPage.jsx:35`, `LineSidebar.jsx:34,39`.
-- [ ] **SongPage keeps the previous song's state across navigation.** `customTranslations` is `useState(() => localStorage…)`, which only runs on first mount, so `/song/a` → `/song/b` carries A's custom translations onto B. `loading` is never reset either, and `setSong` is guarded by `if (data)`, so a failed fetch leaves the *old* song rendered. `selectedLine` also persists, and `LineSidebar` won't refetch because its `[lineIndex, user]` deps didn't change — it shows the old song's translations.
-- [ ] **No error boundaries anywhere** (confirmed by grep).
-- [ ] `/profile` while logged out hangs on "Loading profile…" forever — the `if (!user) return` sits above the `try`, so the `finally` that clears `dataLoading` never runs. No redirect to `/login` either.
-
-### P3 — correctness and UX
-- [ ] **~1600 dead "Submitted by" links.** `SongPage.jsx:400` links `submitted_by` to `/user/:username`, but it holds display text like `'Anonymous'`. Decision made 2026-09-09: **render `'Imported'`** for these instead of a link; only link when it resolves to a real profile.
-- [ ] **PostgREST filter injection / breakage in `.or()` calls.** `ArtistPage.jsx:24,49,52` and `ArtistSearch.jsx:34` interpolate raw user input into filter strings. An artist name containing `,` `(` `)` `%` produces a malformed filter → 400 → page silently shows zero songs. `HomePage.jsx:47` already solved this with `.replace(/[,%()]/g,' ')` — that sanitizer needs extracting and reusing (see Deduplication below).
-- [ ] Unencoded artist names in URLs: `` `/artist/${artist.trim()}` `` in `SongPage.jsx:246` and `SongCard.jsx:117` — should be `encodeURIComponent`, which the canonical tag at `ArtistPage.jsx:68` already does.
-- [ ] **Submission outcomes are invisible.** ProfilePage renders `sub.status === 'rejected' | 'approved'` branches, but approve and reject both **delete** the row — so a submission just vanishes. Either set status instead of deleting, or drop the dead branches.
-- [ ] `CommentsSection` gates commenting on `!user`, but an anonymous session *is* a user → anon comments post and render as "Unknown". Navbar checks `user.is_anonymous`; this doesn't.
-- [ ] Bad song slug renders a bare unstyled "Song not found." — no Navbar, no `noindex`, no way back. `/artist/<garbage>` renders an indexable "0 Songs Available" page. Both are soft-404s.
-- [ ] No `maxLength` on any comment/translation textarea → unbounded content inserts.
-- [ ] Optimistic deletes in `LineSidebar` (`handleDelete`, `handleDeleteComment`) and `CommentsSection.handleDelete` have **no rollback and no error toast** — a blocked delete vanishes from the UI but stays in the DB. The vote handlers in the same file *do* roll back correctly; this is an inconsistency, not a missing pattern.
-- [ ] `CommentItem.toggleLike` optimistic update has no rollback either.
-- [ ] `AddSongPage.clearDraft` omits `bio` when resetting, so bio survives "Clear Draft".
-- [ ] Logging out doesn't clear `userLikedIds` on HomePage → stale filled hearts.
-- [ ] Navbar's "close panels on navigation" effect has `[]` deps and never fires. Dead code (harmless — Navbar remounts per page). No click-outside handler on its menus either, unlike `ArtistSearch`/`SongPage` which both implement one.
-
-### P4 — performance and quality
-- [ ] **N+1 likes**: `SongCard` self-fetches 2 queries per card wherever no `initialLikeCount` is passed (ArtistPage, PublicProfile, ProfilePage) — 50 songs = ~100 requests. `CommentItem` does the same, 2 per comment.
-- [ ] **HomePage "Trending" fetches every like row site-wide** (`song_likes.select('song_id')`, no filter) and is silently capped at 1000 — trending breaks as likes grow.
-- [ ] **296 KB of pinyin-pro loads on every song page.** `utils/lyrics.js` imports `pinyin-pro` at top level, and `LyricLine` imports `isChinese`/`alignSyllables` from it — neither of which needs the dictionary. Only `generatePinyin` and the ~0.5% per-char fallback do. Splitting the module is the biggest single bundle win. Entry chunk is 504 KB (React + router + supabase + chinese-conv dictionaries).
-- [ ] `SizeControl` and `ColorRow` are defined **inside** `SongPage`'s render body → new component identity every render, remounting that subtree on each keystroke. Likely related to the "click jank" note.
-- [ ] **Deduplication**: the `.or()` search-filter builder is copy-pasted 4 ways across HomePage/ArtistPage(×2)/ArtistSearch with only one sanitizing. `timeAgo` lives in `CommentsSection` while `CommentItem` uses raw `toLocaleDateString`. Slug generation is duplicated in AddSongPage/EditSongPage. Avatar fallback chains are repeated in 5 files.
-- [ ] **Unused dependencies**: `react-is`, `shadcn`, and `sitemap` (the generator hand-rolls XML). `dotenv` + `sitemap` are build/script-only and belong in devDependencies.
-- [ ] `ThemeContext.jsx:64-67` removes `data-theme-<color>` attributes that are never set — dead loop.
-- [ ] Light mode is ~30 `.light .bg-slate-950 { !important }` overrides in `index.css`. Works, but any new Tailwind shade is silently uncovered. (Pre-existing refactor item, confirmed.)
-- [ ] No `vercel.json` security headers (`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`). SPA rewrite itself is correct.
-- [ ] ~~Username uniqueness is check-then-upsert (TOCTOU)~~ — **not a bug**, `profiles_username_key` enforces it. Only cosmetic: the race surfaces a raw `23505` string via `toast.error(error.message)`. Catch it and say "that username was just taken".
-- [ ] `drop index public.unique_username;` — exact duplicate of `profiles_username_key`, every profile write maintains both.
-- [ ] Add `songs (created_at desc)` + `songs (updated_at desc)` indexes — every list/search query sorts the whole table without them. Plus `song_likes (song_id)` for the SongCard N+1 (currently a seq scan per card). See the Indexes section for the deferred set.
-- [ ] Only the pinyin/alignment units are tested (12 pass). No component or E2E tests.
-
-### P5 — legal & compliance (not built yet)
-- [ ] `/privacy` and `/terms` pages + footer links. FaqPage already carries the DMCA/takedown flow and contact (`danieldenialdeveloping@gmail.com`) to build on.
-- [ ] Google OAuth requests `access_type: 'offline'` + `prompt: 'consent'` (`AuthPage.jsx:20-23`) — forces the consent screen on every single login and asks for a refresh token the app never uses. Drop both.
-- [ ] `song_submissions.submitter_ip` exists → the privacy policy must disclose IP collection (table is empty today).
-- [ ] Cookie/consent banner: app uses `localStorage` for preferences + Supabase auth tokens, no ad or tracking cookies. Vercel Analytics + Speed Insights are cookieless, so a banner is likely unnecessary — worth stating in the policy rather than adding a banner.
+### Still outstanding
+- [ ] 🔴 **Apply the RLS migration** (see the RLS section) — the only remaining live security exposure.
+- [ ] 🔴 **Set `avatars` bucket limits in the Supabase dashboard** — `file_size_limit` ~2 MB, `allowed_mime_types` `image/png,image/jpeg,image/webp`. The client-side check is in place but the bucket is the enforcement point. Currently unbounded public file hosting, and an uploaded SVG is script-capable on that origin.
+- [ ] 🔴 **No backups.** The DB is the only copy of all user-generated content; the corpus can only restore imported `lyrics_chinese`. Check whether the current Supabase plan has PITR, and set up a `pg_dump`.
+- [ ] **Vote counts are client-written absolute values** (`votes: currentCount + 1`). Any user can PATCH any translation's count to any number, and simultaneous voters lose updates. Needs the app change first (derive from `line_votes`, or an RPC), then revoke the column. Left alone deliberately — locking it now would break the app.
+- [ ] **`line_index` is an FK into a positional fiction.** Editing `lyrics_chinese` silently reassigns every community translation and line comment on that song. No guard exists. Cheapest to fix now, at 7 translations, rather than at 700.
+- [ ] **`song_artists` is still effectively write-only.** Coverage is 100% (1611 links, 0 orphans), and `songsByArtist` prefers it — but 5 of 19 artists store a Chinese name in `artists` while songs carry the English one, so the `ilike` fallback must stay. Reconcile those names, add `create index song_artists_artist_id_idx on public.song_artists (artist_id)`, then delete the fallback.
+- [ ] **StatsPage is still client-side aggregation** — it now downloads all 1608 songs' lyrics (~2 MB) and runs 11 `useMemo` passes. Wants a materialised view before the catalogue grows.
+- [ ] **Deferred indexes** — see the Indexes section for the set to add as tables grow.
+- [ ] **296 KB of `pinyin-pro` loads on every song page.** `utils/lyrics.js` imports it at top level, but `isChinese`/`alignSyllables` don't need the dictionary — only `generatePinyin` and the ~0.5% per-char fallback do. Splitting the module is the biggest remaining bundle win. Entry chunk is 515 KB.
+- [ ] **No CSP.** The other security headers are set; a CSP needs its own pass because getting it wrong silently breaks Supabase/YouTube/analytics.
+- [ ] **Light mode is ~30 `.light .bg-slate-950 { !important }` overrides.** Works, but any new Tailwind shade is silently uncovered.
+- [ ] **39 anonymous auth rows** have accumulated (42 users, 3 real). A trigger creates a profile per auth user. Unbounded by design — worth a periodic cleanup of anonymous accounts that never contributed.
+- [ ] Component + E2E tests (only the 12 pinyin/alignment units exist).
+- [ ] Dead columns to drop: `songs.category` (all 1608 = `'pop'`, read by nothing), `songs.translation_credit` (2 rows).
+- [ ] Admin "Make Official" button — promote top-voted community translation into lyrics_english.
+- [ ] `songs`/`song_artists` insert isn't atomic — needs a Postgres function via `rpc()`. Only one RPC exists today (`current_profile_role`).
 
 ### Carried over (still true)
 - [ ] Admin "Make Official" button — promote top-voted community translation into lyrics_english
