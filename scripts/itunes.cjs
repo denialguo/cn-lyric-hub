@@ -6,6 +6,8 @@
  * status has to be checked explicitly.
  */
 
+const { sify } = require('chinese-conv');
+
 const TIMEOUT_MS = 10000;
 const MAX_RETRIES = 2;
 
@@ -26,9 +28,9 @@ class RateLimitError extends Error {
  * continuing would march through the catalog recording "no cover found" for
  * songs that were only ever throttled, which silently poisons the data.
  */
-async function search(term, { country } = {}) {
+async function search(term, { country, limit = 3 } = {}) {
   const url =
-    `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&limit=3` +
+    `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&limit=${limit}` +
     (country ? `&country=${country}` : '');
 
   for (let attempt = 0; ; attempt++) {
@@ -80,4 +82,51 @@ function artworkUrl(result) {
   return raw;
 }
 
-module.exports = { search, artworkUrl, sleep, RateLimitError };
+/**
+ * Pick a release year from a result set.
+ *
+ * ⚠️ WHY THIS IS NOT `results[0].releaseDate`: every iTunes result carries the
+ * release date of the ALBUM the track sits on, not the song. For a back-catalogue
+ * artist the album that ranks first is almost always a recent compilation, so
+ * taking the first result dates a 1975 recording to 2015. Measured before this
+ * existed: 83 of 214 dated Teresa Teng songs were dated after she died in 1995.
+ *
+ * So: keep only results that are plausibly the same song by the same artist, then
+ * take the EARLIEST release date among them — the original pressing, if Apple
+ * carries it at all. Reissues are the late dates, so the minimum discards them
+ * without needing to recognise a compilation by name.
+ *
+ * Returns null rather than guessing when nothing matches confidently. A missing
+ * year renders as nothing; a wrong one is displayed to readers as fact.
+ */
+const normalize = (value) =>
+  sify(String(value ?? ''))
+    .toLowerCase()
+    // Drop everything that isn't a letter, digit, or Han character: punctuation,
+    // spaces, and the (live) / - live / 【】 decorations titles collect.
+    .replace(/[^\p{Script=Han}\p{L}\p{N}]+/gu, '');
+
+/** Either string containing the other counts — titles and artists get suffixed both ways. */
+const loosely = (a, b) => {
+  const [x, y] = [normalize(a), normalize(b)];
+  if (!x || !y) return false;
+  return x === y || x.includes(y) || y.includes(x);
+};
+
+function bestReleaseYear(results, { title, artist }) {
+  const years = (results || [])
+    .filter((r) => {
+      if (!r?.releaseDate) return false;
+      // Both must match. Artist alone lets a different song through; title alone
+      // lets another artist's cover — often older, which the minimum would prefer.
+      const artistOk = [artist].flat().filter(Boolean).some((a) => loosely(r.artistName, a));
+      const titleOk = loosely(r.trackName, title);
+      return artistOk && titleOk;
+    })
+    .map((r) => new Date(r.releaseDate).getUTCFullYear())   // releaseDate is a UTC instant
+    .filter((y) => Number.isInteger(y) && y >= 1900 && y <= new Date().getUTCFullYear() + 1);
+
+  return years.length ? Math.min(...years) : null;
+}
+
+module.exports = { search, artworkUrl, sleep, RateLimitError, bestReleaseYear, normalize };
