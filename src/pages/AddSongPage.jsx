@@ -60,9 +60,14 @@ const AddSongPage = () => {
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
 
-  const handleAutoPinyin = () => {
-    const result = generatePinyin(formData.lyrics_chinese);
-    if (result) setFormData((prev) => ({ ...prev, lyrics_pinyin: result }));
+  const handleAutoPinyin = async () => {
+    const text = formData.lyrics_chinese;
+    try {
+      const result = await generatePinyin(text);
+      if (result) setFormData(prev => prev.lyrics_chinese === text ? { ...prev, lyrics_pinyin: result } : prev);
+    } catch {
+      toast.error('Could not generate pinyin. Please try again.');
+    }
   };
 
   const handleSubmit = async (e) => {

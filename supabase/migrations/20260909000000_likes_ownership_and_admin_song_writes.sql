@@ -157,8 +157,9 @@ create index if not exists songs_updated_at_idx on public.songs (updated_at desc
 create index if not exists song_likes_song_id_idx on public.song_likes (song_id);
 
 -- profiles_username_key already covers this column identically; the duplicate
--- just made every profile write maintain two indexes.
-drop index if exists public.unique_username;
+-- just made every profile write maintain two indexes. Drop the owning constraint;
+-- PostgreSQL removes its backing index automatically.
+alter table public.profiles drop constraint if exists unique_username;
 
 
 -- ---------------------------------------------------------------------------

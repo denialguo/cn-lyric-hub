@@ -92,7 +92,7 @@ Protections these give you for free (do NOT re-add app-level guards for these):
 
 Missing and actually used by every list query: **`songs` has no index on `created_at` or `updated_at`**, yet every list/search path orders by one of them → full sort of the table per request.
 
-Redundant: `unique_username` is byte-identical to `profiles_username_key`. Safe to `drop index public.unique_username;`.
+Redundant: `unique_username` backs a UNIQUE constraint, duplicating `profiles_username_key`. Remove it with `alter table public.profiles drop constraint if exists unique_username;` — PostgreSQL removes the backing index automatically, while `profiles_username_key` continues enforcing uniqueness. Direct `DROP INDEX` fails with `2BP01`; the migration was corrected after that SQL-editor error.
 
 Unindexable by btree: `artist_en.ilike.%name%` (leading wildcard). Needs `pg_trgm`/FTS — or better, the `song_artists` join.
 
@@ -142,7 +142,7 @@ Worth knowing before building features that sort or filter on these:
 ## Key Architecture Decisions
 - **Lyrics as parallel columns** (not a lines table) — keeps inserts atomic, editing simple, avoids hundreds of rows per song. ⚠️ Nothing in Postgres enforces equal line counts across the three columns; that invariant is application-level only.
 - **Pinyin is pre-generated at ingest, not at render** — `pinyin-pro` is handed whole Chinese runs so it resolves polyphones by word context (音乐 → `yīn yuè`, never `yīn lè`). Per-character generation loses this.
-- **Alignment is a count-gated positional zip** — `alignSyllables()` returns one syllable per Han char, or `null` when it can't match, in which case `LyricLine` regenerates per character. ~99.5% of real lines take the fast path.
+- **Alignment is a count-gated positional zip** — `alignSyllables()` returns one syllable per Han char, or `null` when it can't match, in which case `LyricLine` asynchronously regenerates per character through the shared module. ~99.5% of real lines take the fast path.
 - **Script conversion is client-side only** — the DB stores one canonical form; `sify`/`tify` run at render. Conversion preserves character count, which is what keeps ruby alignment valid in traditional mode.
 - **Lazy anonymous auth** — no `signInAnonymously()` on page load. Every write path calls `ensureUser()` first so rows carry a real uid for RLS.
 - **N+1 elimination** — HomePage batch-fetches liked song IDs in one query; the importer preloads a dedup cache instead of querying per song.
@@ -192,7 +192,7 @@ No spaces after `=`. Vite exposes only VITE_ prefixed vars to the frontend — t
 
 ## Pending Work
 
-Ranked from the full-codebase audit on **2026-09-09**. Nothing below is fixed yet — the audit was read-only by request.
+Ranked from the full-codebase audit on **2026-09-09**, updated during the hardening follow-up below.
 
 ### ✅ Fixed 2026-09-09 (commits f3e226d → HEAD)
 Code is done for all of these; the one thing still outstanding is the RLS migration above, which only you can apply.
@@ -220,12 +220,12 @@ Code is done for all of these; the one thing still outstanding is the RLS migrat
 - [ ] 🔴 **Apply the RLS migration** (see the RLS section) — the only remaining live security exposure.
 - [ ] 🔴 **Set `avatars` bucket limits in the Supabase dashboard** — `file_size_limit` ~2 MB, `allowed_mime_types` `image/png,image/jpeg,image/webp`. The client-side check is in place but the bucket is the enforcement point. Currently unbounded public file hosting, and an uploaded SVG is script-capable on that origin.
 - [ ] 🔴 **No backups.** The DB is the only copy of all user-generated content; the corpus can only restore imported `lyrics_chinese`. Check whether the current Supabase plan has PITR, and set up a `pg_dump`.
-- [ ] **Vote counts are client-written absolute values** (`votes: currentCount + 1`). Any user can PATCH any translation's count to any number, and simultaneous voters lose updates. Needs the app change first (derive from `line_votes`, or an RPC), then revoke the column. Left alone deliberately — locking it now would break the app.
-- [ ] **`line_index` is an FK into a positional fiction.** Editing `lyrics_chinese` silently reassigns every community translation and line comment on that song. No guard exists. Cheapest to fix now, at 7 translations, rather than at 700.
-- [ ] **`song_artists` is still effectively write-only.** Coverage is 100% (1611 links, 0 orphans), and `songsByArtist` prefers it — but 5 of 19 artists store a Chinese name in `artists` while songs carry the English one, so the `ilike` fallback must stay. Reconcile those names, add `create index song_artists_artist_id_idx on public.song_artists (artist_id)`, then delete the fallback.
+- [ ] **Apply translation-counter migration after deploying the app change.** LineSidebar now derives translation counts from `line_votes(count)` and never writes `line_translations.votes`. `20260909010000_translation_vote_counts.sql` removes table-level UPDATE, then grants only content/language edits. The legacy counter is ignored even on INSERT. Comment counters are a separate, still outstanding issue.
+- [x] **Line-count edit warning.** `lineEdits.js` checks fresh live lyrics and exact contribution counts before direct edits, suggestions, and review approval. Cancel prevents writes; read errors fail closed. Same-length reorders and concurrent writes remain outside this count-only guard; stable-anchor proposal below.
+- [ ] **Apply artist reconciliation before deploying the new query.** `20260909020000_artist_names_and_lookup_index.sql` contains the five exact UUID-targeted updates and the junction index; NOT APPLIED. Exact junction lookups now preserve punctuation and both Chinese scripts. The legacy song-name fallback is deliberately retained until the SQL is applied, following the requested rollout order; removing it beforehand would break the five English artist URLs. After application, delete the marked fallback block and verify those routes.
 - [ ] **StatsPage is still client-side aggregation** — it now downloads all 1608 songs' lyrics (~2 MB) and runs 11 `useMemo` passes. Wants a materialised view before the catalogue grows.
 - [ ] **Deferred indexes** — see the Indexes section for the set to add as tables grow.
-- [ ] **296 KB of `pinyin-pro` loads on every song page.** `utils/lyrics.js` imports it at top level, but `isChinese`/`alignSyllables` don't need the dictionary — only `generatePinyin` and the ~0.5% per-char fallback do. Splitting the module is the biggest remaining bundle win. Entry chunk is 515 KB.
+- [x] **Lazy pinyin dictionary.** `lyrics.js` remains the single shared module; `generatePinyin` and `generateCharacterPinyin` are async and dynamically import the dictionary. Add/Edit and the importer await generation. LyricLine loads fallback only for unaligned Han text with pinyin visible, ignores stale async results, and keeps lyrics visible on load failure. Initial helper: 302.68 → 1.11 kB; deferred dictionary: 302.00 kB.
 - [ ] **No CSP.** The other security headers are set; a CSP needs its own pass because getting it wrong silently breaks Supabase/YouTube/analytics.
 - [ ] **Light mode is ~30 `.light .bg-slate-950 { !important }` overrides.** Works, but any new Tailwind shade is silently uncovered.
 - [ ] **39 anonymous auth rows** have accumulated (42 users, 3 real). A trigger creates a profile per auth user. Unbounded by design — worth a periodic cleanup of anonymous accounts that never contributed.
@@ -248,3 +248,53 @@ Code is done for all of these; the one thing still outstanding is the RLS migrat
 - Don't sign in anonymously on page load — use lazy ensureUser()
 - Don't write a second copy of the pinyin logic — import `src/utils/lyrics.js`
 - Don't rely on a frontend role check for security — it's a UX affordance only
+
+
+## Hardening follow-up — 2026-09-09
+
+### Verification and rollout
+- `npm test`: 14 tests (all 12 original cases preserved with async generation, plus fallback and edit-guard coverage). Importer dry run: 1 song, no errors, no writes.
+- `npm run lint`: 0 errors, the same 9 existing warnings.
+- `npm run build`: succeeds, with 1608 songs and 31 artists prerendered. Before → after: shared lyrics 302.68 → 1.11 kB (gzip 138.81 → 0.60); dictionary is now a separate 302.00 kB chunk (gzip 138.47), loaded only for fallback on song pages. Add/Edit slug generation and StatsPage still need it on their own routes. Main entry remains roughly 521 kB; this change removes the dictionary from the song route's static dependency graph, not from the entire site.
+- `verify:rls` was unsafe despite earlier notes: it PATCHed existing profiles/translations, DELETEd existing comments, and cleaned up songs by a broad title filter. It now creates two disposable users and explicit probe rows, targets their exact returned IDs, and confirms cleanup. Latest run: 24 passing checks including cleanup, 4 expected live failures. A two-voter check confirms the embedded count reads both vote rows. An anonymous author's counter PATCH was blocked under current RLS; that does **not** prove the column is revoked for every real account. The new migration's `has_column_privilege` assertions cover that after application.
+- The original `20260909000000_likes_ownership_and_admin_song_writes.sql` remains Daniel-only and unapplied. Its filename uses **ownership**, not the `ommership` typo in the pasted request. Avatar bucket limits and backups remain Daniel's actions too.
+- **Before removing the artist fallback:** apply/review `20260909020000_artist_names_and_lookup_index.sql`. It updates exactly the five named artist rows and aborts if old names no longer match. No production artist data or SQL migrations were changed in this session; only disposable verifier rows were written. No SQL execution connector or connected browser was available.
+- **After deploying the new vote-reading code:** apply `20260909010000_translation_vote_counts.sql`. Do not apply all migrations blindly by filename order: artist reconciliation must precede fallback removal, while counter privileges follow the app deployment. Existing open tabs running the old vote code may need refreshing.
+- Artist read-only checks passed for `G.E.M.`, `周杰倫`, and `邓寓君 (等什么君)`, plus malformed/filter-injection names. Verify the five English-name routes through the junction after reconciliation. Names/slugs use exact matches; the marked legacy song-name fallback remains until then.
+- Additional data discrepancy found read-only: `song_artists` links song **11** (a SING song in the song metadata) to both SING and Silence Wang (`10092190-1f71-416b-a2ff-013cabdb1575`). No link was deleted: confirm credits before changing attribution. 100% junction coverage is not proof of correct attribution.
+- No deployment was performed. Preserve flat prerender filenames, raw artist names, `cleanUrls: true`, and `trailingSlash: false`. Check the live song title after the eventual deploy as documented above.
+
+### Stable line anchors — proposal only
+The count warning deliberately does not remap contributions. A cheap next step is to store the **exact original line text** beside each contribution, then compare it before display; mismatches become explicitly detached instead of silently attached to a different lyric. Exact text is easier to inspect than a hash and avoids choosing a hash/normalisation protocol. Backfill only against a reviewed snapshot because historical indices may already be wrong. Repeated identical lines remain ambiguous; fully stable anchoring needs persisted line UUIDs and an editor that preserves them across edits. Build that only when edits must retain contributions automatically.
+
+### StatsPage aggregation — proposal only, SQL not applied
+Moving all 11 analyses into PostgreSQL is not simpler than the current code: PostgreSQL cannot run `pinyin-pro`, script conversion and word-context readings would drift, and materialised-view refresh still needs a job. Prefer one precomputed JSON snapshot behind a read-only RPC. Extract the existing analyses into a shared JS module, reuse them from a service-role batch job, and publish all results in a single atomic upsert. The browser would fetch the small snapshot through `queries.js` instead of downloading lyrics or importing pinyin for stats. Keep the current page until the complete snapshot exists; moving only three charts would leave the 2 MB download intact.
+
+Proposed SQL (review before applying):
+```sql
+create table public.catalogue_stats_snapshot (
+  id boolean primary key default true check (id),
+  generated_at timestamptz not null default now(),
+  payload jsonb not null check (
+    jsonb_typeof(payload) = 'object'
+    and payload ?& array['characters', 'tones', 'rhymes']
+  )
+);
+alter table public.catalogue_stats_snapshot enable row level security;
+revoke all on public.catalogue_stats_snapshot from public, anon, authenticated;
+grant select on public.catalogue_stats_snapshot to anon, authenticated;
+grant select, insert, update on public.catalogue_stats_snapshot to service_role;
+create policy catalogue_stats_read on public.catalogue_stats_snapshot
+  for select to anon, authenticated using (true);
+
+create function public.get_catalogue_stats()
+returns jsonb language sql stable security invoker set search_path = ''
+as $$
+  select jsonb_build_object('generated_at', generated_at, 'data', payload)
+  from public.catalogue_stats_snapshot where id = true
+$$;
+revoke all on function public.get_catalogue_stats() from public;
+grant execute on function public.get_catalogue_stats() to anon, authenticated;
+```
+
+The job sends `{id: true, generated_at, payload}` using the service role; payload includes character frequencies, tone totals, per-song rhyme densities and the remaining existing chart results. The single upsert replaces the complete snapshot; failures retain the previous one. Page through the full catalogue using a consistent snapshot/export if imports can run concurrently. Run after controlled imports/curation and on a daily schedule, show the generated timestamp, and monitor failures; no secrets belong in the client. Script toggling requires totals computed from simplified and traditional inputs separately where conversion merges characters, not merely relabelled output. Before extraction, fix the tone analyzer's `/g` regex `.test()` statefulness and lock expected tone/rhyme examples in tests. This proposal is intentionally not implemented: the batch job, refresh lifecycle, and all-chart migration are more work than the requested hardening pass.

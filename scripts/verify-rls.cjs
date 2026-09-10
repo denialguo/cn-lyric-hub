@@ -5,9 +5,8 @@
  * because the UI only ever sends well-formed requests and therefore proves
  * nothing about authorization.
  *
- * Non-destructive: writes are either no-ops (a field set to its current value),
- * deliberate foreign-key violations, or made against a throwaway row that is
- * created and deleted with the service role.
+ * Non-destructive: every mutable target is a newly created probe row.
+ * Cleanup uses exact returned IDs and verifies that no probe rows remain.
  *
  * Reading the responses:
  *   200 + []            a USING clause hid the rows       → write blocked
@@ -54,25 +53,49 @@ function check(name, ok, detail) {
 }
 
 (async () => {
-  // --- setup: a throwaway song so destructive probes never touch real data ---
-  const made = await rq('songs', {
-    key: SVC, method: 'POST', prefer: 'return=representation',
-    body: { title_en: 'ZZ_RLS_VERIFY', artist_en: 'ZZ_RLS_VERIFY', source: 'import',
-            slug: 'zz-rls-verify-' + Date.now(), lyrics_chinese: 'x' },
-  });
-  const probe = JSON.parse(made.text)[0];
-
-  const others = JSON.parse((await rq('profiles?select=id,role&limit=1', { key: SVC })).text);
-  const other = others[0];
-
-  const session = await (await fetch(`${URL}/auth/v1/signup`, {
-    method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' }, body: '{}',
-  })).json();
-  const jwt = session.access_token;
-  const uid = session.user?.id;
-  if (!jwt) { console.error('❌ could not create an anonymous session'); process.exit(1); }
-
+  const rows = [];
+  const users = [];
+  const marker = `ZZ_PROBE_${Date.now()}_${require('crypto').randomUUID()}`;
+  const insert = async (table, options) => {
+    const result = await rq(table, { ...options, method: 'POST', prefer: 'return=representation' });
+    if (result.status >= 200 && result.status < 300) {
+      const data = JSON.parse(result.text);
+      if (!data[0]?.id) throw new Error(`Missing probe id from ${table}`);
+      rows.push({ table, id: data[0].id });
+    }
+    return result;
+  };
+  const session = async () => {
+    const response = await fetch(`${URL}/auth/v1/signup`, {
+      method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const data = await response.json();
+    if (data.user?.id) users.push(data.user.id);
+    if (!response.ok || !data.access_token) throw new Error('Could not create probe session');
+    return data;
+  };
   try {
+    const made = await insert('songs', {
+      key: SVC, body: { title_en: marker, artist_en: marker, source: 'import', slug: marker, lyrics_chinese: 'x' },
+    });
+    if (made.status !== 201) throw new Error('Could not create probe song');
+    const probe = JSON.parse(made.text)[0];
+    const visitor = await session();
+    const jwt = visitor.access_token;
+    const uid = visitor.user.id;
+    const otherSession = await session();
+    const other = otherSession.user;
+    // Even cross-user tests target only disposable content.
+    const translation = await insert('line_translations', { key: SVC,
+      body: { song_id: probe.id, line_index: 0, content: marker, user_id: other.id } });
+    const comment = await insert('line_comments', { key: SVC,
+      body: { song_id: probe.id, line_index: 0, content: marker, user_id: other.id } });
+    if (translation.status !== 201 || comment.status !== 201) throw new Error('Could not create probe contributions');
+    const translationId = JSON.parse(translation.text)[0].id;
+    const commentId = JSON.parse(comment.text)[0].id;
+    const fakeSong = await rq(`songs?select=id&id=eq.${FAKE_SONG}`, { key: SVC });
+    if (fakeSong.status !== 200 || fakeSong.text.trim() !== '[]') throw new Error('FK probe id is not safely absent');
+
     console.log('\nsongs');
     check('anon CAN read songs',
       (await rq('songs?select=id&limit=1')).status === 200, 'public read is expected');
@@ -81,7 +104,7 @@ function check(name, ok, detail) {
       method: 'PATCH', prefer: 'return=representation', body: { lyrics_chinese: 'VERIFY' } });
     check('anon CANNOT update songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
-    r = await rq('songs', { method: 'POST', body: { title_en: 'ZZ', artist_en: 'ZZ', source: 'import' } });
+    r = await insert('songs', { body: { title_en: marker, artist_en: marker, source: 'import' } });
     check('anon CANNOT insert songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
     // An anonymous Supabase session holds the Postgres role `authenticated`, so
@@ -91,15 +114,26 @@ function check(name, ok, detail) {
       prefer: 'return=representation', body: { lyrics_chinese: 'VERIFY_ANON' } });
     check('anonymous session CANNOT update songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
-    r = await rq('songs', { jwt, method: 'POST',
-      body: { title_en: 'ZZ', artist_en: 'ZZ' } });
+    r = await insert('songs', { jwt, body: { title_en: marker, artist_en: marker } });
     check('anonymous session CANNOT insert songs', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
     // The review path must keep working for everyone, or non-admins lose the
     // ability to suggest anything at all.
-    r = await rq('song_submissions', { jwt, method: 'POST', prefer: 'return=representation',
-      body: { title_en: 'ZZ_RLS_VERIFY_SUB', artist_en: 'ZZ_RLS_VERIFY_SUB', status: 'pending', user_id: uid } });
+    r = await insert('song_submissions', { jwt,
+      body: { title_en: marker, artist_en: marker, status: 'pending', user_id: uid } });
     check('anyone CAN still submit for review', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    console.log('\ntranslation vote counts');
+    const firstVote = await insert('line_votes', { jwt,
+      body: { song_id: probe.id, line_index: 0, translation_id: translationId, user_id: uid } });
+    const secondVote = await insert('line_votes', { jwt: otherSession.access_token,
+      body: { song_id: probe.id, line_index: 0, translation_id: translationId, user_id: other.id } });
+    const counted = await rq(`line_translations?select=line_votes(count)&id=eq.${translationId}`);
+    check('translation count includes both voters', firstVote.status === 201 && secondVote.status === 201 &&
+      counted.status === 200 && JSON.parse(counted.text)[0]?.line_votes[0]?.count === 2, counted.text);
+    r = await rq(`line_translations?id=eq.${translationId}`, { jwt: otherSession.access_token,
+      method: 'PATCH', prefer: 'return=representation', body: { votes: 999999 } });
+    check('author CANNOT overwrite translation vote counter', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
     console.log('\nprofiles');
     r = await rq(`profiles?id=eq.${uid}`, { jwt, method: 'PATCH',
@@ -141,21 +175,31 @@ function check(name, ok, detail) {
 
     // Cross-user edits/deletes of community content — these already pass, kept as
     // regression cover since nothing else asserts them.
-    r = await rq(`line_translations?user_id=neq.${uid}`, { jwt, method: 'PATCH',
+    r = await rq(`line_translations?id=eq.${translationId}`, { jwt, method: 'PATCH',
       prefer: 'return=representation', body: { content: 'PWNED' } });
     check('user CANNOT edit another user translation', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
-    r = await rq(`line_comments?user_id=neq.${uid}`, { jwt, method: 'DELETE',
+    r = await rq(`line_comments?id=eq.${commentId}`, { jwt, method: 'DELETE',
       prefer: 'return=representation' });
     check('user CANNOT delete another user comment', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+  } catch (error) {
+    check('probe setup/execution completed', false, error.message);
   } finally {
-    // --- teardown ---
-    await rq(`songs?id=eq.${probe.id}`, { key: SVC, method: 'DELETE' });
-    await rq('songs?title_en=eq.ZZ', { key: SVC, method: 'DELETE' });
-    await rq('song_submissions?title_en=eq.ZZ_RLS_VERIFY_SUB', { key: SVC, method: 'DELETE' });
-    await rq(`profiles?id=eq.${uid}`, { key: SVC, method: 'DELETE' });
-    await fetch(`${URL}/auth/v1/admin/users/${uid}`, {
-      method: 'DELETE', headers: { apikey: SVC, Authorization: `Bearer ${SVC}` } });
+    for (const { table, id } of rows.reverse()) {
+      const removed = await rq(`${table}?id=eq.${id}`, { key: SVC, method: 'DELETE' });
+      const remaining = await rq(`${table}?select=id&id=eq.${id}`, { key: SVC });
+      check(`cleanup ${table} ${id}`, removed.status < 300 && remaining.status === 200 && remaining.text.trim() === '[]',
+        `Could not confirm cleanup of ${table} ${id}`);
+    }
+    for (const uid of users.reverse()) {
+      await rq(`profiles?id=eq.${uid}`, { key: SVC, method: 'DELETE' });
+      const headers = { apikey: SVC, Authorization: `Bearer ${SVC}` };
+      const removed = await fetch(`${URL}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers });
+      const remaining = await fetch(`${URL}/auth/v1/admin/users/${uid}`, { headers });
+      const profile = await rq(`profiles?select=id&id=eq.${uid}`, { key: SVC });
+      check(`cleanup user ${uid}`, removed.ok && remaining.status === 404 && profile.status === 200 && profile.text.trim() === '[]',
+        `Could not confirm cleanup of probe user ${uid}`);
+    }
   }
 
   console.log(`\n${'='.repeat(46)}`);

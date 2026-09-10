@@ -47,12 +47,11 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   const fetchData = async () => {
     setLoading(true);
     
-    const { data: trans } = await supabase
+    const { data: trans, error: transError } = await supabase
       .from('line_translations')
-      .select('*, profiles(username, avatar_url)')
+      .select('*, profiles(username, avatar_url), line_votes(count)')
       .eq('song_id', songId)
-      .eq('line_index', lineIndex)
-      .order('votes', { ascending: false });
+      .eq('line_index', lineIndex);
 
     const { data: comms } = await supabase
       .from('line_comments')
@@ -102,7 +101,13 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         }
     }
 
-    setTranslations(trans || []);
+    if (transError) {
+      toast.error('Could not load translations. Please try again.');
+      setTranslations([]);
+    } else {
+      setTranslations((trans || []).map(t => ({ ...t, votes: t.line_votes[0].count }))
+        .sort((a, b) => b.votes - a.votes));
+    }
     setComments(comms || []);
     setOriginalVotes(orgVoteCount || 0);
     if(user) {
@@ -122,7 +127,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
     });
   };
 
-  const toggleVoteCommunity = async (translationId, currentCount) => {
+  const toggleVoteCommunity = async (translationId) => {
     // Lazy auth — votes must carry a real uid so RLS can pin them to their owner
     const voter = await ensureUser();
     if (!voter) return;
@@ -149,10 +154,8 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
     let error;
     if (isLiked) {
         ({ error } = await supabase.from('line_votes').delete().eq('user_id', voter.id).eq('translation_id', translationId));
-        if (!error) ({ error } = await supabase.from('line_translations').update({ votes: currentCount - 1 }).eq('id', translationId));
     } else {
         ({ error } = await supabase.from('line_votes').insert({ user_id: voter.id, song_id: songId, line_index: lineIndex, translation_id: translationId }));
-        if (!error) ({ error } = await supabase.from('line_translations').update({ votes: currentCount + 1 }).eq('id', translationId));
     }
 
     if (error) {
@@ -273,7 +276,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     setSubmitting(true);
     const { error } = await supabase.from('line_translations').insert({
-        song_id: songId, line_index: lineIndex, content: transInput.trim().slice(0, 1000), user_id: user.id, language: 'en', votes: 0
+        song_id: songId, line_index: lineIndex, content: transInput.trim().slice(0, 1000), user_id: user.id, language: 'en'
     });
     if (error) toast.error(error.message);
     else { setTransInput(''); fetchData(); }
@@ -412,12 +415,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                         <RotateCcw size={14} /> Use Original
                     </button>
                   </div>
-                ) : (
-                  <div className="bg-slate-900/50 p-4 rounded-xl border border-dashed border-slate-700 text-center">
-                    <p className="text-slate-500 text-sm">No translation yet</p>
-                    <p className="text-slate-600 text-xs mt-1">Be the first to contribute one below!</p>
-                  </div>
-                )}
+                ) : null}
 
                 <div className="w-full h-px bg-slate-800/50"></div>
 
@@ -446,7 +444,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                             
                             <div className="flex items-center gap-4 mb-4 pl-1">
                                 <button 
-                                    onClick={() => toggleVoteCommunity(t.id, t.votes || 0)}
+                                    onClick={() => toggleVoteCommunity(t.id)}
                                     className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
                                         isLiked ? 'text-primary' : 'text-slate-500 hover:text-white'
                                     }`}
