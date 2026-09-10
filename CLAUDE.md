@@ -42,6 +42,7 @@ Column lists below were dumped from the live DB on 2026-09-09 — trust them ove
 - `line_votes` — song_id, line_index, translation_id (null = vote on the official line), user_id
 - `comment_votes` (id, user_id, **comment_id**, created_at) / `comment_likes` (user_id, comment_id, created_at — no id) — both FK to **`line_comments`**, not `comments`
 - `song_likes` — song_id (bigint), user_id
+- `song_revisions` — id (bigserial), song_id (bigint → songs, **on delete cascade**), `snapshot` (jsonb — the whole songs row as it was, pre-edit), revised_at. Written **only** by the `songs_snapshot` trigger; clients are REVOKEd and can read only. See the edit-history section below.
 
 ⚠️ Song-referencing FKs are **bigint**; everything else is uuid. Don't pass a uuid as a song_id.
 
@@ -72,6 +73,7 @@ Run `npm run verify:rls` after any policy change — it probes the REST API as a
 
 ### Triggers
 - `songs_updated_at` — auto-updates `updated_at` on any row change
+- `songs_snapshot` — `before update on songs`, writes the pre-edit row into `song_revisions`. Fires only when a **content** column changed (lyrics ×3, titles, artists, bio, credits) — `cover_url` and `year` are excluded so backfill scripts don't write a revision per row.
 
 ### Indexes (dumped 2026-09-09)
 **All 21 indexes are UNIQUE — there is not one plain index in the DB.** Every index exists as a byproduct of a PK or uniqueness constraint; none was created to serve a query.
@@ -306,7 +308,12 @@ Verified after restoring `react-is@19.2.5`: clean `npm ci`, full sitemap/Vite/pr
 - **Translation vote migration is applied.** `npm run verify:rls`: **27 passed, 0 failed**, including "author CANNOT overwrite translation vote counter". Disposable probe rows and both probe users cleaned up by exact ID.
 - Still outstanding from that list: **backups** (no `pg_dump`, no confirmed PITR). Unchanged.
 
-## Edit-history feasibility — measured 2026-09-09, nothing implemented
+## Edit history — capture APPLIED 2026-09-09, no UI
+`supabase/migrations/20260909030000_song_revisions.sql` was applied by Daniel and verified live. **Capture only: there is no history page, no diff view, and no restore.** That was deliberate — see the edit-volume numbers below. The one thing that cannot be added retroactively is the history you didn't record, so recording started; everything downstream waits for there to be something worth looking at.
+
+Verified against one disposable song, deleted by exact id (16/16): INSERT writes no revision, year-only and cover-only updates write none, a lyric edit writes exactly one holding the *previous* text, a second edit appends, a no-op write adds nothing, each snapshot carries the `last_edited_by` that produced that version, and revisions cascade-delete with their song. `verify:rls` now carries the immutability half permanently — **32 passed, 0 failed**. Site-wide revision count is 0 (no real edit has happened since it was installed).
+
+Still missing, and the cheapest next step if history ever matters: **the review path credits the approving admin, not the contributor.** `EditSongPage`'s review branch sets `last_edited_by` from the admin's session, so approving someone's edit loses who wrote it. One line in that branch fixes it.
 Measured read-only through the REST API with the service role; no rows created or modified.
 
 **Edit volume is near zero.** Only **10 of 1608** songs have ever been edited (`last_edited_by` non-null), all by `'admin'`, most recently **2026-06-23**. `song_submissions` has **0 rows** — no community edit has ever been submitted. 27 songs have `source='user'`.

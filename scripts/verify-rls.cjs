@@ -123,6 +123,25 @@ function check(name, ok, detail) {
       body: { title_en: marker, artist_en: marker, status: 'pending', user_id: uid } });
     check('anyone CAN still submit for review', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
+    // History is written only by the before-update trigger on songs, which runs as
+    // its owner. The table is REVOKEd from clients outright, so a permission error
+    // here — not an FK error — is the pass condition.
+    console.log('\nsong revision history');
+    r = await rq('song_revisions?select=id&limit=1');
+    check('anon CAN read song_revisions', r.status === 200, `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await rq('song_revisions', { method: 'POST', body: { song_id: probe.id, snapshot: { forged: true } } });
+    check('anon CANNOT insert a revision', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await rq('song_revisions', { jwt, method: 'POST', body: { song_id: probe.id, snapshot: { forged: true } } });
+    check('user CANNOT insert a revision', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await rq(`song_revisions?song_id=eq.${probe.id}`, { jwt, method: 'PATCH', body: { snapshot: { tampered: true } } });
+    check('user CANNOT rewrite a revision', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await rq(`song_revisions?song_id=eq.${probe.id}`, { jwt, method: 'DELETE' });
+    check('user CANNOT delete a revision', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
+
     console.log('\ntranslation vote counts');
     const firstVote = await insert('line_votes', { jwt,
       body: { song_id: probe.id, line_index: 0, translation_id: translationId, user_id: uid } });
