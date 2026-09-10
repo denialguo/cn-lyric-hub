@@ -16,7 +16,6 @@ const AddSongPage = () => {
   const { user } = useAuth();
   const { toast, confirm } = useToast();
   const [loading, setLoading] = useState(false);
-  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const [tags, setTags] = useState([]);
   const { selectedArtists, setSelectedArtists, handleSelectArtist, handleRemoveArtist } = useArtistSelection();
@@ -34,8 +33,6 @@ const AddSongPage = () => {
 
     if (savedData) {
       setFormData(JSON.parse(savedData));
-      setDraftLoaded(true);
-      setTimeout(() => setDraftLoaded(false), 3000);
     }
     if (savedTags) setTags(JSON.parse(savedTags));
     if (savedArtists) setSelectedArtists(JSON.parse(savedArtists));

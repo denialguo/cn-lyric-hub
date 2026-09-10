@@ -37,6 +37,9 @@ const HomePage = () => {
   // Query-driven fetch: the catalog holds thousands of unlisted imports, so we
   // filter at the DB level rather than pull everything (Supabase caps at 1000 rows)
   useEffect(() => {
+    // Tab/search/page can change mid-flight; ignore any response that is no
+    // longer the one this effect asked for.
+    let cancelled = false;
     const fetchSongs = async () => {
       // Searching spans every song, imports included (overrides tabs)
       if (debouncedQuery) {
@@ -57,6 +60,7 @@ const HomePage = () => {
           // Recently-edited first so freshly-curated songs surface, not buried by import date
           .order('updated_at', { ascending: false })
           .range(0, (page + 1) * PAGE_SIZE - 1);
+        if (cancelled) return;
         setSongs(data || []);
         setHasMore((data || []).length === (page + 1) * PAGE_SIZE);
         setLoading(false);
@@ -73,6 +77,7 @@ const HomePage = () => {
           .or('source.eq.user,cover_url.neq.""')
           .order('created_at', { ascending: false })
           .range(0, (page + 1) * PAGE_SIZE - 1);
+        if (cancelled) return;
         setSongs(data || []);
         setHasMore((data || []).length === (page + 1) * PAGE_SIZE);
         setLoading(false);
@@ -102,23 +107,27 @@ const HomePage = () => {
         likedImports = data || [];
       }
 
+      if (cancelled) return;
       setSongs([...(userSongs || []), ...likedImports]);
       setHasMore(false);
       setLoading(false);
     };
     fetchSongs();
+    return () => { cancelled = true; };
   }, [debouncedQuery, activeTab, page]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchUserLikes = async () => {
       if (!user) return;
       const { data } = await supabase
         .from('song_likes')
         .select('song_id')
         .eq('user_id', user.id);
-      if (data) setUserLikedIds(new Set(data.map(d => d.song_id)));
+      if (!cancelled && data) setUserLikedIds(new Set(data.map(d => d.song_id)));
     };
     fetchUserLikes();
+    return () => { cancelled = true; };
   }, [user]);
 
   // Search and All Songs are already filtered server-side; other tabs filter the curated set

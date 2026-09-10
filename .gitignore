@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Secrets. .env.local is already covered by *.local, but the scripts fall back
+# to a plain .env, which is not — and that file would hold the service-role key.
+.env
+.env.*
+!.env.local.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -27,3 +33,9 @@ dist-ssr
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Personal notes, not project docs
+CN_LYRIC_HUB_INTERVIEW_GUIDE.md
+
+# Codex agent config (mirrors .agents/, kept local)
+.codex/

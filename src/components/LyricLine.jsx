@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { pinyin as getPinyin } from 'pinyin-pro';
 
-import { isChinese } from '../utils/lyrics';
-const cleanToken = (t) => t.replace(/[,.\-!?;:，。！？、；：()（）""''「」…~·]/g, '').trim();
+import { isChinese, alignSyllables } from '../utils/lyrics';
 
 const LyricLine = ({ 
   index, 
@@ -33,15 +32,9 @@ const LyricLine = ({
     if (!originalText) return null;
 
     const chars = [...originalText];
-    const chineseChars = chars.filter(isChinese);
-
-    let syllables = null;
-    if (pinyin) {
-      const tokens = pinyin.split(/\s+/).map(cleanToken).filter(Boolean);
-      if (tokens.length === chineseChars.length) {
-        syllables = tokens;
-      }
-    }
+    // null when the stored pinyin can't be matched 1:1 — we then regenerate per
+    // character, which is safe but loses word-context readings (音乐 -> yīn lè).
+    const syllables = alignSyllables(originalText, pinyin);
 
     let syllableIndex = 0;
 
@@ -55,12 +48,17 @@ const LyricLine = ({
           <ruby key={i}>
             {char}
             {showPinyin && (
-              <rt 
-                className={`${rtClass} font-normal tracking-wide ${pinyinColor ? '' : 'text-slate-500'}`}
-                style={{ color: pinyinColor || undefined }}
-              >
-                {py}
-              </rt>
+              <>
+                {/* rp is the fallback for engines without ruby support: 浪(làng) */}
+                <rp>(</rp>
+                <rt
+                  className={`${rtClass} font-normal tracking-wide ${pinyinColor ? '' : 'text-slate-500'}`}
+                  style={{ color: pinyinColor || undefined }}
+                >
+                  {py}
+                </rt>
+                <rp>)</rp>
+              </>
             )}
           </ruby>
         );
@@ -72,7 +70,7 @@ const LyricLine = ({
   const zhDefaultClass = isActive ? 'text-primary' : 'text-slate-200';
   
   // Check if line has any Chinese characters
-  const hasChinese = originalText && /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(originalText);
+  const hasChinese = Boolean(originalText) && [...originalText].some(isChinese);
   // Latin-only lines use a smaller, more natural size
   const latinOnlyClass = enSizes[Math.min(fontSettings.zh, 4)] || 'text-base';
 

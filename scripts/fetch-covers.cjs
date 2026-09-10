@@ -31,62 +31,11 @@ const limitArg = args.indexOf('--limit');
 const limit = limitArg !== -1 ? parseInt(args[limitArg + 1]) : Infinity;
 
 // --- HELPERS ---
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+const { search, artworkUrl, sleep } = require('./itunes.cjs');
 
-async function searchITunes(query) {
-  try {
-    const encoded = encodeURIComponent(query);
-    const url = `https://itunes.apple.com/search?term=${encoded}&media=music&limit=3&country=CN`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    
-    if (data.results && data.results.length > 0) {
-      // Try artworkUrl100 first, fall back to artworkUrl60
-      const raw = data.results[0].artworkUrl100 || data.results[0].artworkUrl60;
-      if (!raw) return null;
-      
-      // Only upscale if the standard pattern exists
-      if (raw.includes('100x100bb')) {
-        return raw.replace('100x100bb', '600x600bb');
-      } else if (raw.includes('60x60bb')) {
-        return raw.replace('60x60bb', '600x600bb');
-      }
-      // Return as-is if pattern doesn't match
-      return raw;
-    }
-    return null;
-  } catch (err) {
-    console.error(`    fetch error: ${err.message}`);
-    return null;
-  }
-}
-
-async function searchITunesGlobal(query) {
-  try {
-    const encoded = encodeURIComponent(query);
-    const url = `https://itunes.apple.com/search?term=${encoded}&media=music&limit=3`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    
-    if (data.results && data.results.length > 0) {
-      const raw = data.results[0].artworkUrl100 || data.results[0].artworkUrl60;
-      if (!raw) return null;
-      
-      if (raw.includes('100x100bb')) {
-        return raw.replace('100x100bb', '600x600bb');
-      } else if (raw.includes('60x60bb')) {
-        return raw.replace('60x60bb', '600x600bb');
-      }
-      return raw;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+async function findCover(term, country) {
+  const results = await search(term, country ? { country } : {});
+  return results ? artworkUrl(results[0]) : null;
 }
 
 // --- MAIN ---
@@ -117,22 +66,20 @@ async function main() {
     const artist = song.artist_zh || song.artist_en || '';
     const display = `${title} — ${artist || 'Unknown'}`;
 
-    // Strategy 1: Chinese title + Chinese artist (best match for C-pop)
+    // Strategy 1: Chinese title + Chinese artist against the CN store (best for C-pop)
     let coverUrl = null;
     if (song.title_zh) {
-      const query1 = `${song.title_zh} ${song.artist_zh || song.artist_en || ''}`.trim();
-      coverUrl = await searchITunes(query1);
+      coverUrl = await findCover(`${song.title_zh} ${song.artist_zh || song.artist_en || ''}`.trim(), 'CN');
     }
 
-    // Strategy 2: English title + English artist
+    // Strategy 2: English title + English artist, global store
     if (!coverUrl && song.title_en) {
-      const query2 = `${song.title_en} ${song.artist_en || ''}`.trim();
-      coverUrl = await searchITunesGlobal(query2);
+      coverUrl = await findCover(`${song.title_en} ${song.artist_en || ''}`.trim());
     }
 
-    // Strategy 3: Just the Chinese title (broader search)
+    // Strategy 3: just the Chinese title, global store (broader)
     if (!coverUrl && song.title_zh) {
-      coverUrl = await searchITunesGlobal(song.title_zh);
+      coverUrl = await findCover(song.title_zh);
     }
 
     if (coverUrl) {
