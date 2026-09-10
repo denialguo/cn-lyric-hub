@@ -1,5 +1,3 @@
-import { pinyin } from 'pinyin-pro';
-
 // \p{Script=Han} covers every CJK block including Ext-B and beyond, which the
 // old hand-rolled BMP ranges missed. It excludes kana, hangul, bopomofo and
 // fullwidth punctuation, which is exactly what we want.
@@ -13,8 +11,9 @@ const SYLLABLE_SEP = /[\s,.!?;:'"~·\-—…/\\*()[\]{}，。！？、；：（�
 
 export const isChinese = (char) => HAN_CHAR.test(char);
 
-export function generatePinyin(lyricsText) {
+export async function generatePinyin(lyricsText) {
   if (!lyricsText) return '';
+  const { pinyin } = await import('pinyin-pro');
   return lyricsText.split('\n').map((line) => {
     if (!line.trim()) return '';
     const cleanLine = line
@@ -55,4 +54,10 @@ export function alignSyllables(originalText, pinyinLine) {
 
   const syllables = rest.split(SYLLABLE_SEP).filter(Boolean);
   return syllables.length === hanziCount ? syllables : null;
+}
+
+// Rendering fallback only; generation at ingest still uses whole Han runs.
+export async function generateCharacterPinyin(text) {
+  const { pinyin } = await import('pinyin-pro');
+  return [...text].filter(isChinese).map(char => pinyin(char, { toneType: 'symbol' }));
 }

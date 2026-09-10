@@ -8,6 +8,7 @@ import ArtistSearch from '../components/ArtistSearch';
 import { pinyin } from 'pinyin-pro';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { confirmLineEdit } from '../lib/lineEdits';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
 import { isAdmin, submitterName } from '../lib/identity';
@@ -80,13 +81,19 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleAutoPinyin = () => {
-    const result = generatePinyin(formData.lyrics_chinese);
-    if (result) setFormData((prev) => ({ ...prev, lyrics_pinyin: result }));
+  const handleAutoPinyin = async () => {
+    const text = formData.lyrics_chinese;
+    try {
+      const result = await generatePinyin(text);
+      if (result) setFormData(prev => prev.lyrics_chinese === text ? { ...prev, lyrics_pinyin: result } : prev);
+    } catch {
+      toast.error('Could not generate pinyin. Please try again.');
+    }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
 
     if (selectedArtists.length === 0) {
@@ -146,6 +153,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
     };
 
     try {
+      const targetSongId = isReviewMode ? formData.original_song_id : id;
+      if (!await confirmLineEdit(supabase, targetSongId, formData.lyrics_chinese, confirm)) return;
       if (isReviewMode) {
         // A reviewed/published song is curated content — lift it into the listed catalog
         const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
@@ -189,8 +198,9 @@ const EditSongPage = ({ isReviewMode = false }) => {
       }
     } catch (error) {
       toast.error('Error: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleReject = async () => {

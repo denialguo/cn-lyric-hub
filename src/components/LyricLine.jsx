@@ -1,7 +1,6 @@
-import React, { useMemo } from 'react';
-import { pinyin as getPinyin } from 'pinyin-pro';
+import React, { useEffect, useMemo, useState } from 'react';
 
-import { isChinese, alignSyllables } from '../utils/lyrics';
+import { isChinese, alignSyllables, generateCharacterPinyin } from '../utils/lyrics';
 
 const LyricLine = ({ 
   index, 
@@ -28,13 +27,24 @@ const LyricLine = ({
   const hanziColor = lyricColors.hanzi !== 'default' ? lyricColors.hanzi : null;
   const englishColor = lyricColors.english !== 'default' ? lyricColors.english : null;
 
+  const aligned = useMemo(() => alignSyllables(originalText, pinyin), [originalText, pinyin]);
+  const [fallback, setFallback] = useState(null);
+  useEffect(() => {
+    if (aligned || !showPinyin || !originalText || ![...originalText].some(isChinese)) return;
+    let cancelled = false;
+    generateCharacterPinyin(originalText).then(syllables => {
+      if (!cancelled) setFallback({ text: originalText, syllables });
+    }).catch(error => console.error('Could not load pinyin:', error));
+    return () => { cancelled = true; };
+  }, [aligned, originalText, showPinyin]);
+
   const rubyElements = useMemo(() => {
     if (!originalText) return null;
 
     const chars = [...originalText];
     // null when the stored pinyin can't be matched 1:1 — we then regenerate per
     // character, which is safe but loses word-context readings (音乐 -> yīn lè).
-    const syllables = alignSyllables(originalText, pinyin);
+    const syllables = aligned || (fallback?.text === originalText ? fallback.syllables : null);
 
     let syllableIndex = 0;
 
@@ -42,7 +52,7 @@ const LyricLine = ({
       if (isChinese(char)) {
         const py = syllables
           ? syllables[syllableIndex++]
-          : getPinyin(char, { toneType: 'symbol' });
+          : '';
 
         return (
           <ruby key={i}>
@@ -65,7 +75,7 @@ const LyricLine = ({
       }
       return <span key={i} className="inline">{char}</span>;
     });
-  }, [originalText, pinyin, rtClass, showPinyin, pinyinColor]);
+  }, [originalText, aligned, fallback, rtClass, showPinyin, pinyinColor]);
 
   const zhDefaultClass = isActive ? 'text-primary' : 'text-slate-200';
   

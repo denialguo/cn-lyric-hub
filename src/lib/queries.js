@@ -86,52 +86,38 @@ export async function listSongs({ page = 0, pageSize = 36 } = {}) {
   return { songs: data || [], hasMore: (data || []).length === limit };
 }
 
-/**
- * Songs for an artist named in a URL.
- *
- * Artists live in two places: a normalised `artists` + `song_artists` pair, and
- * denormalised comma-joined `songs.artist_en`/`artist_zh`. We prefer the
- * normalised path — it is exact, so "SING" can't sweep in unrelated names that
- * merely contain it — and fall back to name matching, because 5 of the 19 current
- * artists store a Chinese name in `artists` while songs carry the English one.
- *
- * ponytail: the fallback is why this isn't a pure junction query yet. Making it
- * one needs `create index song_artists_artist_id_idx on song_artists (artist_id)`
- * plus reconciling those names; until then the ilike path still has to exist.
- */
+/** Exact artist lookup, with legacy name fallback until the reconciliation migration is applied. */
 export async function songsByArtist(artistName) {
-  const safe = sanitizeFilterValue(artistName);
-  if (!safe) return { songs: [], names: [] };
+  const name = String(artistName ?? '').trim();
+  if (!name) return { songs: [], names: [] };
 
-  // 1. Exact hit in the artists table → authoritative song list via the junction.
-  const { data: matched } = await supabase
-    .from('artists')
-    .select('id, name_en, name_zh')
-    .or(`name_en.eq.${safe},name_zh.eq.${safe},slug.eq.${safe.toLowerCase().replace(/\s+/g, '-')}`)
-    .limit(1)
-    .maybeSingle();
-
+  // Quote filter values instead of stripping punctuation from names like G.E.M.
+  const variants = [...new Set([name, sify(name), tify(name)])];
+  const filter = [
+    ...['name_en', 'name_zh'].flatMap(column => variants.map(value => `${column}.eq.${JSON.stringify(value)}`)),
+    `slug.eq.${JSON.stringify(name.toLowerCase().replace(/\s+/g, '-'))}`,
+  ].join(',');
+  const { data: matched, error: artistError } = await supabase.from('artists')
+    .select('id, name_en, name_zh').or(filter).limit(1).maybeSingle();
+  if (artistError) return { songs: [], names: [], error: artistError };
   if (matched) {
-    const { data: links } = await supabase
-      .from('song_artists')
-      .select(`songs(${CARD_COLUMNS})`)
-      .eq('artist_id', matched.id);
-
-    const songs = (links || []).map((l) => l.songs).filter(Boolean);
-    if (songs.length) {
-      songs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-      return { songs, names: [matched.name_en, matched.name_zh].filter(Boolean) };
-    }
+    const { data: links, error } = await supabase.from('song_artists')
+      .select(`songs(${CARD_COLUMNS})`).eq('artist_id', matched.id);
+    if (error) return { songs: [], names: [], error };
+    const songs = (links || []).map(link => link.songs).filter(Boolean);
+    songs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return { songs, names: [matched.name_en, matched.name_zh].filter(Boolean) };
   }
 
+  // ponytail: remove this fallback AFTER artist reconciliation and the index are applied.
   // 2. Fall back to name matching across both scripts.
-  const filter = buildNameFilter(safe, { enColumns: ['artist_en'], zhColumns: ['artist_zh'] });
-  if (!filter) return { songs: [], names: [] };
+  const fallbackFilter = buildNameFilter(name, { enColumns: ['artist_en'], zhColumns: ['artist_zh'] });
+  if (!fallbackFilter) return { songs: [], names: [] };
 
   const { data, error } = await supabase
     .from('songs')
     .select(CARD_COLUMNS)
-    .or(filter)
+    .or(fallbackFilter)
     .order('created_at', { ascending: false });
 
   if (error) {

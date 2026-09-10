@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isChinese, generatePinyin, alignSyllables } from './lyrics.js';
+import { isChinese, generatePinyin, alignSyllables, generateCharacterPinyin } from './lyrics.js';
 
 test('isChinese covers CJK including Ext-B, and excludes lookalikes', () => {
   for (const c of ['你', '㐀', '豈', '𠀀', '𣏕']) assert.ok(isChinese(c), `${c} should be Han`);
@@ -13,30 +13,30 @@ test('a code-point spread never splits a surrogate pair', () => {
   assert.equal('𠀀'.split('').length, 2);
 });
 
-test('generatePinyin resolves polyphones by word context', () => {
-  assert.equal(generatePinyin('音乐'), 'yīn yuè');   // not "yīn lè"
-  assert.equal(generatePinyin('银行'), 'yín háng');  // not "yín xíng"
-  assert.equal(generatePinyin('长大'), 'zhǎng dà');  // not "cháng dà"
+test('generatePinyin resolves polyphones by word context', async () => {
+  assert.equal((await generatePinyin('音乐')), 'yīn yuè');   // not "yīn lè"
+  assert.equal((await generatePinyin('银行')), 'yín háng');  // not "yín xíng"
+  assert.equal((await generatePinyin('长大')), 'zhǎng dà');  // not "cháng dà"
 });
 
-test('generatePinyin applies tone sandhi', () => {
-  assert.equal(generatePinyin('不是'), 'bú shì');
-  assert.equal(generatePinyin('一个'), 'yí gè');
+test('generatePinyin applies tone sandhi', async () => {
+  assert.equal((await generatePinyin('不是')), 'bú shì');
+  assert.equal((await generatePinyin('一个')), 'yí gè');
 });
 
-test('generatePinyin passes Latin through untouched', () => {
-  assert.match(generatePinyin('Baby 别哭'), /^Baby /);
+test('generatePinyin passes Latin through untouched', async () => {
+  assert.match((await generatePinyin('Baby 别哭')), /^Baby /);
 });
 
-test('generatePinyin preserves line count exactly', () => {
+test('generatePinyin preserves line count exactly', async () => {
   // The load-bearing invariant: lyrics_chinese and lyrics_pinyin are parallel
   // \n-delimited columns and nothing in Postgres enforces equal line counts.
   const zh = '一\n\n二\n三\n';
-  assert.equal(generatePinyin(zh).split('\n').length, zh.split('\n').length);
+  assert.equal((await generatePinyin(zh)).split('\n').length, zh.split('\n').length);
 });
 
-test('generatePinyin maps a blank line to an empty string', () => {
-  assert.equal(generatePinyin('一\n\n二').split('\n')[1], '');
+test('generatePinyin maps a blank line to an empty string', async () => {
+  assert.equal((await generatePinyin('一\n\n二')).split('\n')[1], '');
 });
 
 test('alignSyllables maps one syllable per Han character', () => {
@@ -71,10 +71,15 @@ test('alignSyllables returns null when it cannot match, so the caller falls back
   assert.equal(alignSyllables('蘋果', 'píngguǒ'), null);
 });
 
-test('round trip: generated pinyin always aligns with its own line', () => {
+test('round trip: generated pinyin always aligns with its own line', async () => {
   for (const line of ['浪奔', '萬里滔滔江水永不休', '音乐让我快乐', '你好，世界']) {
-    const syllables = alignSyllables(line, generatePinyin(line));
+    const syllables = alignSyllables(line, (await generatePinyin(line)));
     assert.ok(syllables, `expected ${line} to align`);
     assert.equal(syllables.length, [...line].filter(isChinese).length);
   }
+});
+
+test('lazy character fallback handles grouped pinyin and supplementary Han', async () => {
+  assert.deepEqual(await generateCharacterPinyin('Baby 音乐!'), ['yīn', 'lè']);
+  assert.equal((await generateCharacterPinyin('𠀀')).length, 1);
 });
