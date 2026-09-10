@@ -217,7 +217,7 @@ Code is done for all of these; the one thing still outstanding is the RLS migrat
 ### Still outstanding
 - [x] **RLS migration applied by Daniel.** Live verifier: 27 passed, 0 failed; probe cleanup confirmed.
 - [ ] 🔴 **Set `avatars` bucket limits in the Supabase dashboard** — `file_size_limit` ~2 MB, `allowed_mime_types` `image/png,image/jpeg,image/webp`. The client-side check is in place but the bucket is the enforcement point. Currently unbounded public file hosting, and an uploaded SVG is script-capable on that origin.
-- [ ] 🔴 **No backups.** The DB is the only copy of all user-generated content; the corpus can only restore imported `lyrics_chinese`. Check whether the current Supabase plan has PITR, and set up a `pg_dump`.
+- [x] **Backups: `npm run backup`** dumps every table plus auth user ids/emails to a timestamped JSON in `backups/` (gitignored). First run 2026-09-09: 3319 content rows + 42 users, 5.81 MB. It verifies every table's row count against the server and aborts non-zero on a mismatch, so it cannot produce a short file that looks complete. **Not pg_dump** — row data only, no schema and no password hashes; restore = new project → apply `supabase/migrations/` → insert tables in the listed key order → users re-authenticate. Still needs an off-laptop copy and a habit of running it.
 - [ ] **Apply translation-counter migration after deploying the app change.** LineSidebar now derives translation counts from `line_votes(count)` and never writes `line_translations.votes`. `20260909010000_translation_vote_counts.sql` removes table-level UPDATE, then grants only content/language edits. The legacy counter is ignored even on INSERT. Comment counters are a separate, still outstanding issue.
 - [x] **Line-count edit warning.** `lineEdits.js` checks fresh live lyrics and exact contribution counts before direct edits, suggestions, and review approval. Cancel prevents writes; read errors fail closed. Same-length reorders and concurrent writes remain outside this count-only guard; stable-anchor proposal below.
 - [x] **Artist reconciliation applied by Daniel; fallback removed.** Five corrected English names verified live. `songsByArtist` reads only through the junction and preserves punctuation and both Chinese scripts. Junction reads verified: JJ Lin 124, SING 1, Faye Wong 222, Eason Chan 399, Teresa Teng 217 songs.
@@ -230,6 +230,7 @@ Code is done for all of these; the one thing still outstanding is the RLS migrat
 - [ ] Component + E2E tests (only the 12 pinyin/alignment units exist).
 - [ ] Dead columns to drop: `songs.category` (all 1608 = `'pop'`, read by nothing), `songs.translation_credit` (2 rows).
 - [ ] Admin "Make Official" button — promote top-voted community translation into lyrics_english.
+- [x] **Approving a community edit credits the contributor**, not the approving admin (`EditSongPage` review branch took `last_edited_by` from the admin's own session). The approver is deliberately not recorded — with one admin account it carries no information.
 - [ ] `songs`/`song_artists` insert isn't atomic — needs a Postgres function via `rpc()`. Only one RPC exists today (`current_profile_role`).
 
 ### Carried over (still true)
