@@ -19,7 +19,7 @@ const Footer = () => {
             </p>
           </div>
 
-          <div className="flex gap-16">
+          <div className="flex flex-wrap gap-x-16 gap-y-8">
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Explore</h4>
               <ul className="space-y-2 text-sm">
@@ -33,6 +33,13 @@ const Footer = () => {
               <ul className="space-y-2 text-sm">
                 <li><Link to="/faq" className="text-slate-500 hover:text-primary transition-colors">FAQ</Link></li>
                 <li><Link to="/faq" className="text-slate-500 hover:text-primary transition-colors">Takedown Requests</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Legal</h4>
+              <ul className="space-y-2 text-sm">
+                <li><Link to="/privacy" className="text-slate-500 hover:text-primary transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="text-slate-500 hover:text-primary transition-colors">Terms of Service</Link></li>
               </ul>
             </div>
           </div>

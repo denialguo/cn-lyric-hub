@@ -82,6 +82,8 @@ async function generateSitemap() {
     urlTag(`${DOMAIN}/`, { changefreq: 'daily', priority: '1.0' }),
     urlTag(`${DOMAIN}/faq`, { changefreq: 'monthly', priority: '0.5' }),
     urlTag(`${DOMAIN}/stats`, { changefreq: 'weekly', priority: '0.5' }),
+    urlTag(`${DOMAIN}/privacy`, { changefreq: 'yearly', priority: '0.3' }),
+    urlTag(`${DOMAIN}/terms`, { changefreq: 'yearly', priority: '0.3' }),
   ];
 
   const songUrls = songs.map(song => urlTag(`${DOMAIN}/song/${song.slug}`, {

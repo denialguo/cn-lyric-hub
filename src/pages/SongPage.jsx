@@ -432,7 +432,7 @@ const SongPage = () => {
             {videoId ? (
               <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
                 <div className="aspect-video">
-                  <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${videoId}`} title="YouTube" frameBorder="0" allowFullScreen></iframe>
+                  <iframe width="100%" height="100%" src={`https://www.youtube-nocookie.com/embed/${videoId}`} title="YouTube" frameBorder="0" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
                 </div>
               </div>
             ) : (

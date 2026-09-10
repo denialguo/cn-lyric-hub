@@ -8,4 +8,9 @@ Disallow: /edit/
 Disallow: /login
 Disallow: /profile
 
+# Public profiles carry a noindex via Helmet, but Helmet only runs after JS. These
+# routes are not prerendered, so a crawler that skips JS would otherwise see the
+# bare SPA shell and treat every one as a duplicate of the homepage.
+Disallow: /user/
+
 Sitemap: https://cnlyrichub.vercel.app/sitemap.xml
