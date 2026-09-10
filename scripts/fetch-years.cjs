@@ -28,36 +28,22 @@ const dryRun = args.includes('--dry-run');
 const limitArg = args.indexOf('--limit');
 const limit = limitArg !== -1 ? parseInt(args[limitArg + 1]) : Infinity;
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const { search, sleep } = require('./itunes.cjs');
 
 async function searchYear(title, artist) {
-  const queries = [
-    `${title} ${artist}`,
-    title,
-  ].filter(Boolean);
+  const queries = [`${title} ${artist}`, title].filter(Boolean);
 
   for (const query of queries) {
-    try {
-      const encoded = encodeURIComponent(query.trim());
-      
-      // Try China store first
-      let res = await fetch(`https://itunes.apple.com/search?term=${encoded}&media=music&limit=3&country=CN`);
-      let data = await res.json();
+    // CN store first, then fall back to global.
+    const results = (await search(query.trim(), { country: 'CN' }))
+      || (await search(query.trim()));
 
-      // Fall back to global
-      if (!data.results?.length) {
-        res = await fetch(`https://itunes.apple.com/search?term=${encoded}&media=music&limit=3`);
-        data = await res.json();
-      }
-
-      if (data.results?.length) {
-        const release = data.results[0].releaseDate;
-        if (release) {
-          return new Date(release).getFullYear();
-        }
-      }
-    } catch {
-      // continue to next query
+    const release = results?.[0]?.releaseDate;
+    if (release) {
+      const parsed = new Date(release);
+      // Read the year in UTC — releaseDate is a UTC instant, and using local
+      // time would report the wrong year for Jan 1 releases west of UTC.
+      if (!Number.isNaN(parsed.valueOf())) return parsed.getUTCFullYear();
     }
     await sleep(500);
   }

@@ -63,12 +63,16 @@ const SongPage = () => {
   }, []);
 
   useEffect(() => {
+    // Guard against a slow response for an old slug landing after a newer one
+    let cancelled = false;
     const fetchSong = async () => {
       const { data } = await supabase.from('songs').select('*').eq('slug', slug).single();
+      if (cancelled) return;
       if (data) setSong(data);
       setLoading(false);
     };
     fetchSong();
+    return () => { cancelled = true; };
   }, [slug]);
 
   const updateSize = (type, increment) => {

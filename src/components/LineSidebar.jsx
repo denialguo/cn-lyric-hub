@@ -6,7 +6,7 @@ import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Co
 import CommentItem from './CommentItem';
 
 const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation }) => {
-  const { user } = useAuth();
+  const { user, ensureUser } = useAuth();
   const { toast, confirm } = useToast();
   
   const [activeTab, setActiveTab] = useState('translations');
@@ -121,6 +121,10 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   };
 
   const toggleVoteCommunity = async (translationId, currentCount) => {
+    // Lazy auth — votes must carry a real uid so RLS can pin them to their owner
+    const voter = await ensureUser();
+    if (!voter) return;
+
     const isLiked = myVotes.has(translationId);
 
     // Snapshot for rollback if a write fails
@@ -142,10 +146,10 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     let error;
     if (isLiked) {
-        if (user) ({ error } = await supabase.from('line_votes').delete().eq('user_id', user.id).eq('translation_id', translationId));
+        ({ error } = await supabase.from('line_votes').delete().eq('user_id', voter.id).eq('translation_id', translationId));
         if (!error) ({ error } = await supabase.from('line_translations').update({ votes: currentCount - 1 }).eq('id', translationId));
     } else {
-        ({ error } = await supabase.from('line_votes').insert({ user_id: user ? user.id : null, song_id: songId, line_index: lineIndex, translation_id: translationId }));
+        ({ error } = await supabase.from('line_votes').insert({ user_id: voter.id, song_id: songId, line_index: lineIndex, translation_id: translationId }));
         if (!error) ({ error } = await supabase.from('line_translations').update({ votes: currentCount + 1 }).eq('id', translationId));
     }
 
@@ -158,6 +162,9 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   };
 
   const toggleVoteComment = async (commentId, currentVotes) => {
+    const voter = await ensureUser();
+    if (!voter) return;
+
     const isLiked = myCommentVotes.has(commentId);
 
     // Snapshot for rollback if a write fails
@@ -179,10 +186,10 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     let error;
     if (isLiked) {
-        if (user) ({ error } = await supabase.from('comment_votes').delete().eq('user_id', user.id).eq('comment_id', commentId));
+        ({ error } = await supabase.from('comment_votes').delete().eq('user_id', voter.id).eq('comment_id', commentId));
         if (!error) ({ error } = await supabase.from('line_comments').update({ votes: currentVotes - 1 }).eq('id', commentId));
     } else {
-        ({ error } = await supabase.from('comment_votes').insert({ user_id: user ? user.id : null, comment_id: commentId }));
+        ({ error } = await supabase.from('comment_votes').insert({ user_id: voter.id, comment_id: commentId }));
         if (!error) ({ error } = await supabase.from('line_comments').update({ votes: currentVotes + 1 }).eq('id', commentId));
     }
 
@@ -195,6 +202,9 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   };
 
   const toggleVoteOriginal = async () => {
+    const voter = await ensureUser();
+    if (!voter) return;
+
     const isLiked = hasLikedOriginal;
 
     // Snapshot for rollback if the write fails
@@ -216,9 +226,9 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     let error;
     if (isLiked) {
-        if (user) ({ error } = await supabase.from('line_votes').delete().eq('user_id', user.id).eq('song_id', songId).eq('line_index', lineIndex).is('translation_id', null));
+        ({ error } = await supabase.from('line_votes').delete().eq('user_id', voter.id).eq('song_id', songId).eq('line_index', lineIndex).is('translation_id', null));
     } else {
-        ({ error } = await supabase.from('line_votes').insert({ user_id: user ? user.id : null, song_id: songId, line_index: lineIndex, translation_id: null }));
+        ({ error } = await supabase.from('line_votes').insert({ user_id: voter.id, song_id: songId, line_index: lineIndex, translation_id: null }));
     }
 
     if (error) {
@@ -278,7 +288,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         const contentToPost = text || mainCommentInput;
         if (!contentToPost.trim() || !user) return;
 
-        const { data, error } = await supabase
+        const { error } = await supabase
                 .from('line_comments')
                 .insert({
                         song_id: songId,
