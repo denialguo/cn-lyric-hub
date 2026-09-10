@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Globe, User, LogOut, LogIn, LayoutDashboard, X, BarChart3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { isRealAccount } from '../lib/identity';
 import { useTheme } from '../context/ThemeContext';
 import ThemeSettings from './ThemeSettings';
 
@@ -12,6 +13,7 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
   const [openPanel, setOpenPanel] = useState(null); // null | 'menu' | 'theme'
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileSearchRef = useRef(null);
+  const panelAreaRef = useRef(null);
 
   // Escape key closes any open panel
   useEffect(() => {
@@ -20,10 +22,15 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
     return () => document.removeEventListener('keydown', handleEsc);
   }, []);
 
-  // Close panels on navigation
+  // Click anywhere outside the panel area closes it
   useEffect(() => {
-    setOpenPanel(null);
-  }, []);
+    if (!openPanel) return;
+    const handleClickOutside = (e) => {
+      if (panelAreaRef.current && !panelAreaRef.current.contains(e.target)) setOpenPanel(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openPanel]);
 
   const togglePanel = (panel) => {
     setOpenPanel(prev => prev === panel ? null : panel);
@@ -35,7 +42,7 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
   };
 
   const getDisplayName = () => {
-    if (!user || user.is_anonymous || !user.email) return 'Guest';
+    if (!isRealAccount(user) || !user.email) return 'Guest';
     if (profile?.username) return profile.username;
     return user.email.split('@')[0];
   };
@@ -63,7 +70,7 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
           </div>
         )}
 
-        <div className="flex items-center gap-3 relative">
+        <div className="flex items-center gap-3 relative" ref={panelAreaRef}>
           {/* Mobile search toggle */}
           {showSearch && setSearchQuery && (
             <button 
@@ -97,7 +104,7 @@ const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null })
             <ThemeSettings isOpen={openPanel === 'theme'} onToggle={() => togglePanel('theme')} />
 
             {/* User Menu */}
-            {user && !user.is_anonymous ? (
+            {isRealAccount(user) ? (
               <div className="relative isolate">
                 <button 
                   onClick={() => togglePanel('menu')}

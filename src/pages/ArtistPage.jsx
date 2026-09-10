@@ -1,73 +1,60 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { supabase } from '../lib/supabaseClient';
+import { songsByArtist, likedSongIds } from '../lib/queries';
 import { ArrowLeft, Mic2, Disc } from 'lucide-react';
 import SongCard from '../components/SongCard';
+import { useAuth } from '../context/AuthContext';
+import Navbar from '../components/Navbar';
 
 const ArtistPage = () => {
   const { name } = useParams(); // Gets 'Jay Chou' from url
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [songs, setSongs] = useState([]);
+  const [likedIds, setLikedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
-  // Decode the URL (e.g., "Jay%20Chou" -> "Jay Chou")
-  const artistName = decodeURIComponent(name);
+  // Decode the URL (e.g., "Jay%20Chou" -> "Jay Chou"). A malformed escape such as
+  // "/artist/%" makes decodeURIComponent throw, which would take out the route.
+  let artistName = name;
+  try {
+    artistName = decodeURIComponent(name);
+  } catch {
+    artistName = name;
+  }
 
   useEffect(() => {
-    const fetchArtistSongs = async () => {
-      // 1. First, find ANY song where this artist appears (in either column)
-      //    This helps us find their "Alias" (the other language name)
-      const { data: anySong } = await supabase
-        .from('songs')
-        .select('artist_en, artist_zh')
-        .or(`artist_en.ilike.%${artistName}%,artist_zh.ilike.%${artistName}%`)
-        .limit(1)
-        .maybeSingle();
-
-      let query = supabase
-        .from('songs')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      // 2. Build the Smart Search
-      if (anySong) {
-        // We found a song! Let's get both names from it.
-        // If I searched "Jay Chou", foundSong might have { en: "Jay Chou", zh: "周杰伦" }
-        // Now I know his Chinese name is "周杰伦"!
-        
-        const possibleNames = [];
-        if (anySong.artist_en) possibleNames.push(...anySong.artist_en.split(',').map(s => s.trim()));
-        if (anySong.artist_zh) possibleNames.push(...anySong.artist_zh.split(',').map(s => s.trim()));
-        
-        // Clean up duplicates
-        const uniqueNames = [...new Set(possibleNames)];
-        
-        // 3. Search for ANY of these names
-        // "Find songs where artist is 'Jay Chou' OR '周杰伦'"
-        const orQuery = uniqueNames.map(name => `artist_en.ilike.%${name}%,artist_zh.ilike.%${name}%`).join(',');
-        query = query.or(orQuery);
-      } else {
-        // Fallback: Just search for the URL name if we've never seen this artist before
-        query = query.or(`artist_en.ilike.%${artistName}%,artist_zh.ilike.%${artistName}%`);
-      }
-
-      const { data } = await query;
-      setSongs(data || []);
+    let cancelled = false;
+    setLoading(true);
+    songsByArtist(artistName).then(({ songs: found }) => {
+      if (cancelled) return;
+      setSongs(found);
       setLoading(false);
-    };
-
-    fetchArtistSongs();
+    });
+    return () => { cancelled = true; };
   }, [artistName]);
 
+  // One batched query instead of SongCard firing two per card
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) { setLikedIds(new Set()); return; }
+    likedSongIds(user.id).then((ids) => { if (!cancelled) setLikedIds(ids); });
+    return () => { cancelled = true; };
+  }, [user]);
+
   return (
-    <div className="min-h-screen bg-slate-950 p-6 md:p-12 text-white">
+    <div className="min-h-screen bg-slate-950 text-white">
       <Helmet>
         <title>{artistName} — CN Lyric Hub</title>
         <meta name="description" content={`Browse all songs by ${artistName} with Pinyin and English translations on CN Lyric Hub.`} />
         <link rel="canonical" href={`https://cnlyrichub.vercel.app/artist/${encodeURIComponent(artistName)}`} />
+        {/* Any URL can reach this route, so an artist with no songs must not be
+            indexed as a thin near-duplicate of every other empty artist page. */}
+        {!loading && songs.length === 0 && <meta name="robots" content="noindex, follow" />}
       </Helmet>
-      <div className="max-w-6xl mx-auto">
+      <Navbar />
+      <div className="max-w-6xl mx-auto p-6 md:p-12">
 
         <button onClick={() => navigate('/')} className="flex items-center text-slate-400 hover:text-white mb-8 transition-colors">
           <ArrowLeft className="w-5 h-5 mr-2" /> Back to Library
@@ -90,11 +77,19 @@ const ArtistPage = () => {
         {loading ? (
             <div className="text-slate-500">Loading discography...</div>
         ) : songs.length === 0 ? (
-            <div className="text-slate-500 italic">No songs found for this artist.</div>
+            <div className="text-center py-16 bg-slate-900/50 rounded-2xl border border-white/5 border-dashed">
+              <p className="text-slate-400 mb-2">We don't have any songs for “{artistName}” yet.</p>
+              <button onClick={() => navigate('/')} className="text-primary hover:underline text-sm font-medium">Browse the library</button>
+            </div>
         ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {songs.map(song => (
-                    <SongCard key={song.id} song={song} />
+                    <SongCard
+                      key={song.id}
+                      song={song}
+                      initialLikeCount={song.song_likes?.[0]?.count || 0}
+                      initialIsLiked={likedIds.has(song.id)}
+                    />
                 ))}
             </div>
         )}

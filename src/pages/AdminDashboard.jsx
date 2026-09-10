@@ -23,7 +23,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     const fetchSubmissions = async () => {
-      if (profile?.role !== 'admin') return;
+      if (profile?.role !== 'admin') { setLoading(false); return; }
 
       const { data: subs, error: subsError } = await supabase
         .from('song_submissions')
@@ -67,15 +67,20 @@ const AdminDashboard = () => {
   }, [profile]);
 
   const handleReject = async (id) => {
-    const ok = await confirm("Permanently delete this submission?", { destructive: true, confirmLabel: 'Delete' });
+    const ok = await confirm(
+      "Reject this submission? The submitter will see it marked rejected on their profile.",
+      { destructive: true, confirmLabel: 'Reject' }
+    );
     if (!ok) return;
     try {
-      const { error } = await supabase.from('song_submissions').delete().eq('id', id);
+      // Mark rather than delete, so the submitter gets an outcome instead of the
+      // entry silently disappearing from their profile.
+      const { error } = await supabase.from('song_submissions').update({ status: 'rejected' }).eq('id', id);
       if (error) throw error;
       setSubmissions(prev => prev.filter(s => s.id !== id));
-      toast.success('Submission deleted');
+      toast.success('Submission rejected');
     } catch (error) {
-      toast.error("Failed to delete: " + error.message);
+      toast.error("Failed to reject: " + error.message);
     }
   };
 

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
 import CommentItem from './CommentItem';
+import { isRealAccount } from '../lib/identity';
 import { readJson, writeJson } from '../lib/storage';
 
 const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation }) => {
@@ -244,25 +245,35 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   const handleDelete = async (id) => {
     const ok = await confirm("Delete your translation?", { destructive: true, confirmLabel: 'Delete' });
     if (!ok) return;
+    const prev = translations;
     setTranslations(translations.filter(t => t.id !== id));
-    await supabase.from('line_translations').delete().eq('id', id);
+    const { error } = await supabase.from('line_translations').delete().eq('id', id);
+    if (error) {
+      setTranslations(prev);          // RLS refused it; it never left the DB
+      toast.error("Couldn't delete that translation. Please try again.");
+    }
   };
 
   const handleDeleteComment = async (id) => {
     const ok = await confirm("Delete your comment?", { destructive: true, confirmLabel: 'Delete' });
     if (!ok) return;
+    const prev = comments;
     setComments(comments.filter(c => c.id !== id));
-    await supabase.from('line_comments').delete().eq('id', id);
+    const { error } = await supabase.from('line_comments').delete().eq('id', id);
+    if (error) {
+      setComments(prev);
+      toast.error("Couldn't delete that comment. Please try again.");
+    }
   };
 
   const handleSubmitTranslation = async (e) => {
     e.preventDefault();
-    if (!user) return toast.info("Please log in to contribute.");
+    if (!isRealAccount(user)) return toast.info("Please log in to contribute.");
     if (!transInput.trim()) return;
 
     setSubmitting(true);
     const { error } = await supabase.from('line_translations').insert({
-        song_id: songId, line_index: lineIndex, content: transInput, user_id: user.id, language: 'en', votes: 0
+        song_id: songId, line_index: lineIndex, content: transInput.trim().slice(0, 1000), user_id: user.id, language: 'en', votes: 0
     });
     if (error) toast.error(error.message);
     else { setTransInput(''); fetchData(); }
@@ -271,7 +282,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     const handleSubmitComment = async (e, translationId = null) => {
         e.preventDefault();
-        if (!user) return toast.info("Please log in to comment.");
+        if (!isRealAccount(user)) return toast.info("Please log in to comment.");
 
         const content = translationId ? threadInput[translationId] : mainCommentInput;
         if (!content?.trim()) return;
@@ -287,7 +298,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     const handlePostComment = async (parentId = null, text = null, translationId = null) => {
         const contentToPost = text || mainCommentInput;
-        if (!contentToPost.trim() || !user) return;
+        if (!contentToPost.trim() || !isRealAccount(user)) return;
 
         const { error } = await supabase
                 .from('line_comments')
@@ -295,7 +306,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                         song_id: songId,
                         line_index: lineIndex,
                         user_id: user.id,
-                        content: contentToPost,
+                        content: contentToPost.trim().slice(0, 2000),
                         translation_id: translationId,
                         parent_id: parentId
                 })

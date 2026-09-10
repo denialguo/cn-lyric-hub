@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
+import { isAdmin, submitterName } from '../lib/identity';
 
 const EditSongPage = ({ isReviewMode = false }) => {
   const { id } = useParams();
@@ -105,7 +106,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
         '-' + Math.floor(Math.random() * 1000);
     }
 
-    const editorName = user ? (user.user_metadata?.username || profile?.username || user.email?.split('@')[0]) : 'Unknown';
+    const editorName = submitterName(user, profile);
 
     const safePayload = {
       title_en: formData.title_en, title_zh: formData.title_zh, cover_url: formData.cover_url,
@@ -161,11 +162,12 @@ const EditSongPage = ({ isReviewMode = false }) => {
           await linkArtists(newSong.id);
         }
 
-        await supabase.from('song_submissions').delete().eq('id', id);
+        // Keep the row so the submitter can see it was approved.
+        await supabase.from('song_submissions').update({ status: 'approved' }).eq('id', id);
         toast.success('Approved & Published!');
         navigate('/admin');
       } else {
-        if (profile?.role === 'admin') {
+        if (isAdmin(user, profile)) {
           // Admin editing a song curates it — lift imports into the listed catalog
           const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
           const { error } = await supabase.from('songs').update(payloadForLiveDB).eq('id', id);
@@ -176,7 +178,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
           const submissionPayload = {
             ...safePayload,
             original_song_id: id,
-            submitted_by: user ? (user.user_metadata?.username || user.email.split('@')[0]) : 'Community',
+            submitted_by: submitterName(user, profile),
             status: 'pending_edit',
           };
           const { error } = await supabase.from('song_submissions').insert([submissionPayload]);
@@ -192,11 +194,12 @@ const EditSongPage = ({ isReviewMode = false }) => {
   };
 
   const handleReject = async () => {
-    const ok = await confirm('Delete this submission?', { destructive: true, confirmLabel: 'Delete' });
+    const ok = await confirm('Reject this submission?', { destructive: true, confirmLabel: 'Reject' });
     if (!ok) return;
     setLoading(true);
-    await supabase.from('song_submissions').delete().eq('id', id);
-    navigate('/admin');
+    const { error } = await supabase.from('song_submissions').update({ status: 'rejected' }).eq('id', id);
+    if (error) toast.error('Failed to reject: ' + error.message);
+    else navigate('/admin');
     setLoading(false);
   };
 

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Reply, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../context/ToastContext';
+import { isRealAccount } from '../lib/identity';
 
 const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
   const { toast } = useToast();
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
+  const [liking, setLiking] = useState(false);
   const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
@@ -32,17 +34,27 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
   }, [comment.id, user]);
 
   const toggleLike = async () => {
-    if (!user) return toast.info("Please sign in to like comments.");
-    
+    if (!isRealAccount(user)) return toast.info("Please sign in to like comments.");
+    if (liking) return;               // a fast double-click raced itself
+    setLiking(true);
+
     const newStatus = !isLiked;
+    const prevLiked = isLiked;
+    const prevCount = likesCount;
+
     setIsLiked(newStatus);
     setLikesCount(prev => newStatus ? prev + 1 : prev - 1);
 
-    if (newStatus) {
-      await supabase.from('comment_likes').insert({ user_id: user.id, comment_id: comment.id });
-    } else {
-      await supabase.from('comment_likes').delete().eq('user_id', user.id).eq('comment_id', comment.id);
+    const { error } = newStatus
+      ? await supabase.from('comment_likes').insert({ user_id: user.id, comment_id: comment.id })
+      : await supabase.from('comment_likes').delete().eq('user_id', user.id).eq('comment_id', comment.id);
+
+    if (error) {
+      setIsLiked(prevLiked);
+      setLikesCount(prevCount);
+      toast.error("Couldn't save that. Please try again.");
     }
+    setLiking(false);
   };
 
   const submitReply = async (e) => {
@@ -83,7 +95,8 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
         <div className="flex items-center gap-4 mt-2">
             <button 
                 onClick={toggleLike}
-                className={`flex items-center gap-1 text-xs font-bold transition-colors ${isLiked ? 'text-pink-500' : 'text-slate-500 hover:text-pink-500'}`}
+                disabled={liking}
+                className={`flex items-center gap-1 text-xs font-bold transition-colors disabled:opacity-60 ${isLiked ? 'text-pink-500' : 'text-slate-500 hover:text-pink-500'}`}
             >
                 <Heart size={12} fill={isLiked ? "currentColor" : "none"} /> {likesCount || "Like"}
             </button>
@@ -102,7 +115,8 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
                     autoFocus
                     value={replyText}
                     onChange={e => setReplyText(e.target.value)}
-                    placeholder={`Reply to @${comment.profiles?.username}...`}
+                    placeholder={`Reply to @${comment.profiles?.username || 'user'}...`}
+                    maxLength={2000}
                     className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary outline-none"
                 />
                 <button type="submit" className="bg-slate-800 hover:bg-primary text-white p-2 rounded-lg transition-colors">

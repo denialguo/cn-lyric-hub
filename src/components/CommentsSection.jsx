@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { isRealAccount, ownAvatarUrl } from '../lib/identity';
 import { Send, Trash2, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,6 +20,9 @@ const timeAgo = (dateString) => {
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
 };
+
+// Nothing capped comment length, so the column accepted arbitrarily large content.
+const MAX_COMMENT = 2000;
 
 const CommentsSection = ({ songId }) => {
   const { user, profile } = useAuth();
@@ -46,17 +50,18 @@ const CommentsSection = ({ songId }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!user) {
-        const ok = await confirm("You need to log in to comment. Go to login?", { confirmLabel: 'Log In' });
+    if (!isRealAccount(user)) {
+        const ok = await confirm("You need an account to comment. Go to login?", { confirmLabel: 'Log In' });
         if (ok) navigate('/login');
         return;
     }
-    if (!newComment.trim()) return;
+    const content = newComment.trim();
+    if (!content) return;
 
     setLoading(true);
     const { error } = await supabase
       .from('comments')
-      .insert([{ content: newComment, song_id: songId, user_id: user.id }]);
+      .insert([{ content: content.slice(0, MAX_COMMENT), song_id: songId, user_id: user.id }]);
 
     if (error) {
       toast.error("Error posting: " + error.message);
@@ -71,10 +76,15 @@ const CommentsSection = ({ songId }) => {
     const ok = await confirm("Delete this comment?", { destructive: true, confirmLabel: 'Delete' });
     if (!ok) return;
     const { error } = await supabase.from('comments').delete().eq('id', commentId);
-    if (!error) setComments(comments.filter(c => c.id !== commentId));
+    if (error) {
+      toast.error("Couldn't delete that comment. Please try again.");
+      return;
+    }
+    setComments((prev) => prev.filter(c => c.id !== commentId));
   };
 
-  const myAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || "/default-avatar.png";
+  const canComment = isRealAccount(user);
+  const myAvatar = ownAvatarUrl(user, profile);
 
   return (
     <div className="max-w-2xl">
@@ -85,14 +95,15 @@ const CommentsSection = ({ songId }) => {
 
       <form onSubmit={handleSubmit} className="mb-8 flex gap-4">
         <div className="w-10 h-10 rounded-full bg-slate-800 flex-shrink-0 overflow-hidden border border-slate-700">
-             <img src={user ? myAvatar : "/default-avatar.png"} className="w-full h-full object-cover" />
+             <img src={canComment ? myAvatar : "/default-avatar.png"} alt="" className="w-full h-full object-cover" />
         </div>
         <div className="flex-1 relative">
             <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder={user ? "Share your thoughts..." : "Log in to comment..."}
-                disabled={!user}
+                placeholder={canComment ? "Share your thoughts..." : "Log in to comment..."}
+                disabled={!canComment}
+                maxLength={MAX_COMMENT}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-white focus:border-primary outline-none transition-colors min-h-[100px] resize-none"
             />
             <button 
@@ -113,6 +124,7 @@ const CommentsSection = ({ songId }) => {
                 <div key={comment.id} className="flex gap-4 group">
                     <img 
                         src={comment.profiles?.avatar_url || "/default-avatar.png"} 
+                        alt=""
                         className="w-10 h-10 rounded-full object-cover bg-slate-800 border border-slate-700 flex-shrink-0"
                     />
                     <div className="flex-1">

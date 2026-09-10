@@ -91,6 +91,7 @@ const SongPage = () => {
   const [selectedLine, setSelectedLine] = useState(null); 
   const [customTranslations, setCustomTranslations] = useState({});
   const [submitterUsername, setSubmitterUsername] = useState(null);
+  const [coverFailed, setCoverFailed] = useState(false);
 
   // Reload per-song line preferences whenever the slug changes. This must be an
   // effect, not a useState initializer — an initializer runs once per mount, and
@@ -126,6 +127,7 @@ const SongPage = () => {
     // song's lyrics on screen under the new URL.
     setSong(null);
     setSelectedLine(null);
+    setCoverFailed(false);
     setLoading(true);
     const fetchSong = async () => {
       const { data, error } = await supabase.from('songs').select('*').eq('slug', slug).single();
@@ -277,14 +279,14 @@ const SongPage = () => {
       {/* HERO SECTION */}
       <div className="relative h-[50vh] overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10 pointer-events-none" />
-        {song.cover_url ? (
-          <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="" loading="lazy" decoding="async" />
+        {song.cover_url && !coverFailed ? (
+          <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} />
         ) : (
           <div className="w-full h-full bg-slate-900" />
         )}
         <div className="absolute bottom-0 left-0 z-20 p-6 md:p-12 w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end gap-8">
-          {song.cover_url ? (
-            <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={`Album cover for ${displayTitle} by ${primaryArtist}`} />
+          {song.cover_url && !coverFailed ? (
+            <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={`Album cover for ${displayTitle} by ${primaryArtist}`} onError={() => setCoverFailed(true)} />
           ) : (
             <div className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
               <Music className="w-16 h-16 text-slate-600" />

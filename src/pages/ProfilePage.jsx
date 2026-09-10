@@ -4,6 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabaseClient';
 import { User, Save, ArrowLeft, Camera, Music, Clock, AtSign, Loader2, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { isRealAccount } from '../lib/identity';
+
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 const ProfilePage = () => {
   const { user } = useAuth();
@@ -30,7 +34,10 @@ const ProfilePage = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!user) return;
+      if (!isRealAccount(user)) {
+        setDataLoading(false);
+        return;
+      }
 
       try {
         const { data: profileData } = await supabase
@@ -139,7 +146,17 @@ const ProfilePage = () => {
       }
 
       const file = event.target.files[0];
-      const fileExt = file.name.split('.').pop();
+
+      // The bucket itself has no size or MIME limit yet (that has to be set in the
+      // Supabase dashboard to be enforced) — this is the client-side half.
+      if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+        throw new Error('Please choose a PNG, JPEG or WebP image.');
+      }
+      if (file.size > MAX_AVATAR_BYTES) {
+        throw new Error(`That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please keep it under 2 MB.`);
+      }
+
+      const fileExt = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
       const fileName = `${user.id}-${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
@@ -177,7 +194,8 @@ const ProfilePage = () => {
     const { error } = await supabase.from('profiles').upsert(updates);
 
     if (error) {
-      toast.error(error.message);
+      // profiles_username_key means a race surfaces as 23505 rather than duplicating
+      toast.error(error.code === '23505' ? 'That username was just taken — try another.' : error.message);
     } else {
       toast.success('Profile saved!');
     }
@@ -185,6 +203,20 @@ const ProfilePage = () => {
   };
 
   if (dataLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading profile...</div>;
+
+  if (!isRealAccount(user)) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <h1 className="text-2xl font-bold text-white mb-3">You're not signed in</h1>
+          <p className="text-slate-400 mb-8">Sign in to set up a profile and track your contributions.</p>
+          <button onClick={() => navigate('/login')} className="bg-primary text-white font-bold px-6 py-3 rounded-full hover:opacity-90 transition-opacity">
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 md:p-12">
@@ -375,7 +407,7 @@ const ProfilePage = () => {
                                         <div>
                                             <h4 className="text-slate-300 font-medium text-sm">{sub.title_zh || sub.title_en}</h4>
                                             <div className="mt-1">
-                                                {sub.status === 'pending' && (
+                                                {(sub.status === 'pending' || sub.status === 'pending_edit') && (
                                                     <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-0.5 rounded flex items-center gap-1 w-fit">
                                                         <AlertCircle size={10} /> Pending
                                                     </span>

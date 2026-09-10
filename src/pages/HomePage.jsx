@@ -1,25 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { Music, Flame, Sparkles, Disc } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import SongCard from '../components/SongCard';
 import Navbar from '../components/Navbar';
 import { Helmet } from 'react-helmet-async';
-import { tify, sify } from 'chinese-conv'; 
+import { tify, sify } from 'chinese-conv';
+import { searchSongs, listSongs, trendingSongs, freshSongs, classicSongs, likedSongIds } from '../lib/queries';
 
 const PAGE_SIZE = 36;
-// The grid only needs card fields — skip the heavy lyrics columns
-const CARD_COLUMNS = 'id, slug, title_zh, title_en, cover_url, artist_en, artist_zh, tags, source, song_likes(count)';
+
+// Which query backs each tab. Kept as data so the fetch effect stays one branch.
+const TAB_QUERY = {
+  all: listSongs,
+  trending: trendingSongs,
+  new: freshSongs,
+  classics: classicSongs,
+};
 
 const HomePage = () => {
   const { user } = useAuth();
   const { scriptMode } = useTheme();
   const [songs, setSongs] = useState([]);
-  const [activeTab, setActiveTab] = useState('trending');
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [userLikedIds, setUserLikedIds] = useState(new Set());
   const [page, setPage] = useState(0);
@@ -34,115 +42,45 @@ const HomePage = () => {
   // Reset pagination whenever the view changes
   useEffect(() => { setPage(0); }, [activeTab, debouncedQuery]);
 
-  // Query-driven fetch: the catalog holds thousands of unlisted imports, so we
-  // filter at the DB level rather than pull everything (Supabase caps at 1000 rows)
+  // One branch: pick the query for the current view and run it. Every query lives
+  // in src/lib/queries.js, which is also where input sanitising and 1000-row
+  // paging happen — those used to be re-decided (and got wrong) per call site.
   useEffect(() => {
-    // Tab/search/page can change mid-flight; ignore any response that is no
-    // longer the one this effect asked for.
     let cancelled = false;
-    const fetchSongs = async () => {
-      // Searching spans every song, imports included (overrides tabs)
-      if (debouncedQuery) {
-        if (page === 0) setLoading(true); else setLoadingMore(true);
-        const term = debouncedQuery.replace(/[,%()]/g, ' ');
-        // The DB stores one script form (mostly simplified), so match the Chinese
-        // columns against both simplified and traditional versions of what was typed
-        const variants = [...new Set([term, sify(term), tify(term)])];
-        const conditions = [
-          `title_en.ilike.%${term}%`,
-          `artist_en.ilike.%${term}%`,
-          ...variants.flatMap(v => [`title_zh.ilike.%${v}%`, `artist_zh.ilike.%${v}%`]),
-        ];
-        const { data } = await supabase
-          .from('songs')
-          .select(CARD_COLUMNS)
-          .or(conditions.join(','))
-          // Recently-edited first so freshly-curated songs surface, not buried by import date
-          .order('updated_at', { ascending: false })
-          .range(0, (page + 1) * PAGE_SIZE - 1);
-        if (cancelled) return;
-        setSongs(data || []);
-        setHasMore((data || []).length === (page + 1) * PAGE_SIZE);
-        setLoading(false);
-        setLoadingMore(false);
-        return;
-      }
 
-      // All Songs: full catalog gated on completeness (listed OR has a cover), paginated
-      if (activeTab === 'all') {
-        if (page === 0) setLoading(true); else setLoadingMore(true);
-        const { data } = await supabase
-          .from('songs')
-          .select(CARD_COLUMNS)
-          .or('source.eq.user,cover_url.neq.""')
-          .order('created_at', { ascending: false })
-          .range(0, (page + 1) * PAGE_SIZE - 1);
-        if (cancelled) return;
-        setSongs(data || []);
-        setHasMore((data || []).length === (page + 1) * PAGE_SIZE);
-        setLoading(false);
-        setLoadingMore(false);
-        return;
-      }
+    const run = async () => {
+      if (page === 0) setLoading(true); else setLoadingMore(true);
+      setLoadError(false);
 
-      // Trending / Fresh Drops / Classics: curated set (listed songs + liked imports)
-      setLoading(true);
-      const { data: userSongs } = await supabase
-        .from('songs')
-        .select(CARD_COLUMNS)
-        .eq('source', 'user')
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      const { data: liked } = await supabase.from('song_likes').select('song_id');
-      const likedIds = [...new Set((liked || []).map(l => l.song_id))];
-
-      let likedImports = [];
-      if (likedIds.length) {
-        const { data } = await supabase
-          .from('songs')
-          .select(CARD_COLUMNS)
-          .in('id', likedIds)
-          .eq('source', 'import');
-        likedImports = data || [];
-      }
+      const result = debouncedQuery
+        ? await searchSongs(debouncedQuery, { page, pageSize: PAGE_SIZE })
+        : await (TAB_QUERY[activeTab] || listSongs)({ page, pageSize: PAGE_SIZE });
 
       if (cancelled) return;
-      setSongs([...(userSongs || []), ...likedImports]);
-      setHasMore(false);
+      // A failed query used to render as "No songs found", indistinguishable from
+      // an empty catalogue.
+      if (result.error) setLoadError(true);
+      setSongs(result.songs);
+      setHasMore(result.hasMore);
       setLoading(false);
+      setLoadingMore(false);
     };
-    fetchSongs();
-    return () => { cancelled = true; };
-  }, [debouncedQuery, activeTab, page]);
 
+    run();
+    return () => { cancelled = true; };
+  }, [debouncedQuery, activeTab, page, reloadKey]);
+
+  // Which of these the viewer has liked. Scoped to one user, never the whole table.
   useEffect(() => {
     let cancelled = false;
-    const fetchUserLikes = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from('song_likes')
-        .select('song_id')
-        .eq('user_id', user.id);
-      if (!cancelled && data) setUserLikedIds(new Set(data.map(d => d.song_id)));
-    };
-    fetchUserLikes();
+    if (!user) {
+      // Signing out must clear the hearts, or they stay filled for the next viewer.
+      setUserLikedIds(new Set());
+      return;
+    }
+    likedSongIds(user.id).then((ids) => { if (!cancelled) setUserLikedIds(ids); });
     return () => { cancelled = true; };
   }, [user]);
-
-  // Search and All Songs are already filtered server-side; other tabs filter the curated set
-  const filteredSongs = (debouncedQuery || activeTab === 'all')
-    ? songs
-    : songs.filter(song => {
-        const tags = Array.isArray(song.tags) ? song.tags.map(t => t.toLowerCase()) : [];
-        if (activeTab === 'classics') {
-          return tags.some(t => ['ballad', 'classic', 'opera', 'traditional', '90s', '80s'].includes(t));
-        }
-        if (activeTab === 'trending') {
-          return song.song_likes?.[0]?.count > 0;
-        }
-        return true;
-      });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 relative">
@@ -200,14 +138,19 @@ const HomePage = () => {
 
         {loading ? (
           <div className="text-slate-500">Loading library...</div>
-        ) : filteredSongs.length === 0 ? (
+        ) : loadError ? (
+          <div className="text-center py-20 bg-slate-900/50 rounded-2xl border border-red-500/20 border-dashed">
+            <p className="text-slate-300 mb-2">We couldn't load the library just now.</p>
+            <button onClick={() => setReloadKey((k) => k + 1)} className="text-primary hover:underline text-sm">Try again</button>
+          </div>
+        ) : songs.length === 0 ? (
           <div className="text-center py-20 bg-slate-900/50 rounded-2xl border border-white/5 border-dashed">
             <p className="text-slate-400 mb-4">No songs found matching your criteria.</p>
             <button onClick={() => {setSearchQuery(''); setActiveTab('all')}} className="text-primary hover:underline">Clear filters</button>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredSongs.map((song) => {
+            {songs.map((song) => {
                 const rawChinese = song.title_zh || song.title_en || "Untitled";
                 const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
                 return (
@@ -222,7 +165,7 @@ const HomePage = () => {
           </div>
         )}
 
-        {(debouncedQuery || activeTab === 'all') && hasMore && !loading && (
+        {hasMore && !loading && (
           <div className="flex justify-center mt-10">
             <button
               onClick={() => setPage(p => p + 1)}
