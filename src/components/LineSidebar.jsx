@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
 import CommentItem from './CommentItem';
+import { readJson, writeJson } from '../lib/storage';
 
 const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation }) => {
   const { user, ensureUser } = useAuth();
@@ -27,18 +28,18 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   const [expandedThreads, setExpandedThreads] = useState(new Set()); 
 
   useEffect(() => {
+    // songId belongs here: navigating between songs with the sidebar open kept the
+    // same lineIndex, so this never re-ran and showed the previous song's data.
     fetchData();
-  }, [lineIndex, user]);
+  }, [songId, lineIndex, user]);
 
   useEffect(() => {
     if (!user) {
-        const savedVotes = JSON.parse(localStorage.getItem(`votes_${songId}`) || '[]');
-        const savedSet = new Set(savedVotes);
+        const savedSet = new Set(readJson(`votes_${songId}`, []));
         setMyVotes(savedSet);
         if (savedSet.has(`ORG_${lineIndex}`)) setHasLikedOriginal(true);
 
-        const savedCommentVotes = JSON.parse(localStorage.getItem(`comment_votes_${songId}`) || '[]');
-        setMyCommentVotes(new Set(savedCommentVotes));
+        setMyCommentVotes(new Set(readJson(`comment_votes_${songId}`, [])));
     }
   }, [user, songId, lineIndex]);
 
@@ -140,7 +141,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         const newSet = new Set(prev);
         if (isLiked) newSet.delete(translationId);
         else newSet.add(translationId);
-        localStorage.setItem(`votes_${songId}`, JSON.stringify([...newSet]));
+        writeJson(`votes_${songId}`, [...newSet]);
         return newSet;
     });
 
@@ -156,7 +157,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
     if (error) {
         setTranslations(prevTranslations);
         setMyVotes(prevMyVotes);
-        localStorage.setItem(`votes_${songId}`, JSON.stringify([...prevMyVotes]));
+        writeJson(`votes_${songId}`, [...prevMyVotes]);
         toast.error("Vote didn't save. Please try again.");
     }
   };
@@ -180,7 +181,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         const newSet = new Set(prev);
         if (isLiked) newSet.delete(commentId);
         else newSet.add(commentId);
-        localStorage.setItem(`comment_votes_${songId}`, JSON.stringify([...newSet]));
+        writeJson(`comment_votes_${songId}`, [...newSet]);
         return newSet;
     });
 
@@ -196,7 +197,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
     if (error) {
         setComments(prevComments);
         setMyCommentVotes(prevMyCommentVotes);
-        localStorage.setItem(`comment_votes_${songId}`, JSON.stringify([...prevMyCommentVotes]));
+        writeJson(`comment_votes_${songId}`, [...prevMyCommentVotes]);
         toast.error("Vote didn't save. Please try again.");
     }
   };
@@ -220,7 +221,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         const key = `ORG_${lineIndex}`;
         if (isLiked) newSet.delete(key);
         else newSet.add(key);
-        localStorage.setItem(`votes_${songId}`, JSON.stringify([...newSet]));
+        writeJson(`votes_${songId}`, [...newSet]);
         return newSet;
     });
 
@@ -235,7 +236,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         setOriginalVotes(prevVotes);
         setHasLikedOriginal(prevLiked);
         setMyVotes(prevMyVotes);
-        localStorage.setItem(`votes_${songId}`, JSON.stringify([...prevMyVotes]));
+        writeJson(`votes_${songId}`, [...prevMyVotes]);
         toast.error("Vote didn't save. Please try again.");
     }
   };

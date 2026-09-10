@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { readJson, writeJson, readString, writeString } from '../lib/storage';
 
 const ThemeContext = createContext();
 
@@ -14,22 +15,21 @@ export const ThemeProvider = ({ children }) => {
   const transitionsEnabled = useRef(false);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('theme-mode');
+    const saved = readString('theme-mode', null);
     return saved ? saved === 'dark' : true;
   });
 
   const [accentColor, setAccentColor] = useState(() => {
-    return localStorage.getItem('theme-color') || 'cyan';
+    return readString('theme-color', 'cyan');
   });
 
   const [scriptMode, setScriptMode] = useState(() => {
-    return localStorage.getItem('script-mode') || 'simplified';
+    return readString('script-mode', 'simplified');
   });
 
-  const [lyricColors, setLyricColors] = useState(() => {
-    const saved = localStorage.getItem('lyric-colors');
-    return saved ? JSON.parse(saved) : { pinyin: 'default', hanzi: 'default', english: 'default' };
-  });
+  const [lyricColors, setLyricColors] = useState(() =>
+    readJson('lyric-colors', { pinyin: 'default', hanzi: 'default', english: 'default' })
+  );
 
   // Enable transitions only after initial paint is done
   useEffect(() => {
@@ -52,7 +52,7 @@ export const ThemeProvider = ({ children }) => {
       html.classList.remove('dark');
     }
     
-    localStorage.setItem('theme-mode', isDarkMode ? 'dark' : 'light');
+    writeString('theme-mode', isDarkMode ? 'dark' : 'light');
     
     const timer = setTimeout(() => html.classList.remove('theme-transitioning'), 350);
     return () => clearTimeout(timer);
@@ -61,21 +61,16 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const html = document.documentElement;
     
-    const allThemes = ['cyan', 'emerald', 'rose', 'violet', 'amber', 'blue', 'indigo', 'pink', 'teal', 'orange'];
-    allThemes.forEach(theme => {
-      html.removeAttribute(`data-theme-${theme}`);
-    });
-    
     html.setAttribute('data-theme', accentColor);
-    localStorage.setItem('theme-color', accentColor);
+    writeString('theme-color', accentColor);
   }, [accentColor]);
 
   useEffect(() => {
-    localStorage.setItem('script-mode', scriptMode);
+    writeString('script-mode', scriptMode);
   }, [scriptMode]);
 
   useEffect(() => {
-    localStorage.setItem('lyric-colors', JSON.stringify(lyricColors));
+    writeJson('lyric-colors', lyricColors);
   }, [lyricColors]);
 
   const toggleScript = () => {

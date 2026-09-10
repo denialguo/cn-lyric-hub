@@ -114,7 +114,7 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
         <div className="text-slate-500 text-xs truncate font-medium">
           {artistString.split(',').map((artist, i) => (
             <span key={i}>
-              <Link to={`/artist/${artist.trim()}`} onClick={(e) => e.stopPropagation()} className="hover:text-white hover:underline transition-colors">
+              <Link to={`/artist/${encodeURIComponent(artist.trim())}`} onClick={(e) => e.stopPropagation()} className="hover:text-white hover:underline transition-colors">
                 {artist.trim()}
               </Link>
               {i < artistString.split(',').length - 1 && ", "}
