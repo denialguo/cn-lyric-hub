@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { Search, X, UserPlus } from 'lucide-react';
 import { searchArtists } from '../lib/queries';
 
 const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
+  const inputId = useId();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -55,7 +56,7 @@ const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
 
   return (
     <div className="relative space-y-2" ref={wrapperRef}>
-      <label className="text-slate-400 text-sm font-bold">
+      <label htmlFor={inputId} className="text-slate-400 text-sm font-bold">
         Artists <span className="text-primary">*</span>
       </label>
 
@@ -83,7 +84,7 @@ const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
 
       {/* Search Input */}
       <div className="relative">
-        <input
+        <input id={inputId}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -104,10 +105,10 @@ const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
           ) : (
             <>
               {results.map((artist) => (
-                <div
+                <button type="button"
                   key={artist.id}
                   onClick={() => handleSelect(artist)}
-                  className="p-3 hover:bg-slate-700 cursor-pointer flex items-center gap-3 border-b border-white/5 last:border-0"
+                  className="w-full text-left p-3 hover:bg-slate-700 cursor-pointer flex items-center gap-3 border-b border-white/5 last:border-0"
                 >
                   <div className="w-8 h-8 bg-slate-600 rounded-full overflow-hidden flex-shrink-0">
                     {artist.avatar_url ? (
@@ -120,17 +121,17 @@ const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
                     <p className="text-sm font-bold text-white">{artist.name_en}</p>
                     <p className="text-xs text-slate-400">{artist.name_zh}</p>
                   </div>
-                </div>
+                </button>
               ))}
 
               {/* Option to Create New */}
-              <div
+              <button type="button"
                 onClick={createNewArtist}
-                className="p-3 hover:bg-emerald-500/20 cursor-pointer flex items-center gap-2 text-emerald-400 border-t border-white/10"
+                className="w-full text-left p-3 hover:bg-emerald-500/20 cursor-pointer flex items-center gap-2 text-emerald-400 border-t border-white/10"
               >
                 <UserPlus size={16} />
                 <span className="text-sm font-bold">Create new artist "{query}"</span>
-              </div>
+              </button>
             </>
           )}
         </div>

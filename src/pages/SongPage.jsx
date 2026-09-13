@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Music, Youtube, Info, Type, Plus, Minus, RotateCcw } from 'lucide-react';
+import { Music, Info, Type, Plus, Minus, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { tify, sify } from 'chinese-conv'; 
+import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext'; 
 import { Helmet } from 'react-helmet-async'; 
 import CommentsSection from '../components/CommentsSection';
@@ -29,7 +30,7 @@ const SizeControl = ({ label, type, fontSettings, updateSize }) => (
   <div className="flex items-center justify-between gap-4 mb-2">
     <span className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">{label}</span>
     <div className="flex items-center gap-3 bg-slate-950 rounded-lg p-1 border border-slate-700">
-      <button type="button" onClick={() => updateSize(type, -1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] <= 0} aria-label={`Decrease ${label} size`}>
+      <button type="button" onClick={() => updateSize(type, -1)} className="p-2.5 hover:text-white text-slate-400 transition-colors" disabled={fontSettings[type] <= 0} aria-label={`Decrease ${label} size`}>
         <Minus size={14} />
       </button>
       <div className="flex gap-1">
@@ -37,7 +38,7 @@ const SizeControl = ({ label, type, fontSettings, updateSize }) => (
           <div key={i} className={`w-1.5 h-3 rounded-full ${i <= fontSettings[type] ? 'bg-primary' : 'bg-slate-800'}`} />
         ))}
       </div>
-      <button type="button" onClick={() => updateSize(type, 1)} className="p-1 hover:text-white text-slate-500 transition-colors" disabled={fontSettings[type] >= 6} aria-label={`Increase ${label} size`}>
+      <button type="button" onClick={() => updateSize(type, 1)} className="p-2.5 hover:text-white text-slate-400 transition-colors" disabled={fontSettings[type] >= 6} aria-label={`Increase ${label} size`}>
         <Plus size={14} />
       </button>
     </div>
@@ -58,8 +59,9 @@ const ColorRow = ({ label, type, lyricColors, updateColor }) => {
               type="button"
               onClick={() => updateColor(type, sw)}
               title={sw.label}
+              aria-pressed={isSelected}
               aria-label={`${label} colour: ${sw.label}`}
-              className={`w-5 h-5 rounded-full transition-all ${
+              className={`w-6 h-6 shrink-0 rounded-full transition-all ${
                 isSelected
                   ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900 scale-110'
                   : 'opacity-60 hover:opacity-100 hover:scale-105'
@@ -75,11 +77,14 @@ const ColorRow = ({ label, type, lyricColors, updateColor }) => {
 
 const SongPage = () => {
   const { slug } = useParams();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { scriptMode, toggleScript, lyricColors, setLyricColors } = useTheme(); 
   
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [fontSettings, setFontSettings] = useState(() =>
     readJson('lyric_font_settings', { pinyin: 1, zh: 3, en: 2 })
@@ -129,16 +134,18 @@ const SongPage = () => {
     setSelectedLine(null);
     setCoverFailed(false);
     setLoading(true);
+    setLoadError(false);
     const fetchSong = async () => {
-      const { data, error } = await supabase.from('songs').select('*').eq('slug', slug).single();
+      const { data, error } = await supabase.from('songs').select('*').eq('slug', slug).maybeSingle();
       if (cancelled) return;
       if (error) console.error('Song fetch failed:', error.message);
+      setLoadError(Boolean(error));
       setSong(data ?? null);
       setLoading(false);
     };
     fetchSong();
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, reloadKey]);
 
   // Resolve the submitter to a real profile so we only ever link somewhere that
   // exists. songs.user_id references auth.users, not profiles, so there is no FK
@@ -200,8 +207,9 @@ const SongPage = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full border border-slate-800 mb-6">
             <Music className="w-7 h-7 text-slate-600" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">We couldn't find that song</h1>
-          <p className="text-slate-400 mb-8">The link may be out of date, or the song may have been removed.</p>
+          <h1 className="text-2xl font-bold text-white mb-2">{loadError ? 'Couldn’t load the lyrics' : 'We couldn’t find that song'}</h1>
+          <p className="text-slate-400 mb-8">{loadError ? 'Check your connection and try again.' : 'The link may be out of date, or the song may have been removed.'}</p>
+          {loadError && <button onClick={() => setReloadKey(key => key + 1)} className="block mx-auto mb-6 min-h-11 px-6 text-primary">Try again</button>}
           <Link to="/" className="inline-flex items-center gap-2 bg-primary text-white font-bold px-6 py-3 rounded-full hover:opacity-90 transition-opacity">
             Browse the library
           </Link>
@@ -277,27 +285,27 @@ const SongPage = () => {
       <Navbar />
 
       {/* HERO SECTION */}
-      <div className="relative h-[50vh] overflow-hidden">
+      <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-slate-950 hero-gradient z-10 pointer-events-none" />
         {song.cover_url && !coverFailed ? (
-          <img src={song.cover_url} className="w-full h-full object-cover opacity-50 blur-xl scale-110" alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} />
+          <img src={song.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-30 blur-xl scale-110" alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} />
         ) : (
-          <div className="w-full h-full bg-slate-900" />
+          <div className="absolute inset-0 bg-slate-900" />
         )}
-        <div className="absolute bottom-0 left-0 z-20 p-6 md:p-12 w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end gap-8">
+        <div className="relative z-20 px-6 py-8 md:py-12 w-full max-w-5xl mx-auto flex items-center gap-5 md:gap-8">
           {song.cover_url && !coverFailed ? (
-            <img src={song.cover_url} className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10" alt={`Album cover for ${displayTitle} by ${primaryArtist}`} onError={() => setCoverFailed(true)} />
+            <img src={song.cover_url} className="w-24 h-24 sm:w-40 sm:h-40 shrink-0 rounded-xl shadow-2xl border border-white/10" alt={`Album cover for ${displayTitle} by ${primaryArtist}`} onError={() => setCoverFailed(true)} />
           ) : (
-            <div className="w-48 h-48 rounded-2xl shadow-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="w-24 h-24 sm:w-40 sm:h-40 shrink-0 rounded-xl shadow-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
               <Music className="w-16 h-16 text-slate-600" />
             </div>
           )}
-          <div className="mb-4 flex-1">
-            <h1 className="text-4xl md:text-6xl font-black mb-2 tracking-tight text-white">{displayTitle}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-3xl md:text-5xl font-black mb-2 tracking-tight text-white">{displayTitle}</h1>
             {song.title_en && song.title_en !== song.title_zh && (
-              <p className="text-2xl text-slate-400 font-medium mb-4 italic">{song.title_en}</p>
+              <p className="text-base sm:text-xl text-slate-400 font-medium mb-3 italic">{song.title_en}</p>
             )}
-            <p className="text-2xl font-medium">
+            <p className="text-base sm:text-xl font-medium">
               {primaryArtist.split(',').map((artist, i, arr) => (
                 <span key={i}>
                   <Link to={`/artist/${encodeURIComponent(artist.trim())}`} className="text-primary hover:underline transition-colors">
@@ -307,7 +315,7 @@ const SongPage = () => {
                 </span>
               ))}
               {showSecondaryArtist && (
-                <span className="text-slate-300 text-lg ml-2">
+                <span className="text-slate-300 text-sm ml-2">
                   {displayArtist}
                 </span>
               )}
@@ -316,29 +324,31 @@ const SongPage = () => {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 mt-12 grid grid-cols-1 lg:grid-cols-3 gap-12 relative">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-10 relative">
         
         {/* LYRICS COLUMN */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="order-2 lg:order-1 lg:col-span-2 min-w-0 space-y-4">
            
            {/* Controls Header */}
-           <div className="flex justify-between items-center mb-4 relative z-50">
+           <div className="flex flex-wrap justify-between items-center gap-2 mb-4 relative z-50">
              <h3 className="text-xl font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2">
               <Music className="w-5 h-5" /> Lyrics
              </h3>
              <div className="flex gap-2 items-center">
                  
                  {/* SETTINGS DROPDOWN */}
-                 <div className="relative" ref={settingsRef}>
+                 <div ref={settingsRef}>
                     <button 
                       onClick={() => setShowSettings(!showSettings)}
-                      className={`flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full border transition-all ${showSettings ? 'bg-primary text-white border-primary' : 'border-slate-700 text-slate-400 hover:border-primary hover:text-primary'}`}
+                      aria-expanded={showSettings}
+                      aria-controls="lyric-appearance"
+                      className={`flex items-center gap-2 text-xs font-bold px-3 min-h-11 rounded-full border transition-all ${showSettings ? 'bg-primary text-white border-primary' : 'border-slate-700 text-slate-400 hover:border-primary hover:text-primary'}`}
                     >
                       <Type className="w-3 h-3" /> Appearance
                     </button>
                     
                     {showSettings && (
-                      <div className="absolute right-0 top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80 animate-in fade-in zoom-in-95 duration-200">
+                      <div id="lyric-appearance" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowSettings(false); settingsRef.current?.querySelector('button')?.focus(); } }} className="fixed right-4 top-20 sm:absolute sm:right-0 sm:top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80 max-w-[calc(100vw-2rem)] sm:max-w-full max-h-[calc(100dvh-7rem)] sm:max-h-[70dvh] overflow-y-auto">
                           
                           {/* SIZE CONTROLS */}
                           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-3">Size</p>
@@ -377,10 +387,11 @@ const SongPage = () => {
                     )}
                  </div>
 
-                 <button onClick={() => navigate(`/edit/${song.id}`)} className="text-xs text-slate-400 hover:text-primary ml-2">Suggest Edit</button>
+                 <button onClick={() => navigate(`/edit/${song.id}`)} className="min-h-11 text-xs text-slate-400 hover:text-primary ml-2">Suggest Edit</button>
              </div>
            </div>
            
+           <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
            {/* LYRICS LIST */}
            <div className="space-y-4">
             {lines.map((_, index) => {
@@ -429,18 +440,12 @@ const SongPage = () => {
         </div>
 
         {/* SIDEBAR */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-24 space-y-6">
-            {videoId ? (
-              <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
-                <div className="aspect-video">
-                  <iframe width="100%" height="100%" src={`https://www.youtube-nocookie.com/embed/${videoId}`} title="YouTube" frameBorder="0" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 text-center text-slate-500">No video available</div>
-            )}
-             <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+        <div className="contents lg:block lg:order-2">
+          <div className="contents lg:block lg:sticky lg:top-24 lg:space-y-6">
+            {videoId && <div className="order-1 aspect-video bg-black rounded-xl overflow-hidden border border-slate-800">
+              <iframe className="w-full h-full" src={`https://www.youtube-nocookie.com/embed/${videoId}`} title={`${displayTitle} music video`} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
+            </div>}
+             <div className="order-3 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
                 <h4 className="font-bold text-white mb-4">Song Details</h4>
                 <div className="space-y-3 text-sm">
                    <div className="flex justify-between text-slate-400">
@@ -481,7 +486,7 @@ const SongPage = () => {
                    {englishLines.some(l => l.trim()) && (
                      <div className="flex justify-between text-slate-400">
                        <span>Translation</span>
-                       <span className="text-emerald-400 text-xs font-bold">Available</span>
+                       <span className="text-primary text-xs font-bold">Available</span>
                      </div>
                    )}
                    {song.tags && song.tags.length > 0 && (
@@ -498,7 +503,9 @@ const SongPage = () => {
         </div>
 
         {selectedLine !== null && (
-            <LineSidebar 
+            <LineSidebar
+                key={`${song.id}:${selectedLine}:${user?.id || 'guest'}`}
+                selectedTranslation={customTranslations[selectedLine] || null}
                 songId={song.id}
                 lineIndex={selectedLine}
                 originalContent={chineseLines[selectedLine]}

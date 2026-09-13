@@ -44,7 +44,7 @@ const truncate = (str, max = 60) => {
   return str.length > max ? str.slice(0, max) + '…' : str;
 };
 
-const SubmissionCard = ({ item, onReview, onReject }) => {
+const SubmissionCard = ({ item, onReview, onReject, disabled = false }) => {
   const isEdit = item.status === 'pending_edit' || item.original_song_id;
   const mainTitle = item.title_en || item.title_zh || "Untitled";
   const displayArtist = item.artist_en || item.artist_zh || "Unknown Artist";
@@ -93,10 +93,11 @@ const SubmissionCard = ({ item, onReview, onReject }) => {
             {isEdit ? (
               <div className="bg-purple-950/20 border border-purple-900/50 p-4 rounded-lg space-y-3">
                 <p className="text-xs text-purple-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                  <AlertCircle size={14} /> {changedFields.length} Field{changedFields.length !== 1 ? 's' : ''} Modified
+                  <AlertCircle size={14} /> {item.originalData ? `${changedFields.length} Fields Modified` : 'Comparison unavailable'}
                 </p>
 
-                {changedFields.length === 0 && (
+                {!item.originalData && <p className="text-sm text-slate-300">Couldn’t load the original song. Open Review to retry before approving.</p>}
+                {item.originalData && changedFields.length === 0 && (
                   <p className="text-xs text-slate-500 italic">No detectable changes from original.</p>
                 )}
 
@@ -147,15 +148,17 @@ const SubmissionCard = ({ item, onReview, onReject }) => {
         <div className="flex md:flex-col gap-3 justify-center min-w-[140px] pt-2 md:pt-0">
           <button
             onClick={() => onReview(item.id)}
+            disabled={disabled}
             className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg ${isEdit ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20 text-white' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20 text-white'}`}
           >
             <Clock size={16} /> Review
           </button>
           <button
             onClick={() => onReject(item.id)}
+            disabled={disabled}
             className="bg-slate-800 hover:bg-red-500/10 hover:text-red-400 border border-slate-700 text-slate-400 px-4 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all"
           >
-            <Trash2 size={16} /> Delete
+            <Trash2 size={16} /> Reject
           </button>
         </div>
 

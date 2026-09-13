@@ -16,7 +16,7 @@ const LyricLine = ({
   // 7 steps (0-6): each row scales independently
   const zhSizes =     ['text-base', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-6xl'];
   const enSizes =     ['text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'];
-  const rtSizes =     ['text-[6px]', 'text-[8px]', 'text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg'];
+  const rtSizes =     ['text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'];
 
   const zhClass = zhSizes[fontSettings.zh] || 'text-2xl';
   const enClass = enSizes[fontSettings.en] || 'text-sm';
@@ -62,7 +62,7 @@ const LyricLine = ({
                 {/* rp is the fallback for engines without ruby support: 浪(làng) */}
                 <rp>(</rp>
                 <rt
-                  className={`${rtClass} font-normal tracking-wide ${pinyinColor ? '' : 'text-slate-500'}`}
+                  className={`${rtClass} font-normal tracking-wide ${pinyinColor ? '' : 'text-slate-400'}`}
                   style={{ color: pinyinColor || undefined }}
                 >
                   {py}
@@ -85,7 +85,15 @@ const LyricLine = ({
   const latinOnlyClass = enSizes[Math.min(fontSettings.zh, 4)] || 'text-base';
 
   return (
-    <div 
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Line ${index + 1}: ${originalText}. ${translatedText || ''} View translations and discussion`}
+      aria-haspopup="dialog"
+      aria-expanded={isActive}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(index); }
+      }}
       onClick={() => onClick(index)}
       className={`p-4 rounded-xl transition-all duration-300 cursor-pointer border hover:border-slate-700 ${
         isActive 

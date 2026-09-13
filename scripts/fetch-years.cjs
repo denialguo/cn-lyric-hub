@@ -8,6 +8,7 @@
  *   node scripts/fetch-years.cjs --dry-run
  *   node scripts/fetch-years.cjs --limit 50
  *   node scripts/fetch-years.cjs --refresh    # re-evaluate songs that already have a year
+ *   node scripts/fetch-years.cjs --refresh --delay 2500   # pace to avoid 429s
  *
  * --refresh REWRITES existing years, but only where a confident match is found;
  * an unmatchable song keeps whatever it had. Add --clear-unverified to null those
@@ -39,6 +40,12 @@ const refresh = args.includes('--refresh');
 const clearUnverified = args.includes('--clear-unverified');
 const limitArg = args.indexOf('--limit');
 const limit = limitArg !== -1 ? parseInt(args[limitArg + 1]) : Infinity;
+// Apple's guidance is ~20 requests/min and this path makes up to 2 per song, so
+// the default 1000ms provokes constant 429s (126 in one full pass). Backing off
+// is not just politeness — a throttled lookup falls back to a weaker query or
+// gives up, which silently degrades the data it writes.
+const delayArg = args.indexOf('--delay');
+const delay = delayArg !== -1 ? parseInt(args[delayArg + 1]) : 1000;
 
 const { search, sleep, bestReleaseYear } = require('./itunes.cjs');
 
@@ -84,7 +91,7 @@ async function main() {
   }
 
   const toProcess = songs.slice(0, limit);
-  console.log(`${refresh ? 'Re-evaluating' : 'Found'} ${songs.length} songs${refresh ? '' : ' without years'}, processing ${toProcess.length}\n`);
+  console.log(`${refresh ? 'Re-evaluating' : 'Found'} ${songs.length} songs${refresh ? '' : ' without years'}, processing ${toProcess.length} at ${delay}ms spacing\n`);
 
   let found = 0, notFound = 0, corrected = 0, cleared = 0;
 
@@ -116,7 +123,7 @@ async function main() {
       if (writeError) console.error(`     ⚠️  write failed: ${writeError.message}`);
     }
 
-    await sleep(1000);
+    await sleep(delay);
   }
 
   console.log(`\n${'='.repeat(40)}`);

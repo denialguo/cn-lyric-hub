@@ -23,16 +23,18 @@ const ThemeSettings = ({ isOpen, onToggle }) => {
         onClick={onToggle}
         className="relative z-20 p-2.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
         aria-label="Theme settings"
+        aria-expanded={isOpen}
       >
         <Palette className="w-5 h-5" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[280px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 z-10">
+        <div className="fixed top-20 right-4 sm:absolute sm:top-auto sm:right-0 mt-2 w-[280px] max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 z-10">
           <div className="flex justify-between items-center mb-4">
             <span className="text-sm font-bold text-slate-200">Appearance</span>
             <button 
               onClick={onToggle}
+              aria-label="Close appearance settings"
               className="text-slate-500 hover:text-white transition-colors"
             >
               <X className="w-4 h-4" />
@@ -82,6 +84,7 @@ const ThemeSettings = ({ isOpen, onToggle }) => {
                       : 'opacity-60 hover:opacity-100 hover:scale-105'
                   }`}
                   aria-label={`${c.label} theme`}
+                  aria-pressed={accentColor === c.id}
                   title={c.label}
                 />
               ))}

@@ -11,6 +11,7 @@ import { useToast } from '../context/ToastContext';
 import { confirmLineEdit } from '../lib/lineEdits';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
+import { finishSongSave } from '../lib/finishSongSave';
 import { isAdmin, submitterName } from '../lib/identity';
 
 const EditSongPage = ({ isReviewMode = false }) => {
@@ -21,6 +22,10 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const [savedSongId, setSavedSongId] = useState(null);
+  const [saveIncomplete, setSaveIncomplete] = useState(false);
 
   const [tags, setTags] = useState([]);
   const { selectedArtists, setSelectedArtists, handleSelectArtist, handleRemoveArtist } = useArtistSelection();
@@ -32,13 +37,20 @@ const EditSongPage = ({ isReviewMode = false }) => {
   });
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
+      setFetching(true);
+      setFetchError('');
+      setOriginalData(null);
+      setSavedSongId(null);
+      setSaveIncomplete(false);
       const tableName = isReviewMode ? 'song_submissions' : 'songs';
       const { data: song, error } = await supabase.from(tableName).select('*').eq('id', id).single();
 
-      if (error) {
-        toast.error('Error loading data');
-        navigate('/admin');
+      if (cancelled) return;
+      if (error || !song) {
+        setFetchError('Couldn’t load this song or submission. Check your connection and account access.');
+        setFetching(false);
         return;
       }
 
@@ -46,10 +58,11 @@ const EditSongPage = ({ isReviewMode = false }) => {
       if (song.tags) setTags(song.tags);
 
       if (!isReviewMode) {
-        const { data: linkedArtists } = await supabase
+        const { data: linkedArtists, error: artistError } = await supabase
           .from('song_artists')
           .select('artist_id, artists(*)')
           .eq('song_id', id);
+        if (artistError) setFetchError('Couldn’t load the song’s artists. Retry before editing.');
         if (linkedArtists) setSelectedArtists(linkedArtists.map((link) => link.artists).filter(Boolean));
       } else {
         const enList = (song.artist_en || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -63,21 +76,24 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
         const namesToLookup = reconstructed.map((a) => a.name_en);
         if (namesToLookup.length > 0) {
-          const { data: found } = await supabase.from('artists').select('*').in('name_en', namesToLookup);
+          const { data: found, error: lookupError } = await supabase.from('artists').select('*').in('name_en', namesToLookup);
+          if (lookupError) setFetchError('Couldn’t load artists for comparison. Retry before reviewing.');
           setSelectedArtists(reconstructed.map((a) => found?.find((f) => f.name_en === a.name_en) || a));
         } else {
           setSelectedArtists(reconstructed);
         }
 
         if (song.original_song_id) {
-          const { data: orig } = await supabase.from('songs').select('*').eq('id', song.original_song_id).single();
+          const { data: orig, error: originalError } = await supabase.from('songs').select('*').eq('id', song.original_song_id).single();
+          if (originalError || !orig) setFetchError('Couldn’t load the original song. Retry to compare changes before approving.');
           if (orig) setOriginalData(orig);
         }
       }
-      setFetching(false);
+      if (!cancelled) setFetching(false);
     };
     fetchData();
-  }, [id, navigate, isReviewMode]);
+    return () => { cancelled = true; };
+  }, [id, navigate, isReviewMode, reloadKey]);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -93,7 +109,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || fetchError) return;
     setLoading(true);
 
     if (selectedArtists.length === 0) {
@@ -124,38 +140,34 @@ const EditSongPage = ({ isReviewMode = false }) => {
       last_edited_by: editorName,
     };
 
+    let wroteSongId = savedSongId;
+
     // Helper: resolve an artist to a DB id, creating if needed
     const resolveArtistId = async (artist) => {
       if (artist.id && !artist.isNew) return artist.id;
 
-      const { data: existing } = await supabase
+      const { data: existing, error: lookupError } = await supabase
         .from('artists').select('id').eq('name_en', artist.name_en).maybeSingle();
+      if (lookupError) throw lookupError;
       if (existing) return existing.id;
 
       const artistSlug =
         artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') +
         '-' + Math.floor(Math.random() * 1000);
-      const { data: created } = await supabase
+      const { data: created, error: createError } = await supabase
         .from('artists')
         .insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug })
         .select()
         .single();
+      if (createError) throw createError;
       return created.id;
     };
 
-    // Helper: link all selected artists to a song
-    const linkArtists = async (songId) => {
-      await supabase.from('song_artists').delete().eq('song_id', songId);
-      for (const artist of selectedArtists) {
-        const artistId = await resolveArtistId(artist);
-        await supabase.from('song_artists').insert({ song_id: songId, artist_id: artistId });
-      }
-    };
-
     try {
-      const targetSongId = isReviewMode ? formData.original_song_id : id;
+      const targetSongId = isReviewMode ? (formData.original_song_id || savedSongId) : id;
       if (!await confirmLineEdit(supabase, targetSongId, formData.lyrics_chinese, confirm)) return;
       if (isReviewMode) {
+        const artistIds = await Promise.all(selectedArtists.map(resolveArtistId));
         // A reviewed/published song is curated content — lift it into the listed catalog.
         // Credit the person who wrote the edit, not the admin approving it: safePayload
         // took last_edited_by from the current session, which here is always the admin.
@@ -166,29 +178,33 @@ const EditSongPage = ({ isReviewMode = false }) => {
           last_edited_by: formData.submitted_by || editorName,
         };
 
-        if (formData.original_song_id) {
+        if (formData.original_song_id || savedSongId) {
           const { error: updateError } = await supabase
-            .from('songs').update(payloadForLiveDB).eq('id', formData.original_song_id);
+            .from('songs').update(payloadForLiveDB).eq('id', formData.original_song_id || savedSongId).select('id').single();
           if (updateError) throw updateError;
-          await linkArtists(formData.original_song_id);
+          wroteSongId = formData.original_song_id || savedSongId;
         } else {
           const { data: newSong, error: insertError } = await supabase
             .from('songs').insert([payloadForLiveDB]).select().single();
           if (insertError) throw insertError;
-          await linkArtists(newSong.id);
+          wroteSongId = newSong.id;
         }
 
-        // Keep the row so the submitter can see it was approved.
-        await supabase.from('song_submissions').update({ status: 'approved' }).eq('id', id);
+        setSavedSongId(wroteSongId);
+        setFormData(previous => ({ ...previous, slug: finalSlug }));
+        await finishSongSave(supabase, wroteSongId, artistIds, id);
+        setSaveIncomplete(false);
         toast.success('Approved & Published!');
         navigate('/admin');
       } else {
         if (isAdmin(user, profile)) {
+          const artistIds = await Promise.all(selectedArtists.map(resolveArtistId));
           // Admin editing a song curates it — lift imports into the listed catalog
           const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
-          const { error } = await supabase.from('songs').update(payloadForLiveDB).eq('id', id);
+          const { error } = await supabase.from('songs').update(payloadForLiveDB).eq('id', id).select('id').single();
           if (error) throw error;
-          await linkArtists(id);
+          wroteSongId = id;
+          await finishSongSave(supabase, id, artistIds);
           navigate(`/song/${formData.slug}`);
         } else {
           const submissionPayload = {
@@ -204,7 +220,9 @@ const EditSongPage = ({ isReviewMode = false }) => {
         }
       }
     } catch (error) {
-      toast.error('Error: ' + error.message);
+      console.error('Song save failed:', error);
+      setSaveIncomplete(Boolean(wroteSongId));
+      toast.error(wroteSongId ? 'The song was saved, but some updates failed. Retry here to finish.' : 'Couldn’t save. Your changes are still here; try again.');
     } finally {
       setLoading(false);
     }
@@ -214,7 +232,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
     const ok = await confirm('Reject this submission?', { destructive: true, confirmLabel: 'Reject' });
     if (!ok) return;
     setLoading(true);
-    const { error } = await supabase.from('song_submissions').update({ status: 'rejected' }).eq('id', id);
+    const { error } = await supabase.from('song_submissions').update({ status: 'rejected' }).eq('id', id).select('id').single();
     if (error) toast.error('Failed to reject: ' + error.message);
     else navigate('/admin');
     setLoading(false);
@@ -228,7 +246,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
           isChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'
         }`}
       >
-        <label className="text-slate-400 text-sm flex justify-between items-center">
+        <label htmlFor={name} className="text-slate-400 text-sm flex justify-between items-center">
           <span>{label} {required && <span className="text-primary">*</span>}</span>
           {isChanged && (
             <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider flex items-center gap-1">
@@ -237,7 +255,9 @@ const EditSongPage = ({ isReviewMode = false }) => {
           )}
         </label>
         <input
+          id={name}
           name={name}
+          required={required}
           value={formData[name] || ''}
           onChange={handleChange}
           className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full"
@@ -251,10 +271,16 @@ const EditSongPage = ({ isReviewMode = false }) => {
     );
   };
 
-  if (fetching) return <div className="text-white p-10">Loading...</div>;
+  if (fetching) return <div className="text-white p-10">Loading review…</div>;
+  if (fetchError) return <main className="max-w-xl mx-auto p-8 text-slate-300">
+    <h1 className="text-xl text-white mb-4">Review unavailable</h1>
+    <p role="alert">{fetchError}</p>
+    <button onClick={() => setReloadKey(key => key + 1)} className="min-h-11 text-primary mr-6">Try again</button>
+    <button onClick={() => navigate(isReviewMode ? '/admin' : '/')} className="min-h-11">Go back</button>
+  </main>;
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 md:p-12">
+    <div className="min-h-screen bg-slate-950 p-4 sm:p-6 md:p-12 pb-28">
       <div className="max-w-[1600px] mx-auto">
         <div className="flex justify-between items-start mb-6">
           <button
@@ -275,17 +301,22 @@ const EditSongPage = ({ isReviewMode = false }) => {
           {isReviewMode ? 'Approve Submission' : 'Edit Song'}
         </h1>
 
+        {saveIncomplete && <div role="alert" className="mb-6 p-4 border border-amber-500/40 rounded-xl text-amber-300 text-sm">
+          The song is saved, but its artist links or review status need another attempt. Retry here to finish without creating another song.
+        </div>}
         <form onSubmit={handleSave} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
             {renderTextInput('Primary Title', 'title_zh', true)}
             {renderTextInput('Secondary Title', 'title_en')}
 
             <div className="lg:col-span-2 p-3 rounded-lg border border-transparent">
+              {originalData && <p className="text-xs text-slate-400 mb-2">Original artists: {originalData.artist_en} {originalData.artist_zh}</p>}
               <ArtistSearch selectedArtists={selectedArtists} onSelect={handleSelectArtist} onRemove={handleRemoveArtist} />
             </div>
 
             <div className="space-y-2 p-3">
-              <label className="text-slate-400 text-sm">Tags</label>
+              <p className="text-slate-400 text-sm">Tags</p>
+              {originalData && <p className="text-xs text-slate-400">Original tags: {(originalData.tags || []).join(', ') || '(none)'}</p>}
               <TagInput tags={tags} setTags={setTags} placeholder="Type tag & Enter..." />
             </div>
 
@@ -297,11 +328,12 @@ const EditSongPage = ({ isReviewMode = false }) => {
               const isChanged = originalData && (originalData.year || '') !== (formData.year || '');
               return (
                 <div className={`space-y-2 p-3 rounded-lg border transition-colors ${isChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
-                  <label className="text-slate-400 text-sm flex justify-between items-center">
+                  <label htmlFor="year" className="text-slate-400 text-sm flex justify-between items-center">
                     Release Year
                     {isChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">Edited</span>}
                   </label>
-                  <input name="year" type="number" min="1900" max="2099" value={formData.year || ''} onChange={handleChange} placeholder="e.g. 2019" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
+                  <input id="year" name="year" type="number" min="1900" max="2099" value={formData.year || ''} onChange={handleChange} placeholder="e.g. 2019" className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-white w-full focus:border-primary outline-none" />
+                  {isChanged && <p className="text-xs text-slate-400">Original: {originalData.year || '(empty)'}</p>}
                 </div>
               );
             })()}
@@ -313,12 +345,13 @@ const EditSongPage = ({ isReviewMode = false }) => {
               const bioChanged = originalData && (originalData.bio || '') !== (formData.bio || '');
               return (
                 <div className={`space-y-2 p-3 rounded-lg border transition-colors ${bioChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
-                  <label className="text-slate-400 text-sm font-bold flex justify-between items-center">
+                  <label htmlFor="bio" className="text-slate-400 text-sm font-bold flex justify-between items-center">
                     About This Song
                     {bioChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">Edited</span>}
                   </label>
+                  {bioChanged && <p className="text-xs text-slate-400 whitespace-pre-wrap">Original: {originalData.bio || '(empty)'}</p>}
                   <textarea
-                    name="bio" value={formData.bio || ''} onChange={handleChange}
+                    id="bio" name="bio" value={formData.bio || ''} onChange={handleChange}
                     placeholder="Background, meaning, cultural context..."
                     rows={4}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-primary outline-none transition-colors resize-none leading-relaxed"
@@ -330,12 +363,13 @@ const EditSongPage = ({ isReviewMode = false }) => {
               const creditsChanged = originalData && (originalData.credits || '') !== (formData.credits || '');
               return (
                 <div className={`space-y-2 p-3 rounded-lg border transition-colors ${creditsChanged ? 'bg-yellow-500/10 border-yellow-500/50' : 'border-transparent'}`}>
-                  <label className="text-slate-400 text-sm font-bold flex justify-between items-center">
+                  <label htmlFor="credits" className="text-slate-400 text-sm font-bold flex justify-between items-center">
                     Credits
                     {creditsChanged && <span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">Edited</span>}
                   </label>
+                  {creditsChanged && <p className="text-xs text-slate-400 whitespace-pre-wrap">Original: {originalData.credits || '(empty)'}</p>}
                   <textarea
-                    name="credits" value={formData.credits || ''} onChange={handleChange}
+                    id="credits" name="credits" value={formData.credits || ''} onChange={handleChange}
                     placeholder="Lyrics by, composed by, arranged by..."
                     rows={4}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-primary outline-none transition-colors resize-none leading-relaxed"
@@ -368,23 +402,23 @@ const EditSongPage = ({ isReviewMode = false }) => {
             />
           </div>
 
-          <div className="fixed bottom-6 right-6 z-50 flex gap-4">
+          <div className="sticky bottom-0 z-50 flex flex-wrap justify-end gap-3 bg-slate-950 border-t border-slate-700 py-4">
             {isReviewMode && (
               <button
-                type="button" onClick={handleReject} disabled={loading}
-                className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold py-4 px-6 rounded-full border border-red-500/50 flex items-center gap-2 backdrop-blur-md transition-all"
+                type="button" onClick={handleReject} disabled={loading || saveIncomplete}
+                className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold min-h-12 py-3 px-4 text-sm rounded-full border border-red-500/50 flex items-center gap-2 backdrop-blur-md transition-all"
               >
                 <XCircle className="w-5 h-5" /> Reject
               </button>
             )}
             <button
               type="submit" disabled={loading}
-              className={`text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105 ${
+              className={`text-white font-bold min-h-12 py-3 px-4 text-sm rounded-full shadow-2xl flex items-center gap-2 transition-transform hover:scale-105 ${
                 isReviewMode ? 'bg-primary hover:bg-primary/90' : 'bg-blue-600 hover:bg-blue-500'
               }`}
             >
               {isReviewMode ? <CheckCircle className="w-5 h-5" /> : <Save className="w-5 h-5" />}
-              {loading ? 'Processing...' : isReviewMode ? 'Approve & Publish' : 'Save Changes'}
+              {loading ? 'Processing…' : saveIncomplete ? 'Retry remaining updates' : isReviewMode ? 'Approve & Publish' : 'Save Changes'}
             </button>
           </div>
         </form>

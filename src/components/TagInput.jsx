@@ -73,6 +73,7 @@ const TagInput = ({ tags, setTags, placeholder }) => {
             {tag}
             <button
               type="button"
+              aria-label={`Remove ${tag} tag`}
               onClick={() => removeTag(index)}
               className="text-slate-500 hover:text-white"
             >
@@ -80,7 +81,7 @@ const TagInput = ({ tags, setTags, placeholder }) => {
             </button>
           </span>
         ))}
-        <input
+        <input aria-label="Add tags"
           type="text"
           value={input}
           onChange={(e) => { setInput(e.target.value); setHighlight(-1); setOpen(true); }}

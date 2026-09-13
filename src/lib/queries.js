@@ -145,23 +145,6 @@ export async function trendingSongs({ limit = 36 } = {}) {
   return { songs, hasMore: false };
 }
 
-/** Most recently added songs. */
-export async function freshSongs({ page = 0, pageSize = 36 } = {}) {
-  const limit = (page + 1) * pageSize;
-  const { data, error } = await supabase
-    .from('songs')
-    .select(CARD_COLUMNS)
-    .or('source.eq.user,cover_url.neq.""')
-    .order('created_at', { ascending: false })
-    .range(0, limit - 1);
-
-  if (error) {
-    console.error('freshSongs failed:', error.message);
-    return { songs: [], hasMore: false, error };
-  }
-  return { songs: data || [], hasMore: (data || []).length === limit };
-}
-
 /**
  * Older material. This used to filter on tags, but only 4 songs in the whole
  * catalogue carry any tag, so the Classics tab rendered zero cards. `year` is
@@ -223,4 +206,13 @@ export async function likedSongIds(userId) {
     return new Set();
   }
   return new Set((data || []).map((r) => r.song_id));
+}
+
+/** Positive translation badges without downloading lyric bodies into the grid. */
+export async function translatedSongIds(ids) {
+  if (!ids.length) return new Set();
+  const { data, error } = await supabase.from('songs').select('id')
+    .in('id', ids).not('lyrics_english', 'is', null).neq('lyrics_english', '');
+  if (error) return new Set();
+  return new Set((data || []).map(song => song.id));
 }
