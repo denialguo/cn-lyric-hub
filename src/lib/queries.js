@@ -216,3 +216,9 @@ export async function translatedSongIds(ids) {
   if (error) return new Set();
   return new Set((data || []).map(song => song.id));
 }
+
+/** Shared precomputed chart data; never download the catalogue in the browser. */
+export function catalogueStats() {
+  return supabase.from('catalogue_stats_snapshot')
+    .select('generated_at,payload').eq('id', true).single();
+}

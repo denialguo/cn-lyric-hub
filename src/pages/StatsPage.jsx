@@ -1,309 +1,16 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, Music, Users, Type, Heart, TrendingUp, Hash, Sparkles, MessageSquare, Globe, Calendar, Repeat, BookOpen, Fingerprint, Ghost, Mic } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { supabase } from '../lib/supabaseClient';
-import { fetchAllRows } from '../lib/queries';
+import { catalogueStats } from '../lib/queries';
 import Navbar from '../components/Navbar';
-import { pinyin as getPinyin } from 'pinyin-pro';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart,
   RadarChart, Radar, PolarGrid, PolarAngleAxis
 } from 'recharts';
-import { isChinese } from '../utils/lyrics';
-import { sify, tify } from 'chinese-conv';
+import { tify } from 'chinese-conv';
 import { useTheme } from '../context/ThemeContext';
-
-const MOOD_KEYWORDS = {
-  'Love': '爱情恋心吻亲甜蜜',
-  'Heartbreak': '泪哭伤痛悲苦愁碎',
-  'Dreams': '梦想星月光夜空飞',
-  'Nature': '风雨花海天山水云雪',
-  'Longing': '思念等候望归忆远',
-  'Solitude': '寂寞孤独冷暗默影',
-};
-
-// --- ANALYSIS FUNCTIONS ---
-
-const analyzeCharacters = (songs) => {
-  const freq = {};
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    [...song.lyrics_chinese].forEach(char => {
-      if (isChinese(char)) freq[char] = (freq[char] || 0) + 1;
-    });
-  });
-  return Object.entries(freq).sort((a, b) => b[1] - a[1]);
-};
-
-const analyzeCompounds = (songs) => {
-  const freq = {};
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    song.lyrics_chinese.split('\n').forEach(line => {
-      const chars = [...line].filter(isChinese);
-      for (let i = 0; i < chars.length - 1; i++) {
-        const compound = chars[i] + chars[i + 1];
-        freq[compound] = (freq[compound] || 0) + 1;
-      }
-    });
-  });
-  return Object.entries(freq)
-    .filter(([, count]) => count >= 3)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 30);
-};
-
-const analyzeTones = (songs) => {
-  const tones = { '1st (ā)': 0, '2nd (á)': 0, '3rd (ǎ)': 0, '4th (à)': 0, 'Neutral': 0 };
-  const t1 = /[āēīōūǖ]/g, t2 = /[áéíóúǘ]/g, t3 = /[ǎěǐǒǔǚ]/g, t4 = /[àèìòùǜ]/g;
-
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    [...song.lyrics_chinese].filter(isChinese).forEach(char => {
-      const py = getPinyin(char, { toneType: 'symbol' });
-      if (t1.test(py)) tones['1st (ā)']++;
-      else if (t2.test(py)) tones['2nd (á)']++;
-      else if (t3.test(py)) tones['3rd (ǎ)']++;
-      else if (t4.test(py)) tones['4th (à)']++;
-      else tones['Neutral']++;
-    });
-  });
-  return Object.entries(tones).map(([name, value]) => ({ name, value }));
-};
-
-const analyzeLineLength = (songs) => {
-  const buckets = { '1-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21-25': 0, '26+': 0 };
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    song.lyrics_chinese.split('\n').forEach(line => {
-      const count = [...line].filter(isChinese).length;
-      if (count === 0) return;
-      if (count <= 5) buckets['1-5']++;
-      else if (count <= 10) buckets['6-10']++;
-      else if (count <= 15) buckets['11-15']++;
-      else if (count <= 20) buckets['16-20']++;
-      else if (count <= 25) buckets['21-25']++;
-      else buckets['26+']++;
-    });
-  });
-  return Object.entries(buckets).map(([range, count]) => ({ range, count }));
-};
-
-const findRepeatedLines = (songs) => {
-  const lineFreq = {};
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    const lines = song.lyrics_chinese.split('\n').map(l => l.trim()).filter(l => l && isChinese(l[0]) && l.length > 4);
-    const seen = new Set();
-    lines.forEach(line => {
-      if (!seen.has(line)) {
-        lineFreq[line] = (lineFreq[line] || { count: 0, songs: [] });
-        lineFreq[line].count++;
-        lineFreq[line].songs.push(song.title_zh || song.title_en);
-        seen.add(line);
-      }
-    });
-  });
-  return Object.entries(lineFreq)
-    .filter(([, data]) => data.count >= 2)
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 10)
-    .map(([line, data]) => ({ line, ...data }));
-};
-
-const analyzeByYear = (songs) => {
-  const yearSongs = songs.filter(s => s.year && s.lyrics_chinese);
-  if (yearSongs.length < 3) return null;
-
-  const byYear = {};
-  yearSongs.forEach(song => {
-    const decade = Math.floor(song.year / 10) * 10;
-    if (!byYear[decade]) byYear[decade] = { songs: [], totalChars: 0, uniqueChars: new Set(), totalLines: 0 };
-    byYear[decade].songs.push(song);
-    byYear[decade].totalLines += song.lyrics_chinese.split('\n').filter(l => l.trim()).length;
-    [...song.lyrics_chinese].forEach(char => {
-      if (isChinese(char)) {
-        byYear[decade].totalChars++;
-        byYear[decade].uniqueChars.add(char);
-      }
-    });
-  });
-
-  return Object.entries(byYear)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([decade, data]) => ({
-      decade: `${decade}s`,
-      songs: data.songs.length,
-      avgLineLength: Math.round(data.totalChars / Math.max(data.totalLines, 1)),
-      uniqueRatio: Math.round((data.uniqueChars.size / Math.max(data.totalChars, 1)) * 100),
-      vocabulary: data.uniqueChars.size,
-    }));
-};
-
-const analyzeDiversity = (songs) => {
-  return songs
-    .filter(s => s.lyrics_chinese)
-    .map(song => {
-      const chars = [...song.lyrics_chinese].filter(isChinese);
-      const unique = new Set(chars);
-      return {
-        title: song.title_zh || song.title_en || 'Untitled',
-        slug: song.slug,
-        total: chars.length,
-        unique: unique.size,
-        ratio: chars.length > 0 ? Math.round((unique.size / chars.length) * 100) : 0,
-      };
-    })
-    .filter(s => s.total > 20)
-    .sort((a, b) => b.ratio - a.ratio);
-};
-
-const analyzeMoods = (songs) => {
-  const scores = {};
-  const songScores = {};
-  Object.keys(MOOD_KEYWORDS).forEach(mood => { scores[mood] = 0; songScores[mood] = { max: 0, song: null }; });
-
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    const chars = [...song.lyrics_chinese];
-    Object.entries(MOOD_KEYWORDS).forEach(([mood, keywords]) => {
-      const count = chars.filter(c => keywords.includes(c)).length;
-      scores[mood] += count;
-      if (count > songScores[mood].max) {
-        songScores[mood] = { max: count, song };
-      }
-    });
-  });
-
-  const max = Math.max(...Object.values(scores), 1);
-  const radar = Object.entries(scores).map(([mood, score]) => ({
-    mood,
-    value: Math.round((score / max) * 100),
-    raw: score,
-  }));
-
-  const champions = Object.entries(songScores)
-    .filter(([, data]) => data.song)
-    .map(([mood, data]) => ({
-      mood,
-      title: data.song.title_zh || data.song.title_en,
-      slug: data.song.slug,
-      count: data.max,
-    }));
-
-  return { radar, champions };
-};
-
-const analyzeGhostChars = (songs) => {
-  const charSongs = {};
-  songs.forEach(song => {
-    if (!song.lyrics_chinese) return;
-    const seen = new Set();
-    [...song.lyrics_chinese].forEach(char => {
-      if (isChinese(char) && !seen.has(char)) {
-        if (!charSongs[char]) charSongs[char] = [];
-        charSongs[char].push(song);
-        seen.add(char);
-      }
-    });
-  });
-
-  const ghosts = Object.entries(charSongs)
-    .filter(([, s]) => s.length === 1)
-    .map(([char, s]) => ({ char, song: s[0] }));
-
-  const bySong = {};
-  ghosts.forEach(({ char, song }) => {
-    const key = song.slug;
-    if (!bySong[key]) bySong[key] = { title: song.title_zh || song.title_en, slug: song.slug, chars: [] };
-    bySong[key].chars.push(char);
-  });
-
-  return {
-    total: ghosts.length,
-    bySong: Object.values(bySong).sort((a, b) => b.chars.length - a.chars.length).slice(0, 8),
-  };
-};
-
-const analyzeSongSignatures = (songs) => {
-  const songsWithCompounds = songs.filter(s => s.lyrics_chinese).map(song => {
-    const freq = {};
-    song.lyrics_chinese.split('\n').forEach(line => {
-      const chars = [...line].filter(isChinese);
-      for (let i = 0; i < chars.length - 1; i++) {
-        const compound = chars[i] + chars[i + 1];
-        freq[compound] = (freq[compound] || 0) + 1;
-      }
-    });
-    const total = Object.values(freq).reduce((a, b) => a + b, 0);
-    return { song, freq, total };
-  }).filter(s => s.total > 0);
-
-  const docFreq = {};
-  songsWithCompounds.forEach(({ freq }) => {
-    Object.keys(freq).forEach(compound => {
-      docFreq[compound] = (docFreq[compound] || 0) + 1;
-    });
-  });
-
-  const N = songsWithCompounds.length;
-
-  return songsWithCompounds.map(({ song, freq, total }) => {
-    const scores = Object.entries(freq).map(([compound, count]) => ({
-      compound,
-      score: (count / total) * Math.log(N / (docFreq[compound] || 1)),
-      count,
-    }));
-    scores.sort((a, b) => b.score - a.score);
-    return {
-      title: song.title_zh || song.title_en || 'Untitled',
-      slug: song.slug,
-      signatures: scores.slice(0, 5).filter(s => s.score > 0),
-    };
-  }).filter(s => s.signatures.length >= 3)
-    .sort((a, b) => b.signatures[0].score - a.signatures[0].score)
-    .slice(0, 8);
-};
-
-const analyzeRhymes = (songs) => {
-  return songs
-    .filter(s => s.lyrics_chinese)
-    .map(song => {
-      const lines = song.lyrics_chinese.split('\n')
-        .map(l => l.trim())
-        .filter(l => l && [...l].some(isChinese));
-
-      if (lines.length < 4) return null;
-
-      const finals = lines.map(line => {
-        const chars = [...line].filter(isChinese);
-        if (chars.length === 0) return '';
-        const py = getPinyin(chars[chars.length - 1], { toneType: 'none' });
-        const match = py.match(/[aeiouü].*/);
-        return match ? match[0] : '';
-      });
-
-      let rhymes = 0;
-      for (let i = 1; i < finals.length; i++) {
-        if (!finals[i]) continue;
-        for (let j = Math.max(0, i - 2); j < i; j++) {
-          if (finals[j] && finals[j] === finals[i]) { rhymes++; break; }
-        }
-      }
-
-      return {
-        title: song.title_zh || song.title_en || 'Untitled',
-        slug: song.slug,
-        density: Math.round((rhymes / Math.max(lines.length - 1, 1)) * 100),
-        rhymeLines: rhymes,
-        totalLines: lines.length,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.density - a.density);
-};
 
 // --- CHART THEME ---
 const COLORS = ['#06b6d4', '#8b5cf6', '#f43f5e', '#f59e0b', '#10b981', '#3b82f6', '#ec4899'];
@@ -365,98 +72,46 @@ const StatsPage = () => {
   const navigate = useNavigate();
   const { scriptMode } = useTheme();
   const sc = (text) => scriptMode === 'traditional' ? tify(text) : text;
-  const [loading, setLoading] = useState(true);
-  const [songs, setSongs] = useState([]);
-  const [topLiked, setTopLiked] = useState([]);
-  const [artistCount, setArtistCount] = useState(0);
-  const [translationCount, setTranslationCount] = useState(0);
-  const [commentCount, setCommentCount] = useState(0);
+  const [snapshot, setSnapshot] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [randomLyric, setRandomLyric] = useState(null);
 
   useEffect(() => {
-    const fetchAll = async () => {
-      // These had no .range(), so PostgREST capped them at 1000 of 1608 songs and
-      // every statistic on the page silently understated by ~38%.
-      const songsData = await fetchAllRows(
-        'songs',
-        'id, title_zh, title_en, artist_en, artist_zh, lyrics_chinese, tags, slug, cover_url, year'
-      );
-
-      const likedData = await fetchAllRows(
-        'songs',
-        'id, title_zh, title_en, artist_en, slug, cover_url, song_likes(count)'
-      );
-
-      const { count: artists } = await supabase.from('artists').select('*', { count: 'exact', head: true });
-      const { count: translations } = await supabase.from('line_translations').select('*', { count: 'exact', head: true });
-      const { count: comments } = await supabase.from('comments').select('*', { count: 'exact', head: true });
-
-      if (songsData) setSongs(songsData.map(s => s.lyrics_chinese ? { ...s, lyrics_chinese: sify(s.lyrics_chinese) } : s));
-
-      if (likedData) {
-        const sorted = likedData
-          .map(s => ({ ...s, likeCount: s.song_likes?.[0]?.count || 0 }))
-          .filter(s => s.likeCount > 0)
-          .sort((a, b) => b.likeCount - a.likeCount)
-          .slice(0, 10);
-        setTopLiked(sorted);
+    let cancelled = false;
+    setLoadError(false);
+    catalogueStats().then(({ data, error }) => {
+      if (cancelled) return;
+      if (error || !data || data.payload?.version !== 1) {
+        setLoadError(true);
+        return;
       }
+      setSnapshot(data);
+      const samples = data.payload.lyricSamples;
+      setRandomLyric(samples[Math.floor(Math.random() * samples.length)] || null);
+    }).catch(() => { if (!cancelled) setLoadError(true); });
+    return () => { cancelled = true; };
+  }, [reloadKey]);
 
-      setArtistCount(artists || 0);
-      setTranslationCount(translations || 0);
-      setCommentCount(comments || 0);
-
-      if (songsData?.length) {
-        const withLyrics = songsData.filter(s => s.lyrics_chinese);
-        if (withLyrics.length) {
-          const rs = withLyrics[Math.floor(Math.random() * withLyrics.length)];
-          const lines = rs.lyrics_chinese.split('\n').filter(l => l.trim() && [...l].some(isChinese));
-          if (lines.length) {
-            setRandomLyric({ line: lines[Math.floor(Math.random() * lines.length)], song: rs });
-          }
-        }
-      }
-
-      setLoading(false);
-    };
-    fetchAll();
-  }, []);
-
-  const charFreq = useMemo(() => analyzeCharacters(songs), [songs]);
-  const compounds = useMemo(() => analyzeCompounds(songs), [songs]);
-  const toneData = useMemo(() => analyzeTones(songs), [songs]);
-  const lineLengthData = useMemo(() => analyzeLineLength(songs), [songs]);
-  const repeatedLines = useMemo(() => findRepeatedLines(songs), [songs]);
-  const yearData = useMemo(() => analyzeByYear(songs), [songs]);
-  const diversityData = useMemo(() => analyzeDiversity(songs), [songs]);
-  const moodData = useMemo(() => analyzeMoods(songs), [songs]);
-  const ghostData = useMemo(() => analyzeGhostChars(songs), [songs]);
-  const signatureData = useMemo(() => analyzeSongSignatures(songs), [songs]);
-  const rhymeData = useMemo(() => analyzeRhymes(songs), [songs]);
-  const tagDist = useMemo(() => {
-    const tags = {};
-    songs.forEach(s => (s.tags || []).forEach(t => { tags[t.toLowerCase()] = (tags[t.toLowerCase()] || 0) + 1; }));
-    return Object.entries(tags).sort((a, b) => b[1] - a[1]);
-  }, [songs]);
-
-  const totalLines = useMemo(() => songs.reduce((t, s) => t + (s.lyrics_chinese?.split('\n').filter(l => l.trim()).length || 0), 0), [songs]);
-  const totalChars = useMemo(() => songs.reduce((t, s) => t + (s.lyrics_chinese ? [...s.lyrics_chinese].filter(isChinese).length : 0), 0), [songs]);
-  const uniqueCharCount = useMemo(() => {
-    const set = new Set();
-    songs.forEach(s => { if (s.lyrics_chinese) [...s.lyrics_chinese].forEach(c => { if (isChinese(c)) set.add(c); }); });
-    return set.size;
-  }, [songs]);
-
-  if (loading) {
+  if (!snapshot) {
     return (
       <div className="min-h-screen bg-slate-950">
         <Navbar />
-        <div className="flex items-center justify-center h-[60vh] text-slate-500">Crunching the numbers...</div>
+        <div className="flex flex-col items-center justify-center gap-3 h-[60vh] text-slate-400" role="status">
+          {loadError ? <>Stats are temporarily unavailable.
+            <button className="text-primary underline" onClick={() => setReloadKey(k => k + 1)}>Retry</button>
+          </> : 'Loading stats…'}
+        </div>
       </div>
     );
   }
 
-  const avgLines = songs.length ? Math.round(totalLines / songs.length) : 0;
+  const {
+    songCount, topLiked, artistCount, translationCount, commentCount,
+    charFreq, compounds, toneData, lineLengthData, repeatedLines, yearData,
+    diversityData, moodData, ghostData, signatureData, rhymeData, tagDist,
+    totalLines, totalChars, uniqueCharCount, avgLines, totalLikes, longestSong, mostRepetitive,
+  } = snapshot.payload;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -472,10 +127,11 @@ const StatsPage = () => {
         <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-primary/15 rounded-full blur-[100px] -z-10" />
         <div className="max-w-6xl mx-auto px-6 py-16 text-center">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-full text-sm font-bold mb-6">
-            <BarChart3 size={16} /> Live Stats
+            <BarChart3 size={16} /> Catalogue Stats
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">The Numbers</h1>
-          <p className="text-slate-400 max-w-xl mx-auto">What {totalChars.toLocaleString()} characters across {songs.length} songs look like under a microscope.</p>
+          <p className="text-xs text-slate-400 mb-3">Updated {new Date(snapshot.generated_at).toLocaleString()}</p>
+          <p className="text-slate-400 max-w-xl mx-auto">What {totalChars.toLocaleString()} characters across {songCount} songs look like under a microscope.</p>
         </div>
       </div>
 
@@ -501,7 +157,7 @@ const StatsPage = () => {
 
         {/* TOP STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={Music} label="Songs" value={songs.length.toLocaleString()} />
+          <StatCard icon={Music} label="Songs" value={songCount.toLocaleString()} />
           <StatCard icon={Users} label="Artists" value={artistCount.toLocaleString()} color="text-violet-400" />
           <StatCard icon={Type} label="Characters" value={totalChars.toLocaleString()} sub={`${uniqueCharCount.toLocaleString()} unique`} color="text-amber-400" />
           <StatCard icon={Hash} label="Lines" value={totalLines.toLocaleString()} sub={`~${avgLines} per song`} color="text-emerald-400" />
@@ -509,7 +165,7 @@ const StatsPage = () => {
         <div className="grid grid-cols-3 gap-4">
           <StatCard icon={Globe} label="Translations" value={translationCount.toLocaleString()} color="text-blue-400" />
           <StatCard icon={MessageSquare} label="Comments" value={commentCount.toLocaleString()} color="text-pink-400" />
-          <StatCard icon={Heart} label="Likes" value={topLiked.reduce((s, x) => s + x.likeCount, 0).toLocaleString()} color="text-red-400" />
+          <StatCard icon={Heart} label="Likes" value={totalLikes.toLocaleString()} color="text-red-400" />
         </div>
 
         {/* MOOD RADAR + MOOD CHAMPIONS */}
@@ -745,7 +401,7 @@ const StatsPage = () => {
                     {item.songs.slice(0, 4).map((song, j) => (
                       <span key={j} className="text-slate-500 text-xs bg-slate-800 px-2 py-0.5 rounded">{sc(song)}</span>
                     ))}
-                    {item.songs.length > 4 && <span className="text-slate-600 text-xs">+{item.songs.length - 4} more</span>}
+                    {item.songCount > 4 && <span className="text-slate-600 text-xs">+{item.songCount - 4} more</span>}
                   </div>
                 </div>
               ))}
@@ -857,7 +513,7 @@ const StatsPage = () => {
             )}
             <div>
               <p className="text-slate-400">Average song</p>
-              <p className="text-white font-bold mt-1">{avgLines} lines, ~{songs.length ? Math.round(totalChars / songs.length) : 0} characters</p>
+              <p className="text-white font-bold mt-1">{avgLines} lines, ~{songCount ? Math.round(totalChars / songCount) : 0} characters</p>
             </div>
             {diversityData[0] && (
               <div>
@@ -868,7 +524,7 @@ const StatsPage = () => {
             {diversityData.length > 0 && (
               <div>
                 <p className="text-slate-400">Most repetitive</p>
-                <p className="text-white font-bold mt-1">{sc(diversityData[diversityData.length - 1].title)} ({diversityData[diversityData.length - 1].ratio}% unique)</p>
+                <p className="text-white font-bold mt-1">{sc(mostRepetitive.title)} ({mostRepetitive.ratio}% unique)</p>
               </div>
             )}
             {rhymeData[0] && (
@@ -883,15 +539,11 @@ const StatsPage = () => {
                 <p className="text-white font-bold mt-1">{ghostData.total} chars appear in only one song</p>
               </div>
             )}
-            {songs.length > 0 && (
+            {songCount > 0 && (
               <div>
                 <p className="text-slate-400">Longest song</p>
                 <p className="text-white font-bold mt-1">
-                  {(() => {
-                    const longest = songs.filter(s => s.lyrics_chinese)
-                      .sort((a, b) => b.lyrics_chinese.split('\n').filter(l => l.trim()).length - a.lyrics_chinese.split('\n').filter(l => l.trim()).length)[0];
-                    return longest ? `${sc(longest.title_zh || longest.title_en)} (${longest.lyrics_chinese.split('\n').filter(l => l.trim()).length} lines)` : 'N/A';
-                  })()}
+                  {longestSong ? `${sc(longestSong.title)} (${longestSong.lines} lines)` : 'N/A'}
                 </p>
               </div>
             )}
