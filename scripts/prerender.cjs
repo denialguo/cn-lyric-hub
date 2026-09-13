@@ -21,6 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { fetchRows } = require('./build-fetch.cjs');
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
 
@@ -58,13 +59,11 @@ async function fetchAll(select, extra = '') {
   const PAGE = 1000;
   let all = [];
   for (let from = 0; ; from += PAGE) {
-    const rows = await fetch(`${url}/rest/v1/songs?select=${select}${extra}`, {
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        Range: `${from}-${from + PAGE - 1}`,
-      },
-    }).then((r) => r.json());
+    const rows = await fetchRows(`${url}/rest/v1/songs?select=${select}&order=id.asc${extra}`, {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Range: `${from}-${from + PAGE - 1}`,
+    });
     all = all.concat(rows);
     if (rows.length < PAGE) break;
   }
