@@ -67,6 +67,19 @@ body {
   min-height: 100vh;
 }
 
+:where(a, button, input, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--color-primary-rgb));
+  outline-offset: 4px;
+}
+
+html { scroll-padding-top: 5rem; }
+::selection { background: rgb(var(--color-primary-rgb) / 0.3); }
+input, textarea { caret-color: rgb(var(--color-primary-rgb)); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
 /* Dark mode (default) */
 .dark body,
 :root:not(.light) body {
@@ -148,3 +161,7 @@ ruby rt {
   padding-bottom: 2px;
   user-select: none;
 }
+
+/* Keep catalogue accents readable on the existing light surfaces. */
+.light .text-primary { color: color-mix(in srgb, rgb(var(--color-primary-rgb)) 60%, #0f172a); }
+.light .text-emerald-400 { color: #047857; }

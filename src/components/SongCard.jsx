@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Play, Heart, Music } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Heart, Music } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
-  const navigate = useNavigate();
+const SongCard = ({ song, initialLikeCount, initialIsLiked, hasTranslation = false }) => {
   const { user, ensureUser } = useAuth();
   const { toast } = useToast();
   
@@ -84,11 +83,10 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
   const artistString = song.artist_en || song.artist_zh || "Unknown";
 
   return (
-    <div 
-      onClick={() => navigate(`/song/${song.slug}`)}
-      className="group relative bg-slate-900 rounded-2xl overflow-hidden hover:-translate-y-2 transition-all duration-300 border border-slate-800 hover:shadow-2xl hover:shadow-primary/20 cursor-pointer"
+    <article
+      className="group relative bg-slate-900 rounded-2xl overflow-hidden transition-colors border border-slate-800 hover:border-slate-600"
     >
-      <div className="aspect-square overflow-hidden relative">
+      <Link to={`/song/${song.slug}`} aria-label={`Read ${mainTitle}`} className="block aspect-square overflow-hidden relative">
         {song.cover_url && !coverFailed ? (
           <img src={song.cover_url} alt={`Album cover for ${mainTitle} by ${artistString}`} loading="lazy" decoding="async" onError={() => setCoverFailed(true)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
         ) : (
@@ -97,11 +95,6 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
             <span className="text-slate-600 text-2xl font-bold">{(mainTitle || '?')[0]}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-[2px] pointer-events-none group-hover:pointer-events-auto">
-          <button className="bg-primary text-white p-3 rounded-full transform scale-50 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-primary/90">
-            <Play fill="currentColor" className="w-6 h-6 ml-1" />
-          </button>
-        </div>
         {song.tags && song.tags.length > 0 && (
           <div className="absolute bottom-3 right-3">
              <span className="bg-black/60 backdrop-blur-md text-slate-200 text-[10px] px-2 py-1 rounded-full border border-white/10 shadow-sm">
@@ -109,13 +102,13 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
              </span>
           </div>
         )}
-      </div>
+      </Link>
 
-      <div className="p-5">
-        <h3 className="text-primary font-bold text-lg truncate mb-1 leading-tight">{mainTitle}</h3>
+      <div className="p-3 sm:p-5">
+        <h3 className="text-primary font-bold text-base sm:text-lg mb-1 leading-snug"><Link to={`/song/${song.slug}`} className="line-clamp-2">{mainTitle}</Link></h3>
         {showSubTitle ? <p className="text-slate-400 text-sm font-medium truncate mb-2">{subTitle}</p> : <div className="h-2"></div>}
 
-        <div className="text-slate-500 text-xs truncate font-medium">
+        <div className="text-slate-400 text-xs truncate font-medium">
           {artistString.split(',').map((artist, i) => (
             <span key={i}>
               <Link to={`/artist/${encodeURIComponent(artist.trim())}`} onClick={(e) => e.stopPropagation()} className="hover:text-white hover:underline transition-colors">
@@ -126,17 +119,20 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked }) => {
           ))}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between text-slate-500 text-xs">
+        <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-slate-400 text-xs">
            <button 
              onClick={handleLike}
-             className={`flex items-center gap-1 transition-colors ${isLiked ? 'text-red-500' : 'hover:text-red-400'}`}
+             aria-label={`${isLiked ? "Unlike" : "Like"} ${mainTitle}`}
+             aria-pressed={isLiked}
+             className={`flex min-h-11 min-w-11 items-center gap-1 transition-colors ${isLiked ? 'text-red-500' : 'hover:text-red-400'}`}
            >
               <Heart className="w-3.5 h-3.5" fill={isLiked ? "currentColor" : "none"} /> 
               {likesCount}
            </button>
+          {hasTranslation && <span className="text-xs text-primary">English</span>}
         </div>
       </div>
-    </div>
+    </article>
   );
 };
 

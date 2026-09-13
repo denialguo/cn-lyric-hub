@@ -1,196 +1,82 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Globe, User, LogOut, LogIn, LayoutDashboard, X, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Globe, User, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { isRealAccount } from '../lib/identity';
 import { useTheme } from '../context/ThemeContext';
 import ThemeSettings from './ThemeSettings';
 
-const Navbar = ({ showSearch = false, searchQuery = '', setSearchQuery = null }) => {
+const Navbar = () => {
   const { user, profile, signOut } = useAuth();
   const { scriptMode, toggleScript } = useTheme();
-  const navigate = useNavigate();
-  const [openPanel, setOpenPanel] = useState(null); // null | 'menu' | 'theme'
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const mobileSearchRef = useRef(null);
-  const panelAreaRef = useRef(null);
+  const [openPanel, setOpenPanel] = useState(null);
+  const [failedAvatar, setFailedAvatar] = useState(null);
+  const panelRef = useRef(null);
+  const menuRef = useRef(null);
+  const realAccount = isRealAccount(user);
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
+  const accountName = profile?.display_name || profile?.username || user?.user_metadata?.full_name || user?.user_metadata?.name;
 
-  // Escape key closes any open panel
   useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') setOpenPanel(null); };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, []);
-
-  // Click anywhere outside the panel area closes it
-  useEffect(() => {
-    if (!openPanel) return;
-    const handleClickOutside = (e) => {
-      if (panelAreaRef.current && !panelAreaRef.current.contains(e.target)) setOpenPanel(null);
+    const dismiss = (event) => {
+      if (event.type === 'keydown') {
+        if (event.key !== 'Escape') return;
+        if (openPanel === 'menu') menuRef.current?.focus();
+      } else if (panelRef.current?.contains(event.target)) return;
+      setOpenPanel(null);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', dismiss);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', dismiss);
+    };
   }, [openPanel]);
 
-  const togglePanel = (panel) => {
-    setOpenPanel(prev => prev === panel ? null : panel);
-  };
-
-  const handleLogout = async () => {
-    await signOut();
-    setOpenPanel(null);
-  };
-
-  const getDisplayName = () => {
-    if (!isRealAccount(user) || !user.email) return 'Guest';
-    if (profile?.username) return profile.username;
-    return user.email.split('@')[0];
-  };
+  const closeMenu = () => setOpenPanel(null);
+  const menuLink = 'flex min-h-11 items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white';
 
   return (
-    <nav className="sticky top-0 z-[100] bg-slate-950 backdrop-blur-md border-b border-white/5">
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-          <img src="/logo_inverse.svg" alt="Logo" className="w-10 h-10 rounded-lg object-cover logo-dark" />
-          <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-lg object-cover logo-light" />
-          <span className="font-bold text-xl tracking-tight text-white">CN Lyric Hub</span>
-        </div>
-
-        {/* Desktop Search */}
-        {showSearch && setSearchQuery && (
-          <div className="hidden md:flex flex-1 max-w-lg mx-8 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Search songs, artists..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm text-white"
-            />
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 relative" ref={panelAreaRef}>
-          {/* Mobile search toggle */}
-          {showSearch && setSearchQuery && (
-            <button 
-              onClick={() => {
-                setMobileSearchOpen(!mobileSearchOpen);
-                setTimeout(() => mobileSearchRef.current?.focus(), 100);
-              }}
-              className="md:hidden p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-            >
-              {mobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-            </button>
-          )}
-
-          {/* Script Toggle */}
-          <button 
-            onClick={toggleScript}
-            className="hidden sm:flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full border border-slate-700 text-slate-300 hover:border-primary hover:text-primary transition-all"
-          >
-            <Globe className="w-4 h-4" />
-            {scriptMode === 'simplified' ? '简体 Simplified' : '繁體 Traditional'}
+    <nav aria-label="Main" className="sticky top-0 z-[100] bg-slate-950 border-b border-white/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <Link to="/" className="flex shrink-0 items-center gap-2 sm:gap-3" aria-label="CN Lyric Hub home">
+          <img src="/logo_inverse.svg" alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg logo-dark" />
+          <img src="/logo.png" alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg logo-light" />
+          <span className="hidden min-[360px]:inline font-bold text-base sm:text-xl tracking-tight text-white whitespace-nowrap">CN Lyric Hub</span>
+        </Link>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3 relative" ref={panelRef}>
+          <button onClick={toggleScript} className="hidden md:flex min-h-11 items-center gap-2 text-sm px-4 rounded-full border border-slate-700 text-slate-300 hover:text-primary" aria-label={`Switch to ${scriptMode === 'simplified' ? 'Traditional' : 'Simplified'} Chinese`}>
+            <Globe size={16} /> {scriptMode === 'simplified' ? '简体 Simplified' : '繁體 Traditional'}
           </button>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/stats')}
-              className="p-2.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-              title="Stats"
-            >
-              <BarChart3 className="w-5 h-5" />
-            </button>
-            <ThemeSettings isOpen={openPanel === 'theme'} onToggle={() => togglePanel('theme')} />
-
-            {/* User Menu */}
-            {isRealAccount(user) ? (
-              <div className="relative isolate">
-                <button 
-                  onClick={() => togglePanel('menu')}
-                  className={`relative z-20 p-2.5 rounded-lg hover:bg-white/10 transition-colors ${openPanel === 'menu' ? 'text-white bg-white/10' : 'text-slate-400'}`}
-                >
-                  <User className="w-5 h-5" />
-                </button>
-
-                {openPanel === 'menu' && (
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 overflow-hidden z-10">
-                    <div className="px-4 py-3 border-b border-slate-800/50">
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Signed in as</p>
-                      <p className="text-sm font-bold text-white truncate">{getDisplayName()}</p>
-                    </div>
-
-                    {profile?.role === 'admin' && (
-                      <button 
-                        onClick={() => { navigate('/admin'); setOpenPanel(null); }}
-                        className="w-full text-left px-4 py-3 text-sm text-yellow-500 hover:bg-slate-800 hover:text-yellow-400 flex items-center gap-3 transition-colors font-bold"
-                      >
-                        <LayoutDashboard size={16} /> Admin Dashboard
-                      </button>
-                    )}
-
-                    <button 
-                      onClick={() => { navigate('/profile'); setOpenPanel(null); }}
-                      className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-3 transition-colors"
-                    >
-                      <User size={16} className="text-primary" /> My Profile
-                    </button>
-                    
-                    <div className="h-px bg-slate-800 mx-4" />
-
-                    <button 
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors"
-                    >
-                      <LogOut size={16} /> Log Out
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button 
-                onClick={() => navigate('/login')}
-                className="flex items-center gap-2 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"
-              >
-                <LogIn size={16} /> Sign In
+          <Link to="/add" className="hidden md:flex min-h-11 items-center gap-2 bg-white text-slate-900 px-4 rounded-full text-sm font-bold hover:bg-slate-200">
+            <Plus size={16} /> Add Song
+          </Link>
+          <ThemeSettings isOpen={openPanel === 'theme'} onToggle={() => setOpenPanel(openPanel === 'theme' ? null : 'theme')} />
+          {!realAccount && <Link to="/login" onClick={closeMenu} className="flex min-h-11 items-center px-2 sm:px-3 text-sm font-semibold text-slate-300 hover:text-primary whitespace-nowrap">Sign In</Link>}
+          <button ref={menuRef} onClick={() => setOpenPanel(openPanel === 'menu' ? null : 'menu')} aria-label={realAccount ? `Account menu${accountName ? ` for ${accountName}` : ''}` : 'Navigation menu'} aria-expanded={openPanel === 'menu'} aria-controls="navigation-menu" className={`flex h-11 w-11 items-center justify-center text-slate-300 hover:bg-white/10 ${realAccount ? 'rounded-full' : 'rounded-lg md:hidden'}`}>
+            {realAccount ? (
+              <span className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-primary ring-2 ${openPanel === 'menu' ? 'ring-primary' : 'ring-slate-700'}`}>
+                {avatarUrl && failedAvatar !== avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" onError={() => setFailedAvatar(avatarUrl)} />
+                ) : accountName ? <span className="text-sm font-semibold">{Array.from(accountName)[0].toUpperCase()}</span> : <User size={18} />}
+              </span>
+            ) : openPanel === 'menu' ? <X size={20} /> : <Menu size={20} />}
+          </button>
+          {openPanel === 'menu' && (
+            <div id="navigation-menu" className={`absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl py-2 shadow-xl ${realAccount ? '' : 'md:hidden'}`}>
+              <button onClick={toggleScript} className={`${menuLink} md:hidden w-full`}>
+                <Globe size={16} /> Switch to {scriptMode === 'simplified' ? '繁體 Traditional' : '简体 Simplified'}
               </button>
-            )}
-          </div>
-
-          <button
-            onClick={() => navigate('/add')}
-            className="flex items-center gap-2 bg-white text-slate-900 px-4 py-2 rounded-full text-sm font-bold hover:bg-slate-200 transition-colors"
-          >
-            <Plus size={16} /> 
-            <span className="hidden sm:inline">Add Song</span>
-          </button>
+              <Link to="/add" onClick={closeMenu} className={`${menuLink} md:hidden`}><Plus size={16} /> Add Song</Link>
+              {realAccount && <>
+                {profile?.role === 'admin' && <Link to="/admin" onClick={closeMenu} className={menuLink}><LayoutDashboard size={16} /> Admin Dashboard</Link>}
+                <Link to="/profile" onClick={closeMenu} className={menuLink}><User size={16} /> My Profile</Link>
+                <button onClick={async () => { await signOut(); closeMenu(); }} className={`${menuLink} w-full`}><LogOut size={16} /> Log Out</button>
+              </>}
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Mobile search dropdown */}
-      {showSearch && setSearchQuery && mobileSearchOpen && (
-        <div className="md:hidden px-4 pb-3 animate-in slide-in-from-top fade-in duration-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-            <input 
-              ref={mobileSearchRef}
-              type="text" 
-              placeholder="Search songs, artists..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 rounded-full bg-slate-900 border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-sm text-white"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </nav>
   );
 };

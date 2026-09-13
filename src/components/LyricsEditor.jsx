@@ -12,12 +12,13 @@ const LyricsEditor = ({
 }) => {
   const textareaRef = useRef(null);
 
-  useEffect(() => {
+  const resizeTextarea = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [value]);
+  };
+  useEffect(resizeTextarea, [value]);
 
   const currentLines = (value || '').split('\n');
   const origLines =
@@ -50,7 +51,7 @@ const LyricsEditor = ({
           : 'border border-transparent'
       }`}
     >
-      <label className="text-slate-400 text-sm font-bold flex justify-between items-center">
+      <label htmlFor={name} className="text-slate-400 text-sm font-bold flex justify-between items-center">
         {label}
         {isChanged && (
           <span className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1">
@@ -58,34 +59,6 @@ const LyricsEditor = ({
           </span>
         )}
       </label>
-
-      <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-primary transition-colors">
-        {/* Line Numbers */}
-        <div className="bg-slate-800 text-slate-500 text-right pr-2 pt-4 font-mono text-sm leading-6 select-none w-12 flex-shrink-0 border-r border-slate-700">
-          {Array.from({ length: maxLines }).map((_, i) => {
-            const isDiff = changedLines.some((cl) => cl.index === i + 1);
-            return (
-              <div
-                key={i}
-                className={isDiff ? 'text-yellow-400 font-bold bg-yellow-500/20' : ''}
-              >
-                {i + 1}
-              </div>
-            );
-          })}
-        </div>
-
-        <textarea
-          ref={textareaRef}
-          name={name}
-          value={value}
-          onChange={onChange}
-          rows={1}
-          className="w-full bg-slate-900 text-white p-4 font-mono text-sm leading-6 outline-none resize-none whitespace-pre overflow-x-auto overflow-y-hidden"
-          placeholder={placeholder}
-          style={{ minHeight }}
-        />
-      </div>
 
       {/* Diff Details (only renders when there are actual changes) */}
       {isChanged && (
@@ -108,6 +81,39 @@ const LyricsEditor = ({
           ))}
         </div>
       )}
+      <details open={originalValue == null} onToggle={resizeTextarea}>
+        <summary className="min-h-11 py-3 cursor-pointer text-sm text-slate-300">Full lyrics editor</summary>
+      <div className="relative flex border border-slate-700 rounded-xl overflow-hidden bg-slate-900 focus-within:border-primary transition-colors">
+        {/* Line Numbers */}
+        <div className="bg-slate-800 text-slate-500 text-right pr-2 pt-4 font-mono text-sm leading-6 select-none w-12 flex-shrink-0 border-r border-slate-700">
+          {Array.from({ length: maxLines }).map((_, i) => {
+            const isDiff = changedLines.some((cl) => cl.index === i + 1);
+            return (
+              <div
+                key={i}
+                className={isDiff ? 'text-yellow-400 font-bold bg-yellow-500/20' : ''}
+              >
+                {i + 1}
+              </div>
+            );
+          })}
+        </div>
+
+        <textarea
+          ref={textareaRef}
+          id={name}
+          name={name}
+          value={value}
+          onChange={onChange}
+          rows={1}
+          className="w-full bg-slate-900 text-white p-4 font-mono text-sm leading-6 outline-none resize-none whitespace-pre overflow-x-auto overflow-y-hidden"
+          placeholder={placeholder}
+          style={{ minHeight }}
+        />
+      </div>
+
+      </details>
+
     </div>
   );
 };

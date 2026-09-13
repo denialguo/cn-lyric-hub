@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -7,10 +8,28 @@ import CommentItem from './CommentItem';
 import { isRealAccount } from '../lib/identity';
 import { readJson, writeJson } from '../lib/storage';
 
-const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation }) => {
+const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation, selectedTranslation }) => {
   const { user, ensureUser } = useAuth();
   const { toast, confirm } = useToast();
   
+  const dialogRef = useRef(null);
+  const requestRef = useRef(0);
+  const draftKey = `line_draft_${songId}_${lineIndex}_${user?.id || 'guest'}`;
+  const [dataError, setDataError] = useState(false);
+
+  useEffect(() => {
+    const requestCounter = requestRef;
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
+    dialog.show();
+    dialog.querySelector('button')?.focus();
+    return () => {
+      requestCounter.current++;
+      dialog.close();
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
+
   const [activeTab, setActiveTab] = useState('translations');
   const [translations, setTranslations] = useState([]);
   const [comments, setComments] = useState([]); 
@@ -21,10 +40,14 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   const [originalVotes, setOriginalVotes] = useState(0); 
   const [hasLikedOriginal, setHasLikedOriginal] = useState(false); 
 
-  const [transInput, setTransInput] = useState('');
-  const [mainCommentInput, setMainCommentInput] = useState('');
-  const [threadInput, setThreadInput] = useState({}); 
+  const [transInput, setTransInput] = useState(() => readJson(draftKey, {}).translation || '');
+  const [mainCommentInput, setMainCommentInput] = useState(() => readJson(draftKey, {}).comment || '');
+  const [threadInput, setThreadInput] = useState(() => readJson(draftKey, {}).replies || {});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    writeJson(draftKey, { translation: transInput, comment: mainCommentInput, replies: threadInput });
+  }, [draftKey, transInput, mainCommentInput, threadInput]);
 
   const [expandedThreads, setExpandedThreads] = useState(new Set()); 
 
@@ -45,7 +68,9 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
   }, [user, songId, lineIndex]);
 
   const fetchData = async () => {
+    const request = ++requestRef.current;
     setLoading(true);
+    setDataError(false);
     
     const { data: trans, error: transError } = await supabase
       .from('line_translations')
@@ -53,14 +78,14 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       .eq('song_id', songId)
       .eq('line_index', lineIndex);
 
-    const { data: comms } = await supabase
+    const { data: comms, error: commentsError } = await supabase
       .from('line_comments')
       .select('*, profiles(username, avatar_url)')
       .eq('song_id', songId)
       .eq('line_index', lineIndex)
       .order('created_at', { ascending: true }); 
 
-    const { count: orgVoteCount } = await supabase
+    const { count: orgVoteCount, error: votesError } = await supabase
       .from('line_votes')
       .select('*', { count: 'exact', head: true })
       .eq('song_id', songId)
@@ -101,11 +126,13 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         }
     }
 
+    if (request !== requestRef.current) return;
+    setDataError(Boolean(transError || commentsError || votesError));
     if (transError) {
       toast.error('Could not load translations. Please try again.');
       setTranslations([]);
     } else {
-      setTranslations((trans || []).map(t => ({ ...t, votes: t.line_votes[0].count }))
+      setTranslations((trans || []).map(t => ({ ...t, votes: t.line_votes?.[0]?.count || 0 }))
         .sort((a, b) => b.votes - a.votes));
     }
     setComments(comms || []);
@@ -271,6 +298,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
   const handleSubmitTranslation = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!isRealAccount(user)) return toast.info("Please log in to contribute.");
     if (!transInput.trim()) return;
 
@@ -285,17 +313,18 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     const handleSubmitComment = async (e, translationId = null) => {
         e.preventDefault();
+        if (submitting) return;
         if (!isRealAccount(user)) return toast.info("Please log in to comment.");
 
         const content = translationId ? threadInput[translationId] : mainCommentInput;
         if (!content?.trim()) return;
 
         setSubmitting(true);
-        await handlePostComment(null, content, translationId);
-
-        if (translationId) setThreadInput({...threadInput, [translationId]: ''});
-        else setMainCommentInput('');
-        fetchData();
+        const saved = await handlePostComment(null, content, translationId);
+        if (saved) {
+          if (translationId) setThreadInput({...threadInput, [translationId]: ''});
+          else setMainCommentInput('');
+        }
         setSubmitting(false);
     };
 
@@ -318,45 +347,55 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
         if (error) {
                 console.error(error);
-                toast.error(error.message);
+                toast.error("Couldn’t save your comment. Your draft is still here; try again.");
+                return false;
         } else {
                 fetchData();
+                return true;
         }
     };
 
-  const handleCopy = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard!");
+  const handleCopy = async (text) => {
+    try { await navigator.clipboard.writeText(text); toast.success('Copied to clipboard!'); }
+    catch { toast.error('Couldn’t copy. Select the text and copy it manually.'); }
   };
 
   const generalComments = comments.filter(c => !c.translation_id);
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full md:w-[450px] bg-slate-900 border-l border-slate-800 shadow-2xl z-[150] flex flex-col">
+    <dialog ref={dialogRef} aria-labelledby="line-panel-title" onKeyDown={event => {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+      if (event.key === 'Tab' && window.matchMedia('(max-width: 767px)').matches) {
+        const controls = [...dialogRef.current.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')].filter(element => element.getClientRects().length);
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }} className="fixed left-auto right-0 top-0 m-0 h-dvh max-h-none w-full max-w-none md:w-[450px] bg-slate-900 text-slate-200 border-l border-slate-800 shadow-2xl z-[150] flex flex-col">
       
       {/* HEADER */}
       <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
          <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">Line #{lineIndex + 1}</h3>
+            <h3 id="line-panel-title" className="text-lg font-bold text-white flex items-center gap-2">Line #{lineIndex + 1}</h3>
             <p className="text-xs text-slate-500">Community Contributions</p>
          </div>
-         <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
+         <button aria-label="Close line contributions" onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
            <X size={20} />
          </button>
       </div>
 
       {/* CONTEXT */}
       <div className="p-4 bg-slate-950 border-b border-slate-800 space-y-2">
-        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 border-l-4 border-l-primary relative group">
+        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 relative group">
             <p className="italic text-slate-300 text-sm pr-8">"{originalContent}"</p>
-            <button onClick={() => handleCopy(originalContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" title="Copy characters">
+            <button onClick={() => handleCopy(originalContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-70 hover:opacity-100 transition-opacity" title="Copy characters">
                 <Copy size={14} />
             </button>
         </div>
         {pinyinContent && (
           <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 relative group">
             <p className="text-slate-500 text-xs font-mono pr-8">{pinyinContent}</p>
-            <button onClick={() => handleCopy(pinyinContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" title="Copy pinyin">
+            <button onClick={() => handleCopy(pinyinContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-70 hover:opacity-100 transition-opacity" title="Copy pinyin">
                 <Copy size={14} />
             </button>
           </div>
@@ -367,12 +406,14 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       <div className="flex border-b border-slate-800">
         <button 
           onClick={() => setActiveTab('translations')}
+          aria-pressed={activeTab === 'translations'}
           className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'translations' ? 'text-primary bg-primary/5 border-b-2 border-primary' : 'text-slate-500 hover:text-slate-300'}`}
         >
           <Globe size={14} /> Translations
         </button>
         <button 
           onClick={() => setActiveTab('comments')}
+          aria-pressed={activeTab === 'comments'}
           className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'comments' ? 'text-primary bg-primary/5 border-b-2 border-primary' : 'text-slate-500 hover:text-slate-300'}`}
         >
           <MessageSquare size={14} /> Discussion ({generalComments.length})
@@ -380,9 +421,11 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       </div>
 
       {/* CONTENT */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
         {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-slate-500" /></div>
+        ) : dataError ? (
+            <div role="alert" className="text-sm text-slate-300"><p>Couldn’t load contributions.</p><button onClick={fetchData} className="min-h-11 text-primary">Try again</button></div>
         ) : activeTab === 'translations' ? (
             <div className="space-y-6">
                 
@@ -398,6 +441,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
                     <div className="flex items-center gap-4 mb-4">
                          <button 
+                            aria-label="Like original translation" aria-pressed={hasLikedOriginal}
                             onClick={toggleVoteOriginal}
                             className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
                                 hasLikedOriginal ? 'text-primary' : 'text-slate-500 hover:text-white'
@@ -410,9 +454,10 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
                     <button 
                         onClick={() => onSelectTranslation(null)}
+                        aria-pressed={!selectedTranslation}
                         className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all border border-slate-700 flex items-center justify-center gap-2"
                     >
-                        <RotateCcw size={14} /> Use Original
+                        <RotateCcw size={14} /> {!selectedTranslation ? 'Original selected' : 'Use original for my view'}
                     </button>
                   </div>
                 ) : null}
@@ -430,12 +475,12 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                             
                             <div className="flex justify-between items-center mb-3">
                                 <div className="flex items-center gap-2">
-                                    <img src={t.profiles?.avatar_url || '/default-avatar.png'} className="w-6 h-6 rounded-full object-cover" />
+                                    <img alt="" src={t.profiles?.avatar_url || '/default-avatar.png'} className="w-6 h-6 rounded-full object-cover" />
                                     <span className="text-xs text-slate-400 font-medium">@{t.profiles?.username}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     {user && user.id === t.user_id && (
-                                        <button onClick={() => handleDelete(t.id)} className="text-slate-600 hover:text-red-500 p-1"><Trash2 size={12} /></button>
+                                        <button aria-label="Delete your translation" onClick={() => handleDelete(t.id)} className="text-slate-600 hover:text-red-500 p-1"><Trash2 size={12} /></button>
                                     )}
                                 </div>
                             </div>
@@ -444,6 +489,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                             
                             <div className="flex items-center gap-4 mb-4 pl-1">
                                 <button 
+                                    aria-label="Like community translation" aria-pressed={isLiked}
                                     onClick={() => toggleVoteCommunity(t.id)}
                                     className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
                                         isLiked ? 'text-primary' : 'text-slate-500 hover:text-white'
@@ -499,21 +545,24 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                                     
                                     <form onSubmit={(e) => handleSubmitComment(e, t.id)} className="flex gap-2 mt-2">
                                         <input
+                                            aria-label="Reply to translation"
+                                            disabled={!isRealAccount(user) || submitting}
                                             value={threadInput[t.id] || ''}
                                             onChange={(e) => setThreadInput({...threadInput, [t.id]: e.target.value})}
                                             placeholder="Write a reply..."
                                             className="flex-1 bg-slate-900 border border-slate-800 rounded text-xs px-2 py-1.5 text-white focus:border-primary outline-none"
                                         />
-                                        <button type="submit" disabled={submitting} className="text-primary hover:text-white p-1"><Send size={14} /></button>
+                                        <button aria-label="Send reply" type="submit" disabled={!isRealAccount(user) || submitting} className="text-primary hover:text-white p-1"><Send size={14} /></button>
                                     </form>
                                 </div>
                             )}
 
                             <button 
                                 onClick={() => onSelectTranslation(t.content)}
+                                aria-pressed={selectedTranslation === t.content}
                                 className="w-full py-2.5 bg-slate-800 hover:bg-primary hover:text-white text-slate-400 rounded-lg text-xs font-bold transition-all border border-slate-700 hover:border-primary"
                             >
-                                Use this translation
+                                {selectedTranslation === t.content ? 'Selected for my view' : 'Use for my view'}
                             </button>
                         </div>
                     );
@@ -522,8 +571,8 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         ) : (
             <div className="space-y-4">
                 {(() => {
-                    const rootComments = comments.filter(c => !c.parent_id);
-                    const getReplies = (parentId) => comments.filter(c => c.parent_id === parentId);
+                    const rootComments = generalComments.filter(c => !c.parent_id);
+                    const getReplies = (parentId) => generalComments.filter(c => c.parent_id === parentId);
 
                     return rootComments.map(comment => (
                         <CommentItem
@@ -544,17 +593,21 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
       {/* FOOTER INPUT */}
       <div className="p-4 bg-slate-950 border-t border-slate-800">
+        {!isRealAccount(user) && <Link to="/login" className="block text-center min-h-11 py-2 text-primary text-sm">Sign in to contribute</Link>}
+
         {activeTab === 'translations' ? (
             <form onSubmit={handleSubmitTranslation} className="relative">
                 <input
                     type="text"
+                    aria-label="Propose a translation"
+                    maxLength={1000}
                     value={transInput}
                     onChange={(e) => setTransInput(e.target.value)}
-                    placeholder={user ? "Propose a translation..." : "Log in to contribute"}
-                    disabled={!user || submitting}
-                    className="w-full bg-slate-900 border border-slate-800 text-white placeholder-slate-600 text-sm rounded-xl py-3 pl-4 pr-12 outline-none focus:border-primary transition-colors"
+                    placeholder={isRealAccount(user) ? "Propose a translation..." : "Log in to contribute"}
+                    disabled={!isRealAccount(user) || submitting}
+                    className="w-full bg-slate-900 border border-slate-800 text-white placeholder-slate-400 text-sm rounded-xl py-3 pl-4 pr-12 outline-none focus:border-primary transition-colors"
                 />
-                <button disabled={!user || submitting} type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90">
+                <button aria-label="Send contribution" disabled={!isRealAccount(user) || submitting} type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90">
                     {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
             </form>
@@ -562,20 +615,22 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
              <form onSubmit={(e) => handleSubmitComment(e, null)} className="relative">
                 <input
                     type="text"
+                    aria-label="Line comment"
+                    maxLength={2000}
                     value={mainCommentInput}
                     onChange={(e) => setMainCommentInput(e.target.value)}
-                    placeholder={user ? "Ask a general question..." : "Log in to comment"}
-                    disabled={!user || submitting}
-                    className="w-full bg-slate-900 border border-slate-800 text-white placeholder-slate-600 text-sm rounded-xl py-3 pl-4 pr-12 outline-none focus:border-primary transition-colors"
+                    placeholder={isRealAccount(user) ? "Ask a general question..." : "Log in to comment"}
+                    disabled={!isRealAccount(user) || submitting}
+                    className="w-full bg-slate-900 border border-slate-800 text-white placeholder-slate-400 text-sm rounded-xl py-3 pl-4 pr-12 outline-none focus:border-primary transition-colors"
                 />
-                <button disabled={!user || submitting} type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90">
+                <button aria-label="Send contribution" disabled={!isRealAccount(user) || submitting} type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90">
                     {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
             </form>
         )}
       </div>
 
-    </div>
+    </dialog>
   );
 };
 

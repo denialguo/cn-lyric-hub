@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Music, Flame, Sparkles, Disc } from 'lucide-react';
+import { Music, Flame, Disc, Search, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import SongCard from '../components/SongCard';
 import Navbar from '../components/Navbar';
 import { Helmet } from 'react-helmet-async';
 import { tify, sify } from 'chinese-conv';
-import { searchSongs, listSongs, trendingSongs, freshSongs, classicSongs, likedSongIds } from '../lib/queries';
+import { searchSongs, listSongs, trendingSongs, classicSongs, likedSongIds, translatedSongIds } from '../lib/queries';
 import { readString, writeString } from '../lib/storage';
 
 const PAGE_SIZE = 36;
@@ -15,7 +16,6 @@ const PAGE_SIZE = 36;
 const TAB_QUERY = {
   all: listSongs,
   trending: trendingSongs,
-  new: freshSongs,
   classics: classicSongs,
 };
 
@@ -23,12 +23,20 @@ const HomePage = () => {
   const { user } = useAuth();
   const { scriptMode } = useTheme();
   const [songs, setSongs] = useState([]);
-  const [activeTab, setActiveTab] = useState(() => {
-    const saved = readString('homeTab', 'trending');
-    return Object.hasOwn(TAB_QUERY, saved) ? saved : 'trending';
-  });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const savedTab = readString('homeTab', 'trending');
+  const requestedTab = searchParams.get('tab') || (savedTab === 'new' ? 'all' : savedTab);
+  const activeTab = Object.hasOwn(TAB_QUERY, requestedTab) ? requestedTab : 'trending';
+  const searchQuery = searchParams.get('q') || '';
+  const setSearchQuery = (query) => setSearchParams(prev => {
+    const next = new URLSearchParams(prev);
+    if (query) next.set('q', query); else next.delete('q');
+    next.set('tab', activeTab);
+    return next;
+  }, { replace: true });
+  const setActiveTab = (tab) => setSearchParams({ tab });
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery.trim());
+  const [translatedIds, setTranslatedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -88,6 +96,14 @@ const HomePage = () => {
     return () => { cancelled = true; };
   }, [user]);
 
+  useEffect(() => {
+    let cancelled = false;
+    translatedSongIds(songs.map(song => song.id)).then(ids => {
+      if (!cancelled) setTranslatedIds(ids);
+    });
+    return () => { cancelled = true; };
+  }, [songs]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 relative">
       <Helmet>
@@ -95,31 +111,36 @@ const HomePage = () => {
         <meta name="description" content="Browse a community database of Chinese song lyrics with character-by-character Pinyin and English translations. Read along, learn the language, and contribute." />
         <link rel="canonical" href="https://cnlyrichub.vercel.app/" />
         <meta property="og:title" content="CN Lyric Hub — Chinese Lyrics with Pinyin & Translations" />
-        <meta property="og:description" content="A community database of Chinese lyrics with full Pinyin and English translations." />
+        <meta property="og:description" content="Chinese lyrics with character-aligned pinyin and community translations." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://cnlyrichub.vercel.app/" />
       </Helmet>
 
-      <Navbar showSearch searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+      <Navbar />
 
       {/* Hero */}
       <div className="relative overflow-hidden border-b border-white/5">
-        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-primary/20 rounded-full blur-[120px] -z-10 transition-colors duration-700" />
-        <div className="max-w-7xl mx-auto px-6 py-16 text-center relative z-10">
-          <h1 className="text-4xl sm:text-6xl font-extrabold text-white mb-6 tracking-tight">Chinese Lyric Database</h1>
-          <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-10">A community-driven database of Chinese lyrics with full Pinyin and English translations.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 text-center relative z-10">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-3 tracking-tight">Chinese Lyric Database</h1>
+          <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-6">Chinese lyrics with character-aligned pinyin and community translations.</p>
           
-          <div className="flex flex-wrap justify-center gap-2">
+          <form role="search" onSubmit={event => event.preventDefault()} className="relative max-w-xl mx-auto mb-6">
+            <label htmlFor="song-search" className="sr-only">Search all songs and artists</label>
+            <Search aria-hidden="true" size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input id="song-search" type="search" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search songs or artists…" className="w-full bg-slate-900 text-white placeholder:text-slate-400 border border-slate-700 rounded-xl py-3 pl-12 pr-12 text-base" />
+            {searchQuery && <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 -translate-y-1/2 p-3 text-slate-300"><X size={18} /></button>}
+          </form>
+          {!searchQuery.trim() && <div className="flex flex-wrap justify-center gap-2" aria-label="Browse songs">
             {[
               { id: 'all', label: 'All Songs', icon: Music },
-              { id: 'trending', label: 'Trending', icon: Flame },
-              { id: 'new', label: 'Fresh Drops', icon: Sparkles },
+              { id: 'trending', label: 'Popular', icon: Flame },
               { id: 'classics', label: 'Classics', icon: Disc },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                aria-pressed={activeTab === tab.id}
+                className={`flex items-center gap-2 px-4 sm:px-6 min-h-11 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                   activeTab === tab.id 
                     ? 'bg-primary/10 text-primary border border-primary/20' 
                     : 'bg-white/5 text-slate-400 border border-transparent hover:bg-white/10'
@@ -129,17 +150,17 @@ const HomePage = () => {
                 {tab.label}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       </div>
 
       {/* Song Grid */}
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <h2 className="text-2xl font-bold text-white mb-6">
-          {searchQuery ? `Search Results for "${searchQuery}"` : 
-           activeTab === 'all' ? 'Latest Songs' :
-           activeTab === 'trending' ? 'Trending Hits' :
-           activeTab === 'classics' ? 'Timeless Classics' : 'Fresh Drops'}
+          {searchQuery.trim() ? `Search results for “${searchQuery.trim()}”` :
+           activeTab === 'all' ? 'All Songs' :
+           activeTab === 'trending' ? 'Popular Songs' :
+           activeTab === 'classics' ? 'Timeless Classics' : 'All Songs'}
         </h2>
 
         {loading ? (
@@ -155,7 +176,7 @@ const HomePage = () => {
             <button onClick={() => {setSearchQuery(''); setActiveTab('all')}} className="text-primary hover:underline">Clear filters</button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {songs.map((song) => {
                 const rawChinese = song.title_zh || song.title_en || "Untitled";
                 const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
@@ -163,6 +184,7 @@ const HomePage = () => {
                   <SongCard 
                     key={song.id} 
                     song={{ ...song, display_title: displayChinese }}
+                    hasTranslation={translatedIds.has(song.id)}
                     initialLikeCount={song.song_likes?.[0]?.count || 0}
                     initialIsLiked={userLikedIds.has(song.id)}
                   />
