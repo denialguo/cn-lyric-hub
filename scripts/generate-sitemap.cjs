@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { createClient } = require('@supabase/supabase-js');
+const { fetchRows } = require('./build-fetch.cjs');
 // Prefer .env.local (the project's convention); Vercel injects real env vars so this is a no-op there
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
@@ -20,25 +20,22 @@ if (!url || !key) {
   process.exit(0);
 }
 
-const supabase = createClient(url, key);
 
 // Timeout so the build never hangs
 const timeout = setTimeout(() => {
-  console.error('❌ Sitemap generation timed out after 30s');
+  console.error('❌ Sitemap generation timed out after 120s');
   process.exit(1);
-}, 30000);
+}, 120000);
 
 // Supabase caps each request at 1000 rows — page through with .range() to get the whole catalog
 async function fetchAllSongs() {
   const PAGE = 1000;
   let all = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from('songs')
-      .select('slug, updated_at, artist_en, artist_zh')
-      .order('created_at', { ascending: false })
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
+    const data = await fetchRows(
+      `${url}/rest/v1/songs?select=slug,updated_at,artist_en,artist_zh&order=id.asc`,
+      { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}` }
+    );
     all = all.concat(data || []);
     if (!data || data.length < PAGE) break;
   }
