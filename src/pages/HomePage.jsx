@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Music, Flame, Disc, Search, X } from 'lucide-react';
+import { Music, Flame, Disc, Activity, Search, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -7,7 +7,7 @@ import SongCard from '../components/SongCard';
 import Navbar from '../components/Navbar';
 import { Helmet } from 'react-helmet-async';
 import { tify, sify } from 'chinese-conv';
-import { searchSongs, listSongs, trendingSongs, classicSongs, likedSongIds, translatedSongIds } from '../lib/queries';
+import { searchSongs, listSongs, trendingSongs, recentlyActiveSongs, classicSongs, likedSongIds, translatedSongIds } from '../lib/queries';
 import { readString, writeString } from '../lib/storage';
 
 const PAGE_SIZE = 36;
@@ -16,6 +16,7 @@ const PAGE_SIZE = 36;
 const TAB_QUERY = {
   all: listSongs,
   trending: trendingSongs,
+  new: recentlyActiveSongs,
   classics: classicSongs,
 };
 
@@ -25,7 +26,7 @@ const HomePage = () => {
   const [songs, setSongs] = useState([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const savedTab = readString('homeTab', 'trending');
-  const requestedTab = searchParams.get('tab') || (savedTab === 'new' ? 'all' : savedTab);
+  const requestedTab = searchParams.get('tab') || savedTab;
   const activeTab = Object.hasOwn(TAB_QUERY, requestedTab) ? requestedTab : 'trending';
   const searchQuery = searchParams.get('q') || '';
   const setSearchQuery = (query) => setSearchParams(prev => {
@@ -134,6 +135,7 @@ const HomePage = () => {
             {[
               { id: 'all', label: 'All Songs', icon: Music },
               { id: 'trending', label: 'Popular', icon: Flame },
+              { id: 'new', label: 'Recently Active', icon: Activity },
               { id: 'classics', label: 'Classics', icon: Disc },
             ].map((tab) => (
               <button
@@ -160,6 +162,7 @@ const HomePage = () => {
           {searchQuery.trim() ? `Search results for “${searchQuery.trim()}”` :
            activeTab === 'all' ? 'All Songs' :
            activeTab === 'trending' ? 'Popular Songs' :
+           activeTab === 'new' ? 'Recently Active' :
            activeTab === 'classics' ? 'Timeless Classics' : 'All Songs'}
         </h2>
 
