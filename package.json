@@ -11,7 +11,8 @@
     "test": "node --test src scripts",
     "verify:rls": "node scripts/verify-rls.cjs",
     "prerender": "node scripts/prerender.cjs",
-    "backup": "node scripts/backup.cjs"
+    "backup": "node scripts/backup.cjs",
+    "stats:refresh": "node scripts/refresh-stats.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",
