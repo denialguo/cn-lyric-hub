@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { sify, tify } from 'chinese-conv';
+import { recentActivityIds } from './recentActivity.js';
 
 /**
  * The shared data-access seam.
@@ -84,6 +85,29 @@ export async function listSongs({ page = 0, pageSize = 36 } = {}) {
     return { songs: [], hasMore: false, error };
   }
   return { songs: data || [], hasMore: (data || []).length === limit };
+}
+
+/** New songs and their latest published edits, translations, or comments. */
+export async function recentlyActiveSongs({ page = 0, pageSize = 36 } = {}) {
+  const limit = (page + 1) * pageSize;
+  try {
+    const ids = await recentActivityIds(supabase, limit + 1);
+    const visibleIds = ids.slice(0, limit);
+    const songs = [];
+    // Keep URL lengths and PostgREST's row cap out of Load More pagination.
+    for (let from = 0; from < visibleIds.length; from += 100) {
+      const { data, error } = await supabase.from('songs').select(CARD_COLUMNS)
+        .in('id', visibleIds.slice(from, from + 100));
+      if (error) throw error;
+      songs.push(...data || []);
+    }
+    const order = new Map(visibleIds.map((id, index) => [id, index]));
+    songs.sort((a, b) => order.get(a.id) - order.get(b.id));
+    return { songs, hasMore: ids.length > limit };
+  } catch (error) {
+    console.error('recentlyActiveSongs failed:', error.message);
+    return { songs: [], hasMore: false, error };
+  }
 }
 
 /** Exact artist lookup; song membership comes only from the indexed junction. */
