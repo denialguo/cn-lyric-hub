@@ -26,6 +26,8 @@ test('line edits warn with exact counts, respect cancellation, and fail closed',
   assert.equal(message, undefined);
   assert.equal(await confirmLineEdit(db, 391, '一\n二\n三', cancel), false);
   assert.match(message, /4 community translations and 7 line comments/);
+  assert.equal(await confirmLineEdit(db, 391, '二\n一', cancel), false);
+  assert.match(message, /Earlier contributions/);
   assert.equal(await confirmLineEdit(db, 391, '一', async () => true), true);
   results.line_translations = { count: 0 };
   results.line_comments = { count: 0 };

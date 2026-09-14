@@ -262,3 +262,15 @@ export function catalogueStats() {
   return supabase.from('catalogue_stats_snapshot')
     .select('generated_at,payload').eq('id', true).single();
 }
+
+/** Contributions stay song-scoped, including anchors beyond deleted final lines. */
+export async function songContributions(table, songId, columns) {
+  const rows = [];
+  for (let from = 0; ; from += PAGE_CAP) {
+    const { data, error } = await supabase.from(table).select(columns)
+      .eq('song_id', songId).order('id').range(from, from + PAGE_CAP - 1);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < PAGE_CAP) return { data: rows, error: null };
+  }
+}

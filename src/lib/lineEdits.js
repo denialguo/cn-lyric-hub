@@ -5,15 +5,14 @@ export async function confirmLineEdit(supabase, targetSongId, lyrics, confirm) {
   const { data: current, error } = await supabase.from('songs')
     .select('lyrics_chinese').eq('id', targetSongId).single();
   if (error) throw error;
-  if ((current.lyrics_chinese || '').split('\n').length !== (lyrics || '').split('\n').length) {
+  if ((current.lyrics_chinese || '') !== (lyrics || '')) {
     const counts = await Promise.all(['line_translations', 'line_comments'].map(table =>
       supabase.from(table).select('*', { count: 'exact', head: true }).eq('song_id', targetSongId)
     ));
     for (const result of counts) if (result.error) throw result.error;
     const [translations, comments] = counts.map(result => result.count);
-    // ponytail: count-only warning misses same-length reorders; stable line IDs are the upgrade.
     if ((translations || comments) && !await confirm(
-      `Changing the lyric line count may attach ${translations} community translations and ${comments} line comments to the wrong lyrics. Continue without remapping?`,
+      `This song has ${translations} community translations and ${comments} line comments. Contributions whose original lyric no longer matches will remain under Earlier contributions. Save these lyric changes?`,
       { destructive: true, confirmLabel: 'Save anyway' }
     )) return false;
   }

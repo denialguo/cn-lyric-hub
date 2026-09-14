@@ -1,3 +1,4 @@
+import { selectedLineTranslation } from '../lib/lineAnchors';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Music, Info, Type, Plus, Minus, RotateCcw } from 'lucide-react';
@@ -182,7 +183,7 @@ const SongPage = () => {
   };
 
   const handleSelectTranslation = (newText) => {
-    setCustomTranslations(prev => ({ ...prev, [selectedLine]: newText }));
+    setCustomTranslations(prev => ({ ...prev, [selectedLine]: newText === null ? null : { content: newText, original_line: (song.lyrics_chinese || '').split('\n')[selectedLine] } }));
   };
 
   if (loading) {
@@ -220,6 +221,7 @@ const SongPage = () => {
 
   const videoId = getYoutubeId(song.youtube_url);
   const rawChinese = song.lyrics_chinese || "";
+  const canonicalLines = rawChinese.split('\n');
   const convertedChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
   const chineseLines = convertedChinese.split('\n');
   const pinyinLines = song.lyrics_pinyin ? song.lyrics_pinyin.split('\n') : []; 
@@ -392,13 +394,14 @@ const SongPage = () => {
            </div>
            
            <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
+           <button onClick={() => setSelectedLine(-1)} className="min-h-11 text-xs text-slate-400 hover:text-primary">Earlier contributions</button>
            {/* LYRICS LIST */}
            <div className="space-y-4">
             {lines.map((_, index) => {
               const line = chineseLines[index] || ""; 
               const py = pinyinLines[index] || ""; 
               const defaultEnglish = englishLines[index] || "";
-              const activeTranslation = customTranslations[index] || defaultEnglish;
+              const activeTranslation = selectedLineTranslation(customTranslations[index], canonicalLines[index]) ?? defaultEnglish;
 
               if (!line.trim() && !activeTranslation.trim()) return <div key={index} className="h-6"></div>;
 
@@ -504,8 +507,9 @@ const SongPage = () => {
 
         {selectedLine !== null && (
             <LineSidebar
-                key={`${song.id}:${selectedLine}:${user?.id || 'guest'}`}
-                selectedTranslation={customTranslations[selectedLine] || null}
+                key={`${song.id}:${selectedLine}:${canonicalLines[selectedLine] ?? ''}:${user?.id || 'guest'}`}
+                selectedTranslation={selectedLineTranslation(customTranslations[selectedLine], canonicalLines[selectedLine])}
+                canonicalLines={canonicalLines}
                 songId={song.id}
                 lineIndex={selectedLine}
                 originalContent={chineseLines[selectedLine]}

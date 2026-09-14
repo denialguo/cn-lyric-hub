@@ -87,9 +87,9 @@ function check(name, ok, detail) {
     const other = otherSession.user;
     // Even cross-user tests target only disposable content.
     const translation = await insert('line_translations', { key: SVC,
-      body: { song_id: probe.id, line_index: 0, content: marker, user_id: other.id } });
+      body: { song_id: probe.id, line_index: 0, original_line: 'x', content: marker, user_id: other.id } });
     const comment = await insert('line_comments', { key: SVC,
-      body: { song_id: probe.id, line_index: 0, content: marker, user_id: other.id } });
+      body: { song_id: probe.id, line_index: 0, original_line: 'x', content: marker, user_id: other.id } });
     if (translation.status !== 201 || comment.status !== 201) throw new Error('Could not create probe contributions');
     const translationId = JSON.parse(translation.text)[0].id;
     const commentId = JSON.parse(comment.text)[0].id;
@@ -154,6 +154,15 @@ function check(name, ok, detail) {
       method: 'PATCH', prefer: 'return=representation', body: { votes: 999999 } });
     check('author CANNOT overwrite translation vote counter', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
+    console.log('\ncontribution anchors');
+    r = await insert('line_translations', { jwt, body: {
+      song_id: probe.id, line_index: 0, original_line: 'stale lyric', content: marker, user_id: uid,
+    } });
+    check('stale lyric contribution is rejected', r.text.includes('22023'), `got ${r.status}`);
+    r = await rq(`line_comments?id=eq.${commentId}`, { key: SVC, method: 'PATCH',
+      body: { original_line: 'moved' } });
+    check('existing comment anchor is immutable', r.text.includes('22023'), `got ${r.status}`);
+
     console.log('\nprofiles');
     r = await rq(`profiles?id=eq.${uid}`, { jwt, method: 'PATCH',
       prefer: 'return=representation', body: { role: 'admin' } });
@@ -165,13 +174,13 @@ function check(name, ok, detail) {
       prefer: 'return=representation', body: { display_name: 'pwned' } });
     check('user CANNOT edit another profile', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
-    console.log('\ncommunity content (FK-guarded, nothing is really written)');
-    r = await rq('line_translations', { jwt, method: 'POST',
-      body: { song_id: FAKE_SONG, line_index: 0, content: 'x', user_id: other.id } });
+    console.log('\ncommunity content (disposable probe rows only)');
+    r = await insert('line_translations', { jwt,
+      body: { song_id: probe.id, line_index: 0, original_line: 'x', content: 'x', user_id: other.id } });
     check('user CANNOT post a translation as someone else', blocked(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
-    r = await rq('line_translations', { jwt, method: 'POST',
-      body: { song_id: FAKE_SONG, line_index: 0, content: 'x', user_id: uid } });
+    r = await insert('line_translations', { jwt,
+      body: { song_id: probe.id, line_index: 0, original_line: 'x', content: 'x', user_id: uid } });
     check('user CAN post their own translation', allowed(r), `got ${r.status} ${r.text.slice(0, 120)}`);
 
     r = await rq('song_likes', { jwt, method: 'POST', body: { song_id: FAKE_SONG, user_id: other.id } });
