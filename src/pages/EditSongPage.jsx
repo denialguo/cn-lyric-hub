@@ -11,7 +11,7 @@ import { useToast } from '../context/ToastContext';
 import { confirmLineEdit } from '../lib/lineEdits';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
-import { finishSongSave } from '../lib/finishSongSave';
+import { publishSong } from '../lib/queries';
 import { isAdmin, submitterName } from '../lib/identity';
 
 const EditSongPage = ({ isReviewMode = false }) => {
@@ -24,8 +24,6 @@ const EditSongPage = ({ isReviewMode = false }) => {
   const [fetching, setFetching] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
-  const [savedSongId, setSavedSongId] = useState(null);
-  const [saveIncomplete, setSaveIncomplete] = useState(false);
 
   const [tags, setTags] = useState([]);
   const { selectedArtists, setSelectedArtists, handleSelectArtist, handleRemoveArtist } = useArtistSelection();
@@ -42,8 +40,6 @@ const EditSongPage = ({ isReviewMode = false }) => {
       setFetching(true);
       setFetchError('');
       setOriginalData(null);
-      setSavedSongId(null);
-      setSaveIncomplete(false);
       const tableName = isReviewMode ? 'song_submissions' : 'songs';
       const { data: song, error } = await supabase.from(tableName).select('*').eq('id', id).single();
 
@@ -137,92 +133,34 @@ const EditSongPage = ({ isReviewMode = false }) => {
       lyrics_pinyin: formData.lyrics_pinyin, lyrics_english: formData.lyrics_english,
       credits: formData.credits, bio: formData.bio, year: formData.year ? parseInt(formData.year) : null,
       artist_en: artistEnString, artist_zh: artistZhString, tags,
-      last_edited_by: editorName,
-    };
-
-    let wroteSongId = savedSongId;
-
-    // Helper: resolve an artist to a DB id, creating if needed
-    const resolveArtistId = async (artist) => {
-      if (artist.id && !artist.isNew) return artist.id;
-
-      const { data: existing, error: lookupError } = await supabase
-        .from('artists').select('id').eq('name_en', artist.name_en).maybeSingle();
-      if (lookupError) throw lookupError;
-      if (existing) return existing.id;
-
-      const artistSlug =
-        artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') +
-        '-' + Math.floor(Math.random() * 1000);
-      const { data: created, error: createError } = await supabase
-        .from('artists')
-        .insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug })
-        .select()
-        .single();
-      if (createError) throw createError;
-      return created.id;
     };
 
     try {
-      const targetSongId = isReviewMode ? (formData.original_song_id || savedSongId) : id;
+      const targetSongId = isReviewMode ? formData.original_song_id : id;
       if (!await confirmLineEdit(supabase, targetSongId, formData.lyrics_chinese, confirm)) return;
-      if (isReviewMode) {
-        const artistIds = await Promise.all(selectedArtists.map(resolveArtistId));
-        // A reviewed/published song is curated content — lift it into the listed catalog.
-        // Credit the person who wrote the edit, not the admin approving it: safePayload
-        // took last_edited_by from the current session, which here is always the admin.
-        // ponytail: the approver isn't recorded anywhere — with one admin account that
-        // is zero information. Add a reviewed_by column if that ever stops being true.
-        const payloadForLiveDB = {
-          ...safePayload, slug: finalSlug, source: 'user',
-          last_edited_by: formData.submitted_by || editorName,
-        };
-
-        if (formData.original_song_id || savedSongId) {
-          const { error: updateError } = await supabase
-            .from('songs').update(payloadForLiveDB).eq('id', formData.original_song_id || savedSongId).select('id').single();
-          if (updateError) throw updateError;
-          wroteSongId = formData.original_song_id || savedSongId;
-        } else {
-          const { data: newSong, error: insertError } = await supabase
-            .from('songs').insert([payloadForLiveDB]).select().single();
-          if (insertError) throw insertError;
-          wroteSongId = newSong.id;
-        }
-
-        setSavedSongId(wroteSongId);
-        setFormData(previous => ({ ...previous, slug: finalSlug }));
-        await finishSongSave(supabase, wroteSongId, artistIds, id);
-        setSaveIncomplete(false);
-        toast.success('Approved & Published!');
-        navigate('/admin');
+      if (isReviewMode || isAdmin(user, profile)) {
+        const saved = await publishSong(
+          { ...safePayload, slug: finalSlug, last_edited_by: editorName },
+          selectedArtists,
+          isReviewMode ? { submissionId: id } : { songId: id },
+        );
+        toast.success(isReviewMode ? 'Approved & Published!' : 'Song saved!');
+        navigate(isReviewMode ? '/admin' : `/song/${saved.slug}`);
       } else {
-        if (isAdmin(user, profile)) {
-          const artistIds = await Promise.all(selectedArtists.map(resolveArtistId));
-          // Admin editing a song curates it — lift imports into the listed catalog
-          const payloadForLiveDB = { ...safePayload, slug: finalSlug, source: 'user' };
-          const { error } = await supabase.from('songs').update(payloadForLiveDB).eq('id', id).select('id').single();
-          if (error) throw error;
-          wroteSongId = id;
-          await finishSongSave(supabase, id, artistIds);
-          navigate(`/song/${formData.slug}`);
-        } else {
-          const submissionPayload = {
-            ...safePayload,
-            original_song_id: id,
-            submitted_by: submitterName(user, profile),
-            status: 'pending_edit',
-          };
-          const { error } = await supabase.from('song_submissions').insert([submissionPayload]);
-          if (error) throw error;
-          toast.success("Edit suggested! An admin will review your changes.");
-          navigate(`/song/${formData.slug}`);
-        }
+        const submissionPayload = {
+          ...safePayload,
+          original_song_id: id,
+          submitted_by: editorName,
+          status: 'pending_edit',
+        };
+        const { error } = await supabase.from('song_submissions').insert([submissionPayload]);
+        if (error) throw error;
+        toast.success("Edit suggested! An admin will review your changes.");
+        navigate(`/song/${formData.slug}`);
       }
     } catch (error) {
       console.error('Song save failed:', error);
-      setSaveIncomplete(Boolean(wroteSongId));
-      toast.error(wroteSongId ? 'The song was saved, but some updates failed. Retry here to finish.' : 'Couldn’t save. Your changes are still here; try again.');
+      toast.error(`Couldn’t save: ${error.message || 'Please try again.'} Your changes are still here.`);
     } finally {
       setLoading(false);
     }
@@ -232,7 +170,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
     const ok = await confirm('Reject this submission?', { destructive: true, confirmLabel: 'Reject' });
     if (!ok) return;
     setLoading(true);
-    const { error } = await supabase.from('song_submissions').update({ status: 'rejected' }).eq('id', id).select('id').single();
+    const { error } = await supabase.from('song_submissions').update({ status: 'rejected' })
+      .eq('id', id).in('status', ['pending', 'pending_edit']).select('id').single();
     if (error) toast.error('Failed to reject: ' + error.message);
     else navigate('/admin');
     setLoading(false);
@@ -301,9 +240,6 @@ const EditSongPage = ({ isReviewMode = false }) => {
           {isReviewMode ? 'Approve Submission' : 'Edit Song'}
         </h1>
 
-        {saveIncomplete && <div role="alert" className="mb-6 p-4 border border-amber-500/40 rounded-xl text-amber-300 text-sm">
-          The song is saved, but its artist links or review status need another attempt. Retry here to finish without creating another song.
-        </div>}
         <form onSubmit={handleSave} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
             {renderTextInput('Primary Title', 'title_zh', true)}
@@ -405,7 +341,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
           <div className="sticky bottom-0 z-50 flex flex-wrap justify-end gap-3 bg-slate-950 border-t border-slate-700 py-4">
             {isReviewMode && (
               <button
-                type="button" onClick={handleReject} disabled={loading || saveIncomplete}
+                type="button" onClick={handleReject} disabled={loading}
                 className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold min-h-12 py-3 px-4 text-sm rounded-full border border-red-500/50 flex items-center gap-2 backdrop-blur-md transition-all"
               >
                 <XCircle className="w-5 h-5" /> Reject
@@ -418,7 +354,7 @@ const EditSongPage = ({ isReviewMode = false }) => {
               }`}
             >
               {isReviewMode ? <CheckCircle className="w-5 h-5" /> : <Save className="w-5 h-5" />}
-              {loading ? 'Processing…' : saveIncomplete ? 'Retry remaining updates' : isReviewMode ? 'Approve & Publish' : 'Save Changes'}
+              {loading ? 'Processing…' : isReviewMode ? 'Approve & Publish' : 'Save Changes'}
             </button>
           </div>
         </form>

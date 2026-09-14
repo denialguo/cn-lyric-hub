@@ -19,6 +19,22 @@ export const PAGE_CAP = 1000;
 export const CARD_COLUMNS =
   'id, slug, title_zh, title_en, cover_url, artist_en, artist_zh, tags, source, created_at, song_likes(count)';
 
+/** Save content, resolve/link artists, and optionally approve a review in one transaction. */
+export async function publishSong(song, artists, { songId = null, submissionId = null } = {}) {
+  const { data, error } = await supabase.rpc('publish_song', {
+    p_song: song,
+    p_artists: artists.map(artist => ({
+      id: artist.isNew ? null : artist.id,
+      name_en: artist.name_en,
+      name_zh: artist.name_zh,
+    })),
+    p_song_id: songId,
+    p_submission_id: submissionId,
+  });
+  if (error) throw error;
+  return data;
+}
+
 /**
  * Make a value safe to embed in a PostgREST `or=` filter.
  *

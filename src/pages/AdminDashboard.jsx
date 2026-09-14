@@ -87,7 +87,8 @@ const AdminDashboard = () => {
     try {
       // Mark rather than delete, so the submitter gets an outcome instead of the
       // entry silently disappearing from their profile.
-      const { error } = await supabase.from('song_submissions').update({ status: 'rejected' }).eq('id', id).select('id').single();
+      const { error } = await supabase.from('song_submissions').update({ status: 'rejected' })
+        .eq('id', id).in('status', ['pending', 'pending_edit']).select('id').single();
       if (error) throw error;
       setSubmissions(prev => prev.filter(s => s.id !== id));
       toast.success('Submission rejected');
