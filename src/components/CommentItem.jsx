@@ -60,7 +60,8 @@ const CommentItem = ({ comment, user, replies = [], onReply, onDelete }) => {
   const submitReply = async (e) => {
     e.preventDefault();
     if (!replyText.trim()) return;
-    await onReply(comment.id, replyText);
+    const saved = await onReply(comment.id, replyText);
+    if (saved === false) return;
     setIsReplying(false);
     setReplyText('');
   };

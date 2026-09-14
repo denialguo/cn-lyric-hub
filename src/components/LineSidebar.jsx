@@ -1,3 +1,5 @@
+import { matchesLine } from '../lib/lineAnchors';
+import { songContributions } from '../lib/queries';
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -8,13 +10,15 @@ import CommentItem from './CommentItem';
 import { isRealAccount } from '../lib/identity';
 import { readJson, writeJson } from '../lib/storage';
 
-const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation, selectedTranslation }) => {
+const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyinContent, defaultTranslation, onClose, onSelectTranslation, selectedTranslation }) => {
+  const archiveOnly = lineIndex === -1;
+  const originalLine = canonicalLines[lineIndex];
   const { user, ensureUser } = useAuth();
   const { toast, confirm } = useToast();
   
   const dialogRef = useRef(null);
   const requestRef = useRef(0);
-  const draftKey = `line_draft_${songId}_${lineIndex}_${user?.id || 'guest'}`;
+  const draftKey = `line_draft_${songId}_${lineIndex}_${user?.id || 'guest'}_${originalLine ?? ''}`;
   const [dataError, setDataError] = useState(false);
 
   useEffect(() => {
@@ -72,18 +76,10 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
     setLoading(true);
     setDataError(false);
     
-    const { data: trans, error: transError } = await supabase
-      .from('line_translations')
-      .select('*, profiles(username, avatar_url), line_votes(count)')
-      .eq('song_id', songId)
-      .eq('line_index', lineIndex);
-
-    const { data: comms, error: commentsError } = await supabase
-      .from('line_comments')
-      .select('*, profiles(username, avatar_url)')
-      .eq('song_id', songId)
-      .eq('line_index', lineIndex)
-      .order('created_at', { ascending: true }); 
+    const { data: trans, error: transError } = await songContributions(
+      'line_translations', songId, '*, profiles(username, avatar_url), line_votes(count)');
+    const { data: comms, error: commentsError } = await songContributions(
+      'line_comments', songId, '*, profiles(username, avatar_url)');
 
     const { count: orgVoteCount, error: votesError } = await supabase
       .from('line_votes')
@@ -135,7 +131,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       setTranslations((trans || []).map(t => ({ ...t, votes: t.line_votes?.[0]?.count || 0 }))
         .sort((a, b) => b.votes - a.votes));
     }
-    setComments(comms || []);
+    setComments((comms || []).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)));
     setOriginalVotes(orgVoteCount || 0);
     if(user) {
         setMyVotes(myVotedIds);
@@ -304,7 +300,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
 
     setSubmitting(true);
     const { error } = await supabase.from('line_translations').insert({
-        song_id: songId, line_index: lineIndex, content: transInput.trim().slice(0, 1000), user_id: user.id, language: 'en'
+        song_id: songId, line_index: lineIndex, original_line: originalLine, content: transInput.trim().slice(0, 1000), user_id: user.id, language: 'en'
     });
     if (error) toast.error(error.message);
     else { setTransInput(''); fetchData(); }
@@ -337,6 +333,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                 .insert({
                         song_id: songId,
                         line_index: lineIndex,
+                        original_line: originalLine,
                         user_id: user.id,
                         content: contentToPost.trim().slice(0, 2000),
                         translation_id: translationId,
@@ -360,7 +357,12 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
     catch { toast.error('Couldn’t copy. Select the text and copy it manually.'); }
   };
 
-  const generalComments = comments.filter(c => !c.translation_id);
+  const currentComments = comments.filter(c => c.line_index === lineIndex && matchesLine(c, canonicalLines));
+  const generalComments = currentComments.filter(c => !c.translation_id);
+  const earlier = [
+    ...translations.filter(t => !matchesLine(t, canonicalLines)).map(t => ({ ...t, kind: 'Translation' })),
+    ...comments.filter(c => !matchesLine(c, canonicalLines)).map(c => ({ ...c, kind: c.parent_id || c.translation_id ? 'Reply' : 'Comment' })),
+  ];
 
   return (
     <dialog ref={dialogRef} aria-labelledby="line-panel-title" onKeyDown={event => {
@@ -376,7 +378,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       {/* HEADER */}
       <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
          <div>
-            <h3 id="line-panel-title" className="text-lg font-bold text-white flex items-center gap-2">Line #{lineIndex + 1}</h3>
+            <h3 id="line-panel-title" className="text-lg font-bold text-white flex items-center gap-2">{archiveOnly ? 'Earlier contributions' : `Line #${lineIndex + 1}`}</h3>
             <p className="text-xs text-slate-500">Community Contributions</p>
          </div>
          <button aria-label="Close line contributions" onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
@@ -385,7 +387,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       </div>
 
       {/* CONTEXT */}
-      <div className="p-4 bg-slate-950 border-b border-slate-800 space-y-2">
+      {!archiveOnly && <div className="p-4 bg-slate-950 border-b border-slate-800 space-y-2">
         <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 relative group">
             <p className="italic text-slate-300 text-sm pr-8">"{originalContent}"</p>
             <button onClick={() => handleCopy(originalContent)} className="absolute right-2 top-2 text-slate-600 hover:text-white opacity-70 hover:opacity-100 transition-opacity" title="Copy characters">
@@ -400,10 +402,10 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
             </button>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* TABS */}
-      <div className="flex border-b border-slate-800">
+      {!archiveOnly && <div className="flex border-b border-slate-800">
         <button 
           onClick={() => setActiveTab('translations')}
           aria-pressed={activeTab === 'translations'}
@@ -418,7 +420,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
         >
           <MessageSquare size={14} /> Discussion ({generalComments.length})
         </button>
-      </div>
+      </div>}
 
       {/* CONTENT */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
@@ -426,6 +428,20 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-slate-500" /></div>
         ) : dataError ? (
             <div role="alert" className="text-sm text-slate-300"><p>Couldn’t load contributions.</p><button onClick={fetchData} className="min-h-11 text-primary">Try again</button></div>
+        ) : archiveOnly ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">These contributions are kept separately because their original lyric changed or wasn’t recorded.</p>
+            {earlier.length === 0 && <p className="text-sm text-slate-400">No earlier contributions.</p>}
+            {earlier.map(item => <article key={`${item.kind}-${item.id}`} className="rounded-xl border border-slate-700 p-4 space-y-2">
+              <p className="text-xs text-slate-400">{item.kind} · Line {item.line_index + 1} · {item.profiles?.username || 'Community'}</p>
+              <p className="text-xs text-amber-300">{item.original_line == null ? 'Original lyric not recorded' : 'Earlier lyric version'}</p>
+              {item.original_line != null && <blockquote className="text-sm text-slate-400 whitespace-pre-wrap">{item.original_line}</blockquote>}
+              <p className="text-sm whitespace-pre-wrap">{item.content}</p>
+              {item.parent_id && <p className="text-xs text-slate-400">Reply to: {comments.find(c => c.id === item.parent_id)?.content || 'Deleted comment'}</p>}
+              {item.translation_id && <p className="text-xs text-slate-400">Translation: {translations.find(t => t.id === item.translation_id)?.content || 'Deleted translation'}</p>}
+              {user?.id === item.user_id && <button className="min-h-11 text-xs text-slate-400 hover:text-red-400" onClick={() => item.kind === 'Translation' ? handleDelete(item.id) : handleDeleteComment(item.id)}>Delete your {item.kind.toLowerCase()}</button>}
+            </article>)}
+          </div>
         ) : activeTab === 'translations' ? (
             <div className="space-y-6">
                 
@@ -465,9 +481,9 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                 <div className="w-full h-px bg-slate-800/50"></div>
 
                 {/* COMMUNITY TRANSLATIONS */}
-                {translations.map(t => {
+                {translations.filter(t => t.line_index === lineIndex && matchesLine(t, canonicalLines)).map(t => {
                     const isLiked = myVotes.has(t.id);
-                    const threadComments = comments.filter(c => c.translation_id === t.id);
+                    const threadComments = currentComments.filter(c => c.translation_id === t.id);
                     const isExpanded = expandedThreads.has(t.id);
 
                     return (
@@ -592,7 +608,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
       </div>
 
       {/* FOOTER INPUT */}
-      <div className="p-4 bg-slate-950 border-t border-slate-800">
+      {!archiveOnly && <div className="p-4 bg-slate-950 border-t border-slate-800">
         {!isRealAccount(user) && <Link to="/login" className="block text-center min-h-11 py-2 text-primary text-sm">Sign in to contribute</Link>}
 
         {activeTab === 'translations' ? (
@@ -628,7 +644,7 @@ const LineSidebar = ({ songId, lineIndex, originalContent, pinyinContent, defaul
                 </button>
             </form>
         )}
-      </div>
+      </div>}
 
     </dialog>
   );
