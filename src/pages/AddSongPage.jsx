@@ -12,6 +12,7 @@ import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
 import { isAdmin, isRealAccount, submitterName } from '../lib/identity';
 import { readJson, writeJson, removeKeys } from '../lib/storage';
+import { publishSong } from '../lib/queries';
 
 // One definition, so "Clear Draft" can't miss a field the form has (it used to drop `bio`).
 const EMPTY_FORM = {
@@ -106,45 +107,11 @@ const AddSongPage = () => {
         user_id: isRealAccount(user) ? user.id : null,
       };
 
-      // The two tables have diverged: `songs` has `source` and NO `status`;
-      // `song_submissions` has `status` and NO `source`. Sending the wrong one
-      // fails the whole insert with PGRST204, so build each payload explicitly.
-      const songPayload = publishesDirectly
-        ? { ...shared, source: 'user' }
-        : { ...shared, status: 'pending' };
-
-      const { data: songData, error: songError } = await supabase
-        .from(publishesDirectly ? 'songs' : 'song_submissions')
-        .insert([songPayload])
-        .select()
-        .single();
-
-      if (songError) throw songError;
-
-      if (publishesDirectly && songData) {
-        for (const artist of selectedArtists) {
-          let artistId = artist.id;
-
-          if (artist.isNew) {
-            const artistSlug =
-              artist.name_en.toLowerCase().replace(/[^a-z0-9]/g, '-') +
-              '-' + Math.floor(Math.random() * 1000);
-            const { data: newArtist, error: createError } = await supabase
-              .from('artists')
-              .insert({ name_en: artist.name_en, name_zh: artist.name_zh, slug: artistSlug })
-              .select()
-              .single();
-
-            if (createError) throw createError;
-            artistId = newArtist.id;
-          }
-
-          const { error: linkError } = await supabase
-            .from('song_artists')
-            .insert({ song_id: songData.id, artist_id: artistId, role: 'main' });
-
-          if (linkError) throw linkError;
-        }
+      if (publishesDirectly) {
+        await publishSong(shared, selectedArtists);
+      } else {
+        const { error } = await supabase.from('song_submissions').insert({ ...shared, status: 'pending' });
+        if (error) throw error;
       }
 
       removeKeys('song_draft_form', 'song_draft_tags', 'song_draft_artists_obj');
