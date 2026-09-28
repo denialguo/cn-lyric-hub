@@ -1,372 +1,97 @@
 # CN Lyric Hub — Project Context
 
+Read by Claude Code (`CLAUDE.md`) and Codex (`AGENTS.md` is a symlink to this file — edit CLAUDE.md only).
+
+**This file is rules and architecture only.** No dated logs, no verification transcripts, no to-do lists:
+- History → commit messages (`git log`).
+- Work to do → GitHub Issues (`gh issue list`). One issue per session; commit with `fixes #N`.
+- Only add something here if every future session needs it.
+
 ## What This Is
-Community-driven Chinese lyrics platform. Users browse Chinese songs with pinyin pronunciation guides and English translations. The core differentiator: per-character ruby pinyin alignment, community translation voting (like Genius but for Chinese music), and real-time traditional/simplified script toggling. Built by Daniel as a personal project.
+Community Chinese-lyrics site: per-character ruby pinyin, community line translations with voting, and a live Simplified/Traditional toggle. Personal project by Daniel. Live: https://cnlyrichub.vercel.app
 
-## Tech Stack
-- **Frontend**: React 19 + Vite 6, Tailwind CSS v4, deployed on Vercel
-- **Backend**: Supabase (PostgreSQL + Auth + RLS). No API server — the browser talks to PostgREST directly.
-- **Key libraries**: `pinyin-pro` (pinyin generation), `chinese-conv` (simplified ↔ traditional via `sify()`/`tify()`), `recharts` (stats charts), `lucide-react` (icons), `react-router-dom` v7, `react-helmet-async`
-- **Domain**: https://cnlyrichub.vercel.app
+## Stack
+- React 19 + Vite 6 + Tailwind v4 + react-router v7, on Vercel.
+- Supabase (Postgres + Auth + PostgREST). **No API server** — the browser calls PostgREST with the public anon key, so **RLS is the only authorization layer**. A `role === 'admin'` check in React is UX, not security.
+- `pinyin-pro` (pinyin), `chinese-conv` (`sify`/`tify`), `recharts`, `lucide-react`, `react-helmet-async`.
+- `react-is` is a required Recharts peer. `.npmrc` sets `legacy-peer-deps=true`, so it must stay in package.json or Vercel builds fail.
 
-> Local build note: `npm run build` works on this machine as of 2026-09-09 (~3s). An older note claimed `vite build` failed here on a missing `@rollup/rollup-darwin-x64` — that is no longer reproducible.
+## Where things live
+- `src/lib/queries.js` — **the data-access seam.** Any query with more than one caller goes here (sanitising, paging past the 1000-row cap, errors). Includes `publishSong()` (the `publish_song` RPC).
+- `src/utils/lyrics.js` — **the only pinyin module**: `isChinese`, `generatePinyin`, `alignSyllables`, `generateCharacterPinyin`. The importer uses it via dynamic `import()`, so stored and rendered pinyin can't drift. Never write a second copy.
+- `src/lib/identity.js` — the only place that decides "real account vs anonymous". Use `isRealAccount` / `isAdmin` / `submitterName`, never bare `if (user)` or `user.email`.
+- `src/lib/storage.js` — all localStorage access (never throws).
+- `src/lib/lineAnchors.js`, `lineEdits.js` — contribution anchoring and the line-edit guard.
+- `src/lib/catalogueStats.js` — stats analyses, run by `scripts/refresh-stats.mjs`, not in the browser.
+- `supabase/migrations/` — schema + RLS, applied by pasting into the Supabase SQL editor (in order; check each file's header for rollout notes). `supabase/tests/` — transactional SQL tests.
 
-## File Structure
-- `src/components/` — Navbar, Footer, SongCard, SubmissionCard, LyricLine, LineSidebar, CommentsSection, CommentItem, ArtistSearch, LyricsEditor, ThemeSettings, TagInput, **ErrorBoundary**, **LegalLayout**
-- `src/pages/` — HomePage, SongPage, AddSongPage, EditSongPage, AdminDashboard, AuthPage, ProfilePage, PublicProfile, ArtistPage, StatsPage, FaqPage, NotFoundPage, **PrivacyPage**, **TermsPage**
-- `src/context/` — AuthContext (lazy anon auth), ThemeContext (dark/light, script mode, accent color, lyric sizes/colors), ToastContext (toast.success/error/warning/info + confirm())
-- `src/hooks/` — useArtistSelection, useTagSuggestions
-- `src/lib/` — supabaseClient, **queries.js** (the shared data-access seam), **identity.js** (real-account vs anonymous), **storage.js** (localStorage that can't throw)
-- `src/utils/lyrics.js` — **the single shared pinyin module**: `isChinese`, `generatePinyin`, `alignSyllables`. Imported by the app *and* by `scripts/import-lyrics.cjs` (via dynamic import) so stored and rendered pinyin can never drift.
-- `scripts/` — import-lyrics.cjs, fetch-covers.cjs, fetch-years.cjs, itunes.cjs (shared API client), generate-sitemap.cjs, **prerender.cjs**, verify-rls.cjs
-- `AGENTS.md` is a **symlink to CLAUDE.md** — edit CLAUDE.md only. It was a copy that had drifted 108 lines.
-- `supabase/migrations/` — RLS policies as SQL. Applied by pasting into the Supabase SQL editor.
+## Database — traps
+- Song ids are **bigint**; every other id is uuid.
+- `songs` has **no `status` column** (only `song_submissions` does) — sending one fails the insert with `PGRST204`. `song_submissions` has no `source` column.
+- `songs.submitted_by` / `last_edited_by` are free-text display names, not usernames.
+- Lyrics are **three parallel newline-delimited columns** (`lyrics_chinese`, `lyrics_pinyin`, `lyrics_english`); line N of each is the same line. Postgres doesn't enforce equal line counts — the app does.
+- `cover_url` is `''` when missing, **never NULL** (`cover_url.neq.""` filters depend on it). Covers are hotlinked from Apple; `SongCard` falls back on `onError`.
+- `line_comments`, `comment_votes`, `comment_likes` FK to `line_comments`, not `comments`. `comments` (song-level) has no `line_index`.
+- Line contributions (`line_translations`, `line_comments`) store `original_line`; a trigger rejects rows whose text doesn't match the live lyric line. Compare stored text, never the user's display script.
+- `song_revisions` is written only by the `songs_snapshot` trigger (content columns only — cover/year backfills write none). Clients are read-only.
+- PostgREST caps reads at **1000 rows** — page with `fetchAllRows` / `.range`.
+- Btree leftmost-prefix rule: an index on `(a, b)` doesn't serve a filter on `b` alone. Leading-wildcard `ilike` can't use a btree at all.
 
-## Database Schema (Supabase)
-### Core Tables
-Column lists below were dumped from the live DB on 2026-09-09 — trust them over older notes.
+## Auth and RLS
+- **A Supabase anonymous session has the Postgres role `authenticated`.** `to authenticated` ≠ "real account". Policies use `is_real_account()` (JWT `is_anonymous`) and `is_admin()`.
+- Direct `songs` writes are admin-only. Everyone else goes through `song_submissions`; admins publish/approve via the `publish_song` RPC (one transaction).
+- Lazy anonymous auth: never `signInAnonymously()` on page load — write paths call `ensureUser()`.
+- `profiles.role` is frozen by RLS; promotion only via the SQL editor.
+- Run `npm run verify:rls` after any policy change. It probes the REST API as an attacker, uses disposable rows/users, and cleans up by exact id.
+- ⚠️ Never restore a row from a `Prefer: return=representation` PATCH response — it returns the row *after* the write. Snapshot first, or restore from the corpus (`~/Downloads/Chinese_Lyrics/`).
+- Service-role key (scripts only) bypasses RLS and is deliberately not `VITE_`-prefixed so it can't be bundled.
 
-- `songs` — **id (bigint PK)**, title_en (NOT NULL), artist_en (NOT NULL), title_zh, artist_zh, slug (unique), lyrics_chinese, lyrics_pinyin, lyrics_english (parallel newline-delimited), cover_url, youtube_url, category, tags (text[]), bio, credits, translation_credit, year (int), source (NOT NULL, **DEFAULT 'user'**: 'import' | 'user'), submitted_by, last_edited_by, user_id, created_at, updated_at
-  - ⚠️ **There is NO `status` column on `songs`.** Sending one returns `PGRST204` and the whole insert fails. `status` exists only on `song_submissions`.
-  - `submitted_by` / `last_edited_by` hold **free-text display names** ('Anonymous', 'admin', 'Community'), NOT usernames — so they do not resolve against `profiles.username`. 1608 songs, most are `'Anonymous'`.
-  - `source` defaults to `'user'`, so omitting it from an insert is safe.
-- `artists` — id (uuid PK), name_en, name_zh, slug, avatar_url
-- `song_artists` — junction table: song_id (bigint → songs), artist_id (uuid → artists), role
-- `profiles` — id (uuid, FK → auth.users), username, display_name, avatar_url, bio, role ('admin' | 'user'), updated_at
-  - **No `website` column and no `email`/PII.** Public read exposes only the fields above, so there is no data leak — but `PublicProfile.jsx` renders a `profile.website` block that can therefore never display.
-  - 41 rows, most with `username: null` — accumulated anonymous sessions (a trigger creates a profile per auth user, anonymous included). Unbounded by design.
-- `song_submissions` — staging table; **currently 0 rows**, not publicly readable (own-row select only). Columns: id, created_at, title_en, title_zh, artist_en, artist_zh, lyrics_chinese, lyrics_pinyin, lyrics_english, cover_url, youtube_url, tags, credits, status, **submitter_ip**, user_id, original_song_id (bigint → songs), slug, submitted_by, bio, updated_at, year. Note: **no `source` column** (unlike `songs`).
-- `line_translations` — song_id (bigint), line_index, **content** (not `translation_text`), language, user_id, votes
-- `line_comments` — line-level comments: song_id, line_index, content, user_id, translation_id, **parent_id (self-FK, one-level threading)**, votes
-- `comments` — song-level comments: song_id, content, user_id. **No `line_index`** — that's `line_comments`.
-- `line_votes` — song_id, line_index, translation_id (null = vote on the official line), user_id
-- `comment_votes` (id, user_id, **comment_id**, created_at) / `comment_likes` (user_id, comment_id, created_at — no id) — both FK to **`line_comments`**, not `comments`
-- `song_likes` — song_id (bigint), user_id
-- `song_revisions` — id (bigserial), song_id (bigint → songs, **on delete cascade**), `snapshot` (jsonb — the whole songs row as it was, pre-edit), revised_at. Written **only** by the `songs_snapshot` trigger; clients are REVOKEd and can read only. See the edit-history section below.
+## Pinyin and scripts
+- Pinyin is generated **at ingest**, from whole Han runs, so `pinyin-pro` resolves polyphones by context (音乐 → `yīn yuè`).
+- `alignSyllables()` returns one syllable per Han char or `null`; on `null`, `LyricLine` lazily regenerates per character. 99.65% of real lines align; the rest have word-grouped stored pinyin (`píngguǒ`).
+- Script conversion is client-side only; the DB stores one form. Conversion preserves character count, which keeps alignment valid in Traditional mode. Search expands queries to raw/`sify`/`tify` variants.
 
-⚠️ Song-referencing FKs are **bigint**; everything else is uuid. Don't pass a uuid as a song_id.
-
-### RLS
-Policies live in `supabase/migrations/`. RLS is the **only** authorization layer — the anon key is public (Vite inlines it into the bundle), so any `role === 'admin'` check in React is UX, not security.
-
-**Live state as verified 2026-09-09** (`20260831000000_tighten_rls.sql` IS applied, except its `song_likes` block):
-- songs: public read ✅; anon-role INSERT/UPDATE blocked ✅
-  - ⚠️ **UPDATE is granted `to authenticated`, and a Supabase anonymous session IS `authenticated`.** Verified: a throwaway anon session can rewrite any song's lyrics. `to authenticated` ≠ "has a real account".
-- profiles: public read ✅; own-row UPDATE only ✅; `role` frozen by `current_profile_role()` ✅ (escalation verified blocked)
-- line_translations / line_comments / comments: INSERT requires `auth.uid() = user_id` ✅; **cross-user UPDATE and DELETE verified blocked** ✅
-- line_votes / comment_votes: own-row INSERT/DELETE ✅ (forgery verified blocked)
-- ⚠️ **song_likes: NO ownership check.** Verified: a forged `user_id` is accepted, and an insert succeeds with **no auth at all** (raw anon key).
-- Bulk scripts use SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS
-
-### RLS migration applied — verified after user confirmation
-`supabase/migrations/20260909000000_likes_ownership_and_admin_song_writes.sql` was applied by Daniel after correcting the constraint drop. Latest `npm run verify:rls`: **27 passed, 0 failed**, including exact-ID cleanup of all disposable rows and both accounts. The earlier four verified song-write/like-ownership holes are closed. The live-state bullets above describe the initial audit, before this migration.
-
-It also creates the three indexes the app actually needs and drops the duplicate `unique_username`.
-
-⚠️ **Read before applying**: it makes direct `songs` writes admin-only, and **only `danielguo1098@gmail.com` is admin** (`profiles.id = 55c256da-…`). `danieldenialdeveloping@gmail.com` (`d090e155-…`) is NOT — after applying, that account's edits become submissions instead of direct writes. The SQL contains the one-line `update` to promote it if you want that. The `role` column is frozen by RLS, so promotion is only possible from the SQL editor or dashboard, never the app.
-
-The app side is already done and is safe either way: non-admins route to `song_submissions`, and that path was verified to still work for anonymous *and* fully unauthenticated visitors.
-
-Run `npm run verify:rls` after any policy change — it probes the REST API as an attacker would and exits non-zero if a policy regressed. It is non-destructive and cleans up after itself (verified: 0 leftover rows, probe auth users deleted).
-
-⚠️ **Never write a probe that restores a row from a `Prefer: return=representation` response after a PATCH** — that header returns the row *after* the write, so "restoring" from it re-saves the corrupted value. This destroyed `songs.lyrics_chinese` on song 391 during the 2026-09-09 audit (recovered from `~/Downloads/Chinese_Lyrics/`). Snapshot before the write, or restore from the corpus.
-
-### Triggers
-- `songs_updated_at` — auto-updates `updated_at` on any row change
-- `songs_snapshot` — `before update on songs`, writes the pre-edit row into `song_revisions`. Fires only when a **content** column changed (lyrics ×3, titles, artists, bio, credits) — `cover_url` and `year` are excluded so backfill scripts don't write a revision per row.
-
-### Indexes (dumped 2026-09-09)
-**All 21 indexes are UNIQUE — there is not one plain index in the DB.** Every index exists as a byproduct of a PK or uniqueness constraint; none was created to serve a query.
-
-Protections these give you for free (do NOT re-add app-level guards for these):
-- `profiles_username_key (username)` — username uniqueness IS enforced. The check-then-upsert in ProfilePage can't create duplicates; it raises `23505`.
-- `song_likes_user_id_song_id_key (user_id, song_id)`, `unique_comment_vote (user_id, comment_id)`, `unique_community_vote (user_id, translation_id) WHERE translation_id IS NOT NULL`, `unique_original_vote (user_id, song_id, line_index) WHERE translation_id IS NULL` — double-click like/vote races raise `23505` instead of double-counting. Optimistic-UI drift is still possible; duplicate *rows* are not.
-
-⚠️ **Leftmost-prefix rule** — a btree on `(a, b)` serves filters on `a` or `a+b`, never `b` alone. These queries therefore seq-scan despite an index that looks relevant:
-- `song_likes.eq('song_id')` (SongCard count) vs index `(user_id, song_id)` → seq scan **per card**
-- `comment_likes.eq('comment_id')` (CommentItem count) vs PK `(user_id, comment_id)` → seq scan per comment
-- `line_votes.eq('song_id').eq('line_index').is('translation_id',null)` vs `(user_id, song_id, line_index)` → seq scan
-- `song_artists` artist→songs lookups vs `(song_id, artist_id)` → needs `(artist_id)` before any ArtistPage junction refactor
-
-Missing and actually used by every list query: **`songs` has no index on `created_at` or `updated_at`**, yet every list/search path orders by one of them → full sort of the table per request.
-
-Redundant: `unique_username` backs a UNIQUE constraint, duplicating `profiles_username_key`. Remove it with `alter table public.profiles drop constraint if exists unique_username;` — PostgreSQL removes the backing index automatically, while `profiles_username_key` continues enforcing uniqueness. Direct `DROP INDEX` fails with `2BP01`; the migration was corrected after that SQL-editor error.
-
-Unindexable by btree: `artist_en.ilike.%name%` (leading wildcard). Needs `pg_trgm`/FTS — or better, the `song_artists` join.
-
-### Storage (audited 2026-09-09)
-- **Only one bucket: `avatars`** — `public=true`, `file_size_limit=null`, `allowed_mime_types=null`. No cap and no MIME allowlist; `accept="image/*"` on the input is client-side only. Fix in the dashboard (the real enforcement point), not in JS. Contains 2 objects, both the admin's — old avatars are never deleted, so every change orphans a file permanently.
-- **Cover art is hotlinked, not stored.** 814/1000 covers point at `is1-ssl.mzstatic.com` (Apple), rewritten by `itunes.cjs` from `artworkUrl100` → `600x600bb` (~56 KB each). 176 rows have `cover_url = ''` (empty string, **never NULL** — HomePage's `cover_url.neq.""` filter depends on this; a NULL would be silently excluded from All Songs).
-  - **No `onError` handler exists anywhere in `src/`** — a rotated Apple URL renders the browser's broken-image glyph, NOT the gradient placeholder (that only triggers on a falsy `cover_url`).
-  - ~2 MB of art per homepage (36 cards × 56 KB) at 600×600 into a ~300px slot; no `srcset`.
-  - Third-party requests to Apple disclose visitor IP/referer → must be named in the privacy policy. iTunes artwork terms cover promoting iTunes content, not acting as someone else's permanent CDN.
-- **The DB is the only copy of the data.** The corpus in `~/Downloads/Chinese_Lyrics/` can restore imported `lyrics_chinese` only — it cannot restore the 27 user songs, community translations, comments, likes, curated `lyrics_english`, or script-backfilled covers/years. No `pg_dump` routine exists. Song 391 was recovered in the 2026-09-09 audit purely because the corpus happened to still be on disk.
-- Only one RPC exists (`current_profile_role`), so the non-atomic `songs`/`song_artists` insert has no server-side function to move into yet.
-
-## SEO / rendering (added 2026-09-09)
-The app is a client-rendered SPA, so **every URL used to serve the same 915-byte shell** — identical `<title>`, identical description, empty `<div id="root">`, no lyrics. `react-helmet-async` only sets those tags after JS runs. Googlebot deduped 1608 byte-identical pages into one; **only 2 pages were indexed**. The sitemap was never the problem.
-
-`scripts/prerender.cjs` runs after `vite build` and writes `dist/song/<slug>/index.html`, `dist/artist/<name>/index.html` and the static routes, each with a unique title, description, canonical, OG tags, JSON-LD and the real lyrics in the markup (915 B → ~8 KB; 1608 distinct titles and descriptions verified). **Vercel resolves static files before `rewrites`**, so these win over the SPA shell and the shell still handles anything not prerendered. The script exits 0 on failure so SEO can never break a deploy.
-
-**Three non-obvious constraints — easy to regress, each found by testing rather than assumption:**
-1. **Files are written flat as `<route>.html`, never `<route>/index.html`.** Directory-index resolution only matches with a *trailing slash* on many static servers (`vite preview` included), and our canonicals and sitemap use the slash-less form — which is what Googlebot requests. Verified: the directory form served the generic SPA shell for `/song/foo` and only worked for `/song/foo/`.
-2. **`vercel.json` needs `"cleanUrls": true`** (plus `"trailingSlash": false`) for Vercel to serve `song/foo.html` at `/song/foo`. Without it the SPA rewrite wins and the prerender is dead weight.
-3. **Artist filenames use the RAW name, not `encodeURIComponent(name)`.** A server percent-decodes the request path before matching the filesystem, so `/artist/%E5%91%A8%E6%9D%B0%E4%BC%A6` looks for `artist/周杰伦.html`. Encoded filenames never match. Names containing `/ \ : * ? " < > |` are skipped — a mangled filename couldn't match its URL anyway.
-
-⚠️ **Verify after the next deploy** — the above was proven against a local server that emulates Vercel's resolution order (static file → `.html` → SPA rewrite), which is not Vercel itself:
-```
-curl -s https://cnlyrichub.vercel.app/song/xin-tian-di-live-live-5061 | grep -o '<title>[^<]*'
-```
-Should print the song's own title, not "CN Lyric Hub — Chinese Lyrics with…". If it prints the generic one, `cleanUrls` isn't taking effect.
-
-Consequences to remember:
-- Prerendered HTML is **stale until the next deploy**. Users always see live data (React refetches); only crawlers see the snapshot.
-- Adding a new page route means adding it to `STATIC_ROUTES` in `prerender.cjs` *and* to `generate-sitemap.cjs`, or it serves the homepage's title.
-- A full corpus import (~49,760 files, see below) would write ~49k HTML files per build and push the sitemap past the 50,000-URL limit for a single file, which then needs a sitemap index.
-
-## The corpus vs the database
-`~/Downloads/Chinese_Lyrics/` holds **49,760 lyric files across 494 artist folders**. The DB has **1,608 songs from 19 artists** — roughly 3% imported. Everything in the "won't scale" column below is sized against 1608, so a full import is a 31x jump that turns each of those into a live problem at once. Import deliberately, not all at once.
-
-## Content coverage (measured 2026-09-09)
-Worth knowing before building features that sort or filter on these:
-- `lyrics_english` non-empty: **7 of 1608**. The site's English-translation promise is essentially unfulfilled.
-- `tags`: **4 of 1000** sampled rows have any tag. The Classics tab used to filter on tags and rendered **zero cards**.
-- `year`: **1411 of 1608** (88%) after three 2026-09-13 passes (`year < 2000` → **500**, was 112). 197 remain null — live cuts, `(talk)` tracks, medleys, radio-drama themes Apple does not carry as searchable tracks.
-  - **How it is derived:** `bestReleaseYear()` in `itunes.cjs` keeps only results whose artist *and* title plausibly match, then takes the **earliest** release date among them. Every iTunes result carries the date of the album the track sits on, and compilations rank first, so `results[0]` dated a 1979 recording to 2005. Search limit is 25 on this path — at the old `limit=3` the original pressing usually was not among the candidates at all. Both halves of the match are required: taking a minimum makes a stray older result actively dangerous.
-  - **Accuracy, measured on the worst case** (Teresa Teng, d. 1995 — any later year is provably wrong): **39% → 23% → 16%** across the three passes. Modern artists are far more accurate; 16% is the worst-case slice, not a site-wide rate.
-  - ⚠️ **Pacing is data quality, not politeness.** A throttled lookup falls back to a weaker query or gives up, so it silently writes a worse answer. At the old hardcoded 1000ms one pass took **126** rate-limit hits and found 614 years; at `--delay 2500` the next took **59** and found **917**. Use `--delay 2500` or slower.
-  - ⚠️ **`--refresh` must not clear unverifiable years by default.** A live run showed **52% produce no confident match** (live/talk/medley tracks dominate catalogues like Eason Chan's), which would have traded 1277 dated songs for ~600. Clearing lives behind `--clear-unverified`. The aborted run's 28 cleared rows were restored from the backup taken minutes earlier — the whole reason to take one first.
-  - Returns are diminishing: the three passes corrected 184, then 71. A fourth would likely land ~30.
-  - ⚠️ `year` reaches readers: `SongPage` renders it, and `prerender.cjs` writes "Released {year}" into the body **and the meta description**, plus `datePublished` in the JSON-LD. **Open decision:** a displayed year reads as approximate, but `datePublished` asserts it to Google as a machine-readable fact, and no rich result for music actually consumes it — near-zero benefit against a real-if-small cost.
-- `category`: all 1608 rows are `'pop'` — a constant, read by nothing. Dead column.
-- `translation_credit`: 2 non-null rows.
-- `cover_url`: 1340 have one; 176 are `''` (never NULL — `cover_url.neq.""` depends on that).
-- `song_likes`: 18 rows over **7 distinct songs**. Trending used to be the default tab and rendered 7 cards out of 1608; the default is now All Songs.
-
-## Key Architecture Decisions
-- **Lyrics as parallel columns** (not a lines table) — keeps inserts atomic, editing simple, avoids hundreds of rows per song. ⚠️ Nothing in Postgres enforces equal line counts across the three columns; that invariant is application-level only.
-- **Pinyin is pre-generated at ingest, not at render** — `pinyin-pro` is handed whole Chinese runs so it resolves polyphones by word context (音乐 → `yīn yuè`, never `yīn lè`). Per-character generation loses this.
-- **Alignment is a count-gated positional zip** — `alignSyllables()` returns one syllable per Han char, or `null` when it can't match, in which case `LyricLine` asynchronously regenerates per character through the shared module. ~99.5% of real lines take the fast path.
-- **Script conversion is client-side only** — the DB stores one canonical form; `sify`/`tify` run at render. Conversion preserves character count, which is what keeps ruby alignment valid in traditional mode.
-- **Lazy anonymous auth** — no `signInAnonymously()` on page load. Every write path calls `ensureUser()` first so rows carry a real uid for RLS.
-- **N+1 elimination** — HomePage batch-fetches liked song IDs in one query; the importer preloads a dedup cache instead of querying per song.
-- **Latin-only lyric lines** — rendered at smaller italic size instead of hanzi scale.
-- **No "No translation available" message** — if no translation exists, show nothing.
-- **Toast system replaces all alert()/confirm()**
-- **One shared data-access seam** — `src/lib/queries.js` owns every query with more than one caller (search, catalogue lists, tab queries, artist lookup, `fetchAllRows` for paging past the 1000-row cap, `likedSongIds`). Before it, `supabase` was imported into 15 components and each re-decided sanitising / paging / error handling independently, which is why the same bug appeared in four variants. **Add new multi-caller queries here, not in components.**
-- **`src/lib/identity.js` is the only place that decides "is this a real account"** — a Supabase anonymous session has the Postgres role `authenticated`, so `if (user)` is true for throwaway visitors. Use `isRealAccount` / `isAdmin` / `submitterName`, never a bare `if (user)` or `user.email`.
-- **`src/lib/storage.js` wraps all localStorage** — reads and writes never throw. Accessing localStorage at all throws when a browser blocks site data, and a bare `JSON.parse` in ThemeProvider used to white-screen the whole app unrecoverably.
-- **`ErrorBoundary` is mounted outside ThemeProvider** in `main.jsx`, because ThemeProvider's own storage read was the most likely thing to throw.
-- **Direct `songs` writes are admin-only** (app + RLS). Every non-admin — signed in, anonymous, or signed out — routes through `song_submissions` for review. Approve/reject set `status`; they no longer delete the row, so submitters can see the outcome.
+## SEO prerender — easy to regress
+`scripts/prerender.cjs` writes static HTML per song/artist after `vite build`. Vercel serves static files before rewrites.
+1. Files are flat `<route>.html`, never `<route>/index.html`.
+2. `vercel.json` needs `"cleanUrls": true` and `"trailingSlash": false`.
+3. Artist filenames use the **raw** name, not `encodeURIComponent` (servers decode the path before matching files).
+- New page route → add it to `STATIC_ROUTES` in `prerender.cjs` **and** `generate-sitemap.cjs`.
+- Prerender exits 0 on failure; sitemap failure fails the build. Both use `scripts/build-fetch.cjs` retries.
+- A full corpus import (~49,760 files) would exceed the 50,000-URL single-sitemap limit.
 
 ## Commands
 ```
-npm run dev          # vite dev server
-npm test             # node --test, unit tests for the pinyin/alignment logic
-npm run lint         # eslint (0 errors expected)
-npm run verify:rls   # probe live RLS policies; exits 1 on a hole
-npm run build        # generate-sitemap.cjs && vite build
+npm run dev            # vite dev server
+npm test               # node --test src scripts
+npm run lint           # eslint (0 errors expected)
+npm run build          # sitemap → vite build → prerender
+npm run verify:rls     # live RLS probe; exits 1 on a hole
+npm run backup         # all tables → backups/*.json, aborts on row-count mismatch
+npm run stats:refresh  # recompute the stats snapshot (also hourly via GitHub Actions)
 ```
 
-## Bulk Scripts
-All in `scripts/`, all use `.env.local` auto-detection and SUPABASE_SERVICE_ROLE_KEY:
-- `import-lyrics.cjs` — Reads Chinese Lyric Corpus folder structure, generates pinyin via the shared `src/utils/lyrics.js`, dedups on title_zh + artist_en against a preloaded cache. Supports --limit, --artists, --dry-run. Skips unique violations by SQLSTATE `23505`.
-- `itunes.cjs` — shared iTunes Search client: 10s timeout, exponential backoff, honours `Retry-After`, throws `RateLimitError` (aborting the run) rather than silently recording "no match" for throttled songs.
-- `fetch-covers.cjs` — album art for songs with empty cover_url, 3 search strategies
-- `fetch-years.cjs` — release years. ⚠️ PostgREST caps reads at 1000 rows, so a full backfill needs repeat runs (it's idempotent — it only selects rows where `year is null`).
-- `generate-sitemap.cjs` — pages past the 1000-row cap; uses updated_at for lastmod; runs as a Vercel build step
-- `verify-rls.cjs` — non-destructive RLS policy probe
+## Bulk scripts (`scripts/`, service-role key from `.env.local`)
+- `import-lyrics.cjs` — corpus import; `--limit`, `--artists`, `--dry-run`. Dedups on `title_zh + artist_en`.
+- `fetch-covers.cjs`, `fetch-years.cjs` — iTunes enrichment via `itunes.cjs`. Use `fetch-years --delay 2500` or slower: throttling silently lowers accuracy. `--refresh` must not clear years unless `--clear-unverified` is passed.
+- Take `npm run backup` before any bulk write. The DB is the only copy of user content.
 
-## Environment Variables (.env.local)
-```
-VITE_SUPABASE_URL=https://...supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-No spaces after `=`. Vite exposes only VITE_ prefixed vars to the frontend — the service role key has no prefix precisely so it cannot be bundled.
+## Data reality (check before building on a column)
+- 1,608 songs from ~3% of the corpus. `lyrics_english` filled on only 7. `tags` almost empty. `category` is always `'pop'` (dead).
+- Very few real users; most auth rows are anonymous sessions.
 
-## Daniel's Preferences
-- Hates unnecessary UI noise — no "No translation available" on every line, no verbose empty states
-- Wants things to look intentional, not broken — missing covers show gradient + music icon placeholder
-- Prefers direct, fast iteration — "just do it" over lengthy planning discussions
-- Dark mode first aesthetic, slate-950 backgrounds
-- Do NOT create summary documents, .md files, or READMEs as deliverables
-- Casual communication style
-- Values deduplication in code — shared components over copy-paste
+## Daniel's preferences
+- Casual, direct, fast iteration — "just do it" over long planning.
+- No UI noise: no "No translation available", no verbose empty states. Missing covers show gradient + music icon.
+- Dark-mode-first (slate-950).
+- Shared components over copy-paste.
+- Don't create summary documents, .md files or READMEs as deliverables.
 
-## Pending Work
-
-Ranked from the full-codebase audit on **2026-09-09**, updated during the hardening follow-up below.
-
-### ✅ Fixed 2026-09-09 (commits f3e226d → HEAD)
-Code is done for all of these; the one thing still outstanding is the RLS migration above, which only you can apply.
-
-- **Publishing songs** — `AddSongPage` sent `status` to `songs`, which has no such column (`PGRST204`, whole insert rejected). Payloads are now built per target table.
-- **Anonymous-session crashes** — `user.email.split('@')` on accounts with no email. All three sites use `src/lib/identity.js` now.
-- **StatsPage** analysed 1000 of 1608 songs; pages via `fetchAllRows`.
-- **Filter injection** in `ArtistPage` (×2) and `ArtistSearch` — a comma or bracket in a name produced a 400 that rendered as "no results". One sanitiser in `queries.js` now.
-- **All 5 unguarded `JSON.parse(localStorage…)`** — the ThemeProvider one white-screened the whole app irrecoverably. Everything goes through `storage.js`; `ErrorBoundary` added outside the providers.
-- **SongPage state leaked between songs** — `customTranslations` was a `useState` initializer (runs once per mount) so `/song/a → /song/b` carried A's data *and persisted it under B's key*. Now an effect on `slug`; also resets song/selectedLine/loading, and `LineSidebar` refetches on `songId`.
-- **~1600 dead "Submitted by" links** → imports read "Imported"; a link renders only for a confirmed profile.
-- **Only 2 pages indexed** → `prerender.cjs`. See the SEO section.
-- **/privacy and /terms** exist, are linked from the footer, and are in the sitemap.
-- **Anonymous users could comment as "Unknown"** — every `if (user)` gate that meant "real account" now says so.
-- **Optimistic deletes with no rollback** in LineSidebar (×2) and CommentsSection; `CommentItem` like gained rollback + a double-click guard.
-- **N+1 likes** on ArtistPage / PublicProfile — counts batched from `CARD_COLUMNS`.
-- **Soft 404s** — bad song slug, unknown artist, unknown username all render real not-found states with `noindex`. `/artist/%` no longer throws on `decodeURIComponent`.
-- **Submission outcomes invisible** — approve/reject set `status` instead of deleting, so ProfilePage's existing 'approved'/'rejected' branches finally render. (Verified the column accepts both values.)
-- **/profile signed out** hung on "Loading profile…" forever.
-- **Default tab showed 7 of 1608** → All Songs. **Classics rendered 0** → `year < 2000`. **Trending** stopped pulling every like row site-wide.
-- **Cover `onError`** → gradient placeholder, since 814 covers are hotlinked from Apple.
-- Misc: `Clear Draft` left `bio` behind; unused deps (`shadcn`, `sitemap`) dropped and `dotenv` moved to dev; dead `data-theme-<color>` loop removed; Navbar's fake "close on navigation" effect removed and click-outside added; avatar type/size validated; `23505` username collision reads like English; `youtube-nocookie` + security headers in `vercel.json`; `ArtistPage`/`PublicProfile` gained the Navbar they never had.
-
-### Still outstanding
-- [x] **RLS migration applied by Daniel.** Live verifier: 27 passed, 0 failed; probe cleanup confirmed.
-- [ ] 🔴 **Set `avatars` bucket limits in the Supabase dashboard** — `file_size_limit` ~2 MB, `allowed_mime_types` `image/png,image/jpeg,image/webp`. The client-side check is in place but the bucket is the enforcement point. Currently unbounded public file hosting, and an uploaded SVG is script-capable on that origin.
-- [x] **Backups: `npm run backup`** dumps every table plus auth user ids/emails to a timestamped JSON in `backups/` (gitignored). First run 2026-09-09: 3319 content rows + 42 users, 5.81 MB. It verifies every table's row count against the server and aborts non-zero on a mismatch, so it cannot produce a short file that looks complete. **Not pg_dump** — row data only, no schema and no password hashes; restore = new project → apply `supabase/migrations/` → insert tables in the listed key order → users re-authenticate. Still needs an off-laptop copy and a habit of running it.
-- [ ] **Apply translation-counter migration after deploying the app change.** LineSidebar now derives translation counts from `line_votes(count)` and never writes `line_translations.votes`. `20260909010000_translation_vote_counts.sql` removes table-level UPDATE, then grants only content/language edits. The legacy counter is ignored even on INSERT. Comment counters are a separate, still outstanding issue.
-- [x] **Line-count edit warning.** `lineEdits.js` checks fresh live lyrics and exact contribution counts before direct edits, suggestions, and review approval. Cancel prevents writes; read errors fail closed. Same-length reorders and concurrent writes remain outside this count-only guard; stable-anchor proposal below.
-- [x] **Artist reconciliation applied by Daniel; fallback removed.** Five corrected English names verified live. `songsByArtist` reads only through the junction and preserves punctuation and both Chinese scripts. Junction reads verified: JJ Lin 124, SING 1, Faye Wong 222, Eason Chan 399, Teresa Teng 217 songs.
-- [ ] **StatsPage is still client-side aggregation** — it now downloads all 1608 songs' lyrics (~2 MB) and runs 11 `useMemo` passes. Wants a materialised view before the catalogue grows.
-- [ ] **Deferred indexes** — see the Indexes section for the set to add as tables grow.
-- [x] **Lazy pinyin dictionary.** `lyrics.js` remains the single shared module; `generatePinyin` and `generateCharacterPinyin` are async and dynamically import the dictionary. Add/Edit and the importer await generation. LyricLine loads fallback only for unaligned Han text with pinyin visible, ignores stale async results, and keeps lyrics visible on load failure. Initial helper: 302.68 → 1.11 kB; deferred dictionary: 302.00 kB.
-- [ ] **No CSP.** The other security headers are set; a CSP needs its own pass because getting it wrong silently breaks Supabase/YouTube/analytics.
-- [ ] **Light mode is ~30 `.light .bg-slate-950 { !important }` overrides.** Works, but any new Tailwind shade is silently uncovered.
-- [ ] **39 anonymous auth rows** have accumulated (42 users, 3 real). A trigger creates a profile per auth user. Unbounded by design — worth a periodic cleanup of anonymous accounts that never contributed.
-- [ ] Component + E2E tests (only the 12 pinyin/alignment units exist).
-- [ ] Dead columns to drop: `songs.category` (all 1608 = `'pop'`, read by nothing), `songs.translation_credit` (2 rows).
-- [ ] Admin "Make Official" button — promote top-voted community translation into lyrics_english.
-- [x] **Approving a community edit credits the contributor**, not the approving admin (`EditSongPage` review branch took `last_edited_by` from the admin's own session). The approver is deliberately not recorded — with one admin account it carries no information.
-- [ ] `songs`/`song_artists` insert isn't atomic — needs a Postgres function via `rpc()`. Only one RPC exists today (`current_profile_role`).
-
-### Carried over (still true)
-- [ ] Admin "Make Official" button — promote top-voted community translation into lyrics_english
-- [ ] ~0.5% of lines have word-grouped stored pinyin (`píngguǒ` for 蘋果) that can't be split; they fall back to per-char. Fix by regenerating `lyrics_pinyin` for affected rows.
-- [ ] `songs`/`song_artists` insert isn't atomic — needs a Postgres function called via `rpc()`
-
-## What NOT to Do
-- Don't create .md or README deliverable files (user preference)
-- Don't show "No translation available" anywhere
-- Don't use alert() or window.confirm() — use ToastContext
-- Don't use window.location.reload() — use React state
-- Don't fetch all user votes site-wide — scope queries to current context
-- Don't sign in anonymously on page load — use lazy ensureUser()
-- Don't write a second copy of the pinyin logic — import `src/utils/lyrics.js`
-- Don't rely on a frontend role check for security — it's a UX affordance only
-
-
-## Hardening follow-up — 2026-09-09
-
-### Verification and rollout
-- `npm test`: 14 tests (all 12 original cases preserved with async generation, plus fallback and edit-guard coverage). Importer dry run: 1 song, no errors, no writes.
-- `npm run lint`: 0 errors, the same 9 existing warnings.
-- `npm run build`: succeeds, with 1608 songs and 31 artists prerendered. Before → after: shared lyrics 302.68 → 1.11 kB (gzip 138.81 → 0.60); dictionary is now a separate 302.00 kB chunk (gzip 138.47), loaded only for fallback on song pages. Add/Edit slug generation and StatsPage still need it on their own routes. Main entry remains roughly 521 kB; this change removes the dictionary from the song route's static dependency graph, not from the entire site.
-- `verify:rls` was unsafe despite earlier notes: it PATCHed existing profiles/translations, DELETEd existing comments, and cleaned up songs by a broad title filter. It now creates two disposable users and explicit probe rows, targets their exact returned IDs, and confirms cleanup. After Daniel applied the RLS migration: 27 passing checks including cleanup, 0 failures. A two-voter check confirms the embedded count reads both vote rows. An anonymous author's counter PATCH was blocked under current RLS; that does **not** prove the column is revoked for every real account. The new migration's `has_column_privilege` assertions cover that after application.
-- Daniel applied `20260909000000_likes_ownership_and_admin_song_writes.sql`; live probes now pass. Its filename uses **ownership**, not the `ommership` typo in the pasted request. Avatar bucket limits and backups remain Daniel's actions too.
-- Daniel confirmed successful application of `20260909020000_artist_names_and_lookup_index.sql`; corrected names were independently read back, and the fallback was then removed. No production artist data or migrations were written by the agent.
-- **After deploying the new vote-reading code:** apply `20260909010000_translation_vote_counts.sql`. Do not apply all migrations blindly by filename order: artist reconciliation must precede fallback removal, while counter privileges follow the app deployment. Existing open tabs running the old vote code may need refreshing.
-- Artist read-only checks passed for `G.E.M.`, `周杰倫`, and `邓寓君 (等什么君)`, plus malformed/filter-injection names. All five reconciled English-name routes also passed through the junction after fallback removal. Names/slugs use exact matches; no song-name fallback remains.
-- Additional data discrepancy found read-only: `song_artists` links song **11** (a SING song in the song metadata) to both SING and Silence Wang (`10092190-1f71-416b-a2ff-013cabdb1575`). No link was deleted: confirm credits before changing attribution. 100% junction coverage is not proof of correct attribution.
-- No deployment was performed. Preserve flat prerender filenames, raw artist names, `cleanUrls: true`, and `trailingSlash: false`. Check the live song title after the eventual deploy as documented above.
-
-### Stable line anchors — proposal only
-The count warning deliberately does not remap contributions. A cheap next step is to store the **exact original line text** beside each contribution, then compare it before display; mismatches become explicitly detached instead of silently attached to a different lyric. Exact text is easier to inspect than a hash and avoids choosing a hash/normalisation protocol. Backfill only against a reviewed snapshot because historical indices may already be wrong. Repeated identical lines remain ambiguous; fully stable anchoring needs persisted line UUIDs and an editor that preserves them across edits. Build that only when edits must retain contributions automatically.
-
-### StatsPage aggregation — proposal only, SQL not applied
-Moving all 11 analyses into PostgreSQL is not simpler than the current code: PostgreSQL cannot run `pinyin-pro`, script conversion and word-context readings would drift, and materialised-view refresh still needs a job. Prefer one precomputed JSON snapshot behind a read-only RPC. Extract the existing analyses into a shared JS module, reuse them from a service-role batch job, and publish all results in a single atomic upsert. The browser would fetch the small snapshot through `queries.js` instead of downloading lyrics or importing pinyin for stats. Keep the current page until the complete snapshot exists; moving only three charts would leave the 2 MB download intact.
-
-Proposed SQL (review before applying):
-```sql
-create table public.catalogue_stats_snapshot (
-  id boolean primary key default true check (id),
-  generated_at timestamptz not null default now(),
-  payload jsonb not null check (
-    jsonb_typeof(payload) = 'object'
-    and payload ?& array['characters', 'tones', 'rhymes']
-  )
-);
-alter table public.catalogue_stats_snapshot enable row level security;
-revoke all on public.catalogue_stats_snapshot from public, anon, authenticated;
-grant select on public.catalogue_stats_snapshot to anon, authenticated;
-grant select, insert, update on public.catalogue_stats_snapshot to service_role;
-create policy catalogue_stats_read on public.catalogue_stats_snapshot
-  for select to anon, authenticated using (true);
-
-create function public.get_catalogue_stats()
-returns jsonb language sql stable security invoker set search_path = ''
-as $$
-  select jsonb_build_object('generated_at', generated_at, 'data', payload)
-  from public.catalogue_stats_snapshot where id = true
-$$;
-revoke all on function public.get_catalogue_stats() from public;
-grant execute on function public.get_catalogue_stats() to anon, authenticated;
-```
-
-The job sends `{id: true, generated_at, payload}` using the service role; payload includes character frequencies, tone totals, per-song rhyme densities and the remaining existing chart results. The single upsert replaces the complete snapshot; failures retain the previous one. Page through the full catalogue using a consistent snapshot/export if imports can run concurrently. Run after controlled imports/curation and on a daily schedule, show the generated timestamp, and monitor failures; no secrets belong in the client. Script toggling requires totals computed from simplified and traditional inputs separately where conversion merges characters, not merely relabelled output. Before extraction, fix the tone analyzer's `/g` regex `.test()` statefulness and lock expected tone/rhyme examples in tests. This proposal is intentionally not implemented: the batch job, refresh lifecycle, and all-chart migration are more work than the requested hardening pass.
-
-### Vercel dependency fix
-`react-is` is a required Recharts peer dependency, not an unused package. Keep it explicitly in `package.json`: `.npmrc` sets `legacy-peer-deps=true`, so clean installs do not install peers automatically. Its earlier removal was masked by the local node_modules and stale lockfile; Vercel failed resolving Recharts/ReactUtils.js. Restore it and verify with `npm ci` before building.
-
-Verified after restoring `react-is@19.2.5`: clean `npm ci`, full sitemap/Vite/prerender build, all 14 tests, and lint (0 errors, 9 existing warnings) passed. Regenerated package-lock.json also removes stale entries for the previously removed shadcn/sitemap packages.
-
-## Rollout verified — 2026-09-09 (read-only checks, no writes to existing rows)
-- **Prerender is live on Vercel.** `curl .../song/xin-tian-di-live-live-5061` returns `新天地(live) - live — Beyond | Lyrics, Pinyin | CN Lyric Hub`, and `/artist/Beyond` returns its own title. `cleanUrls` is taking effect; the flat `<route>.html` + raw-name scheme works in production. This closes the last open SEO verification.
-- **Avatars bucket is configured**: `public=true`, `file_size_limit=2097152` (2 MB), `allowed_mime_types=["image/png","image/jpeg","image/webp"]`. The dashboard fix Daniel was asked to make is done.
-- **Translation vote migration is applied.** `npm run verify:rls`: **27 passed, 0 failed**, including "author CANNOT overwrite translation vote counter". Disposable probe rows and both probe users cleaned up by exact ID.
-- Still outstanding from that list: **backups** (no `pg_dump`, no confirmed PITR). Unchanged.
-
-## Edit history — capture APPLIED 2026-09-09, no UI
-`supabase/migrations/20260909030000_song_revisions.sql` was applied by Daniel and verified live. **Capture only: there is no history page, no diff view, and no restore.** That was deliberate — see the edit-volume numbers below. The one thing that cannot be added retroactively is the history you didn't record, so recording started; everything downstream waits for there to be something worth looking at.
-
-Verified against one disposable song, deleted by exact id (16/16): INSERT writes no revision, year-only and cover-only updates write none, a lyric edit writes exactly one holding the *previous* text, a second edit appends, a no-op write adds nothing, each snapshot carries the `last_edited_by` that produced that version, and revisions cascade-delete with their song. `verify:rls` now carries the immutability half permanently — **32 passed, 0 failed**. Site-wide revision count is 0 (no real edit has happened since it was installed).
-
-Still missing, and the cheapest next step if history ever matters: **the review path credits the approving admin, not the contributor.** `EditSongPage`'s review branch sets `last_edited_by` from the admin's session, so approving someone's edit loses who wrote it. One line in that branch fixes it.
-Measured read-only through the REST API with the service role; no rows created or modified.
-
-**Edit volume is near zero.** Only **10 of 1608** songs have ever been edited (`last_edited_by` non-null), all by `'admin'`, most recently **2026-06-23**. `song_submissions` has **0 rows** — no community edit has ever been submitted. 27 songs have `source='user'`.
-
-**Snapshot cost.** The columns a revision would copy (titles, artists, all three lyric blobs, bio, credits, tags, cover, youtube, year, slug) total **4.78 MB across all 1608 songs**: mean **3.1 KB/row**, median 2.9 KB, p95 4.9 KB, max 49.8 KB. So one revision ≈ 3 KB before TOAST compression (Postgres compresses text over ~2 KB, so on-disk is less). Against the Free tier's 500 MB: a full baseline snapshot of the whole catalogue is ~1% of quota, and 10,000 revisions is ~30 MB. **Database space is not the constraint on this feature.** Avatars are 2 objects — nowhere near the 1 GB storage tier.
-
-⚠️ **Actual current DB usage cannot be read over REST** — `pg_database_size` needs SQL. Run this in the SQL editor for the real figure; do not substitute an estimate:
-```sql
-select pg_size_pretty(pg_database_size(current_database())) as db_total;
-select relname, pg_size_pretty(pg_total_relation_size(c.oid)) as total
-from pg_class c join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'public' and c.relkind = 'r'
-order by pg_total_relation_size(c.oid) desc;
-```
-
-**Where history would have to be captured.** Both admin paths end in `update public.songs` — `EditSongPage`'s admin branch and its review branch (`isReviewMode` + `original_song_id`). Service-role scripts (`fetch-covers`, `fetch-years`, importer) also UPDATE that table. So a `before update` trigger on `songs` is the only capture point that covers all of them, and it is atomic with the edit by construction. `song_submissions` already preserves the *proposed* content of every community edit forever (approve/reject only set `status`), so the missing history is specifically **admin direct edits** — plus any admin tweak made during review, which is currently recorded nowhere.
-
-⚠️ **A revision trigger must not fire on cover/year backfills.** Gate it on the content columns only (lyrics/titles/artists/bio/credits). Otherwise a `fetch-years` pass over a 49k-song catalogue writes 49k revisions in one run.
-
-⚠️ **History does not make restore safe, and restore is the dangerous part.** Community translations and line comments anchor by `line_index` into `lyrics_chinese` split on `\n`. `confirmLineEdit` only warns when the *line count* changes, so restoring a revision that reorders or rewords lines at the **same length** passes the guard silently and silently reattaches every contribution to different lyrics. Restore must (a) route through the same save path so the count guard runs, (b) write a new revision rather than erase history, and (c) not claim to preserve contributions. Stable anchors (store each contribution's original line text — see the proposal above) come **before** restore, not after.
-
-## UI review fixes — 2026-09-12
-
-Implemented in order: homepage → song reader → admin queue/review. These notes supersede older homepage-default descriptions above.
-
-- **Homepage:** Popular (all-time likes) remains the default, per Daniel's preference. Removed the duplicate Fresh Drops tab/query. Search is visible on mobile and stored in `?q=…&tab=…`, so Back restores the query; category controls are hidden during global search. Reduced intro spacing and corrected translation-coverage copy. Small positive English badges use an ID-only query instead of downloading lyrics for cards.
-- **Shared navigation/cards:** compact single-line brand, accessible navigation menu with script/account/admin links, viewport-safe appearance settings, real song links instead of a misleading Play overlay, named like controls, visible keyboard focus, and reduced-motion support. Reused current components; no new dependencies. No 21st.dev tool was exposed in this session.
-- **Song reader:** compact aligned hero; video above lyrics on mobile and beside them on desktop. Default pinyin now renders at 12px instead of 8px. Appearance stays inside the mobile viewport. Keyboard-operable lyric rows open a named non-modal dialog with focus return and Escape dismissal; mobile keyboard focus stays inside the full-screen panel. A non-modal desktop panel intentionally lets readers select other lines and keeps ToastContext confirmations usable. Drafts persist per song/line/account and remount on target changes. Translation selection labels explain personal display scope. Request failures offer Retry instead of claiming the song is missing; failed comment/copy operations retain drafts or report failure.
-- **Admin:** failed queue requests and missing originals have explicit error/comparison-unavailable states. Review cannot proceed without its original data. Reject is consistently named; status writes check the returned row. Original metadata stays visible in review, line diffs precede collapsible full editors, fields are labeled, and action buttons fit mobile widths.
-- **Publication:** `finishSongSave.js` adds artist links before removing obsolete links and checks each response, including submission approval. A partial write keeps the reviewer on the form, shows a partial-success warning, and offers retry; within the same mounted review, a newly inserted song is reused on retry instead of inserted twice. **Still not a transaction:** a durable atomic publish RPC remains outstanding; refreshing/closing a partially completed review loses its in-memory retry ID. Do not describe this as atomic publication.
-- **Verification:** 21 Node tests pass, including failed artist-link/cleanup/approval steps; lint has 0 errors and 9 existing warnings; production build and 1608-song prerender pass. Desktop (1440px) and mobile (390px) inspected; search → song → Back, pinyin size, Appearance bounds, keyboard open/Escape/focus return, and per-line draft recovery checked. Admin checks use temporary isolated fixtures with all data access mocked: queue failure, unavailable comparison, and approval failure/retry; no real submissions were published/rejected. Fixtures are removed before delivery. Changes are local, not deployed.
-
-- **Navigation follow-up:** Sign In is directly visible in the navbar on desktop and mobile. Stats stays in the existing footer Explore section; removed it from the menu. Signed-out desktop no longer shows a menu button; mobile retains script/Add Song, and signed-in users retain profile/admin/logout. Checked at 1440px and 360px; Navbar lint passes. English/Available indicators now use the selected theme accent.
-- **Account avatar:** signed-in navbar uses the profile photo as its menu trigger, with a theme-colored initial/user icon when the photo is absent or fails. Keeps its accessible account label, 44px target, and expanded state. Avatar/fallback/signed-out rendering checks, Navbar lint, and Vite build pass.
-
-## Shared stats snapshot — 2026-09-12
-StatsPage now reads one versioned JSON snapshot, keeping its charts and script-label conversion; it no longer fetches catalogue lyrics or imports pinyin for analysis. Calculations live in src/lib/catalogueStats.js. Fixed stateful global tone regexes, and the Likes total now includes all songs instead of only the top ten. Statistics continue to analyse simplified text; traditional mode converts labels, not a separate traditional corpus.
-
-Daniel confirmed applying 20260912010000_catalogue_stats_snapshot.sql. Initial npm run stats:refresh published 1608 songs (29,400 bytes); an independent anon-key read verified the version, song count, lyric samples, and that tone totals equal total characters. The reader is ready to deploy. The reader shows an error with Retry if no compatible snapshot is available. Clients have SELECT only; the service-role job atomically upserts the complete result after all reads/calculations succeed. Failed refreshes retain the previous snapshot.
-
-.github/workflows/refresh-stats.yml schedules an hourly refresh and supports manual workflow_dispatch. Configure repository Actions secrets VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before enabling it. GitHub schedules are best-effort, not an exact freshness guarantee. Run npm run stats:refresh after bulk imports/year backfills; ordinary published edits appear on the next refresh. No database dirty flag or upload-blocking computation was added. Paged reads detect row-count changes but are not transactionally consistent under concurrent edits; run manually after batches.
-
-Verification: 22 tests pass, including repeated same-tone characters, all-song like totals, empty catalogue, and absence of raw lyric fields in the payload. Full build passed. Read-only refresh dry run covered 1608 songs and generated approximately 29 KB. Migration and initial publication are complete. GitHub Actions secret configuration and the scheduled run have not been independently verified; deployment follows the push.
-
-### Build-time catalogue timeouts — 2026-09-13
-Vercel failed before Vite because sitemap generation received a Supabase Gateway Timeout. Both sitemap and prerender now use scripts/build-fetch.cjs: 15-second request timeout, at most three attempts with 1s/2s backoff for network failures and transient HTTP statuses, response status/array validation, and stable id ordering for paging. Sitemap's overall limit is 120 seconds to allow retries. Persistent sitemap failures still stop the build; no partial sitemap is published. Prerender retains its existing SPA fallback on failure. The npm esbuild allow-scripts warning was not the reported fatal error.
-Verification: 23 tests pass, including 504 recovery, bounded retries, and rejection of permanent errors/malformed row shapes. Full sitemap/Vite/prerender build passed for 1608 songs and 31 artists.
-
-- **Fresh Drops restored — 2026-09-13:** restored the `new` homepage tab and saved/URL selection, keeping Popular as the default. Reuses `listSongs` (published songs ordered by `created_at` descending), including its pagination and error handling. No duplicate query helper; All Songs currently shares that ordering. HomePage lint and Fresh Drops/default/search rendering checks pass.
+## Don't
+- Don't use `alert()` / `window.confirm()` — use ToastContext.
+- Don't use `window.location.reload()` — use React state.
+- Don't fetch votes/likes site-wide — scope queries to the current context.
+- Don't sign in anonymously on page load.
+- Don't write a second pinyin implementation.
+- Don't rely on a frontend role check for security.
+- Don't append session logs to this file.
