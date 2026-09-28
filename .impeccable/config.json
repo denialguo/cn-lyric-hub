@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-09-23T20:46:44.695Z",
+        "reason": "Intentional existing site default and pinyin font; accepted lyric-font scope preserves current default and readable pinyin while adding optional Serif and System choices."
+      }
+    ]
+  }
+}

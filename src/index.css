@@ -162,6 +162,23 @@ ruby rt {
   user-select: none;
 }
 
+/* Local reading fonts; pinyin keeps its explicit sans-serif font above. */
+[data-lyric-font="serif"] {
+  font-family: Georgia, 'Songti SC', 'Songti TC', SimSun, PMingLiU, 'Noto Serif CJK SC', 'Noto Serif CJK TC', serif;
+}
+
+[data-lyric-font="system"] {
+  font-family: system-ui, sans-serif;
+}
+
+[data-lyric-font="kai"] {
+  font-family: 'Kaiti SC', 'Kaiti TC', KaiTi, STKaiti, DFKai-SB, 'Songti SC', 'Songti TC', serif;
+}
+
+[data-lyric-font="mono"] {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Noto Sans Mono CJK SC', 'Noto Sans Mono CJK TC', monospace;
+}
+
 /* Keep catalogue accents readable on the existing light surfaces. */
 .light .text-primary { color: color-mix(in srgb, rgb(var(--color-primary-rgb)) 60%, #0f172a); }
 .light .text-emerald-400 { color: #047857; }
