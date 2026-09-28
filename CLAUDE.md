@@ -63,7 +63,7 @@ Community Chinese-lyrics site: per-character ruby pinyin, community line transla
 ## Commands
 ```
 npm run dev            # vite dev server
-npm test               # node --test src scripts
+npm test               # unit tests (node --test); npm run test:browser for Playwright
 npm run lint           # eslint (0 errors expected)
 npm run build          # sitemap → vite build → prerender
 npm run verify:rls     # live RLS probe; exits 1 on a hole
