@@ -8,7 +8,7 @@
  * collapsed into one and the rest sat in "Crawled – currently not indexed".
  * Two pages were indexed in total.
  *
- * This writes dist/song/<slug>/index.html per song with a unique title,
+ * This writes dist/song/<slug>.html per song with a unique title,
  * description, canonical, Open Graph tags, JSON-LD, and the actual lyrics in the
  * markup. Vercel resolves static files before `rewrites`, so these are served
  * instead of the SPA shell, and the SPA still handles anything not prerendered.
@@ -31,17 +31,7 @@ const DIST = './dist';
 const url = process.env.VITE_SUPABASE_URL;
 const key = process.env.VITE_SUPABASE_ANON_KEY;
 
-if (!url || !key) {
-  console.warn('⚠️  No Supabase env — skipping prerender. Pages will serve the SPA shell.');
-  process.exit(0);
-}
-
 const TEMPLATE_PATH = path.join(DIST, 'index.html');
-if (!fs.existsSync(TEMPLATE_PATH)) {
-  console.error('❌ dist/index.html missing — run vite build first.');
-  process.exit(1);
-}
-const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
 
 const esc = (s) =>
   String(s ?? '')
@@ -75,7 +65,7 @@ async function fetchAll(select, extra = '') {
  * `data-rh="true"` on the description lets Helmet replace ours rather than append
  * a second one once the app mounts.
  */
-function render({ title, description, canonical, ogImage, ogType, structuredData, body, noindex }) {
+function render(template, { title, description, canonical, ogImage, ogType, structuredData, body, noindex, pageData }) {
   let html = template;
 
   html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`);
@@ -93,6 +83,7 @@ function render({ title, description, canonical, ogImage, ogType, structuredData
     ogImage ? `<meta property="og:image" content="${esc(ogImage)}" />` : '',
     `<meta name="twitter:card" content="summary_large_image" />`,
     noindex ? `<meta name="robots" content="noindex, follow" />` : '',
+    pageData ? `<script id="prerender-data" type="application/json">${jsonLd(pageData)}</script>` : '',
     ...structuredData.map((d) => `<script type="application/ld+json">${jsonLd(d)}</script>`),
   ]
     .filter(Boolean)
@@ -140,6 +131,88 @@ function songBody(song, chineseLines, pinyinLines, englishLines) {
   );
 }
 
+function songPage(template, song) {
+  const chineseLines = (song.lyrics_chinese || '').split('\n');
+  const pinyinLines = (song.lyrics_pinyin || '').split('\n');
+  const englishLines = (song.lyrics_english || '').split('\n');
+
+  const displayTitle = song.title_zh || song.title_en || 'Untitled';
+  const artist = song.artist_en || song.artist_zh || 'Unknown';
+  const canonical = `${DOMAIN}/song/${song.slug}`;
+  const hasTranslation = englishLines.some((l) => l.trim());
+
+  // Unique, non-boilerplate description — this is what stops Google collapsing
+  // the whole catalogue into one page.
+  const firstLine = chineseLines.find((l) => l.trim()) || '';
+  const description =
+    `${displayTitle} by ${artist} — full Chinese lyrics with character-by-character Pinyin` +
+    (hasTranslation ? ' and English translation' : '') +
+    (song.year ? `. Released ${song.year}` : '') +
+    (firstLine ? `. Opens with "${firstLine.trim()}".` : '.');
+
+  return render(template, {
+    title: `${displayTitle} — ${artist} | Lyrics, Pinyin${hasTranslation ? ' & English' : ''} | CN Lyric Hub`,
+    description,
+    canonical,
+    ogImage: song.cover_url || `${DOMAIN}/logo.png`,
+    ogType: 'music.song',
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'MusicComposition',
+        name: song.title_zh || song.title_en,
+        alternativeHeadline: song.title_en || undefined,
+        inLanguage: 'zh',
+        url: canonical,
+        image: song.cover_url || undefined,
+        datePublished: song.year ? String(song.year) : undefined,
+        composer: artist !== 'Unknown' ? { '@type': 'MusicGroup', name: artist } : undefined,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${DOMAIN}/` },
+          ...(artist !== 'Unknown'
+            ? [{ '@type': 'ListItem', position: 2, name: artist, item: `${DOMAIN}/artist/${encodeURIComponent(artist)}` }]
+            : []),
+          { '@type': 'ListItem', position: artist !== 'Unknown' ? 3 : 2, name: displayTitle, item: canonical },
+        ],
+      },
+    ],
+    body: songBody(song, chineseLines, pinyinLines, englishLines),
+    pageData: { type: 'song', key: song.slug, data: song },
+  });
+}
+
+function artistPage(template, name, songs) {
+  // Artist snapshots need cards, not another copy of every song's lyrics.
+  const cards = songs.map(({ id, slug, title_zh, title_en, artist_en, artist_zh, cover_url, tags, created_at }) =>
+    ({ id, slug, title_zh, title_en, artist_en, artist_zh, cover_url, tags, created_at })
+  ).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  const songCount = cards.length;
+  const canonical = `${DOMAIN}/artist/${encodeURIComponent(name)}`;
+  return render(template, {
+    title: `${name} — Song Lyrics with Pinyin & English | CN Lyric Hub`,
+    description: `All ${songCount} ${name} song${songCount === 1 ? '' : 's'} on CN Lyric Hub, with character-by-character Pinyin and English translations.`,
+    canonical,
+    ogType: 'profile',
+    ogImage: `${DOMAIN}/logo.png`,
+    structuredData: [
+      { '@context': 'https://schema.org', '@type': 'MusicGroup', name, url: canonical },
+    ],
+    body:
+      `<div class="min-h-screen bg-slate-950 text-white"><main class="max-w-6xl mx-auto px-6 py-12">` +
+      `<h1 class="text-4xl font-black mb-2">${esc(name)}</h1>` +
+      `<p class="text-slate-400">${songCount} song${songCount === 1 ? '' : 's'} with Pinyin and English translations.</p>` +
+      `<ul class="mt-6 space-y-3">${cards.map(song =>
+        `<li><a class="text-primary" href="/song/${esc(encodeURIComponent(song.slug))}">${esc(song.title_zh || song.title_en)}</a></li>`
+      ).join('')}</ul>` +
+      `</main></div>`,
+    pageData: { type: 'artist', key: name, data: cards },
+  });
+}
+
 /**
  * Write as `<route>.html`, NOT `<route>/index.html`.
  *
@@ -185,12 +258,12 @@ const STATIC_ROUTES = [
   },
 ];
 
-function prerenderStaticRoutes() {
+function prerenderStaticRoutes(template) {
   for (const page of STATIC_ROUTES) {
     const canonical = `${DOMAIN}/${page.route}`;
     writePage(
       page.route,
-      render({
+      render(template, {
         title: page.title,
         description: page.description,
         canonical,
@@ -209,114 +282,59 @@ function prerenderStaticRoutes() {
 }
 
 async function main() {
-  const staticCount = prerenderStaticRoutes();
+  if (!fs.existsSync(TEMPLATE_PATH)) {
+    console.error('❌ dist/index.html missing — run vite build first.');
+    process.exit(1);
+  }
+  const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+  const staticCount = prerenderStaticRoutes(template);
   const songs = await fetchAll(
-    'slug,title_zh,title_en,artist_en,artist_zh,lyrics_chinese,lyrics_pinyin,lyrics_english,cover_url,year,bio,credits,source'
+    'id,slug,title_zh,title_en,artist_en,artist_zh,lyrics_chinese,lyrics_pinyin,lyrics_english,cover_url,year,bio,credits,source,youtube_url,tags,created_at,user_id,submitted_by,last_edited_by'
   );
   console.log(`Prerendering ${songs.length} songs…`);
 
   let done = 0;
-  const artists = new Map(); // name -> song count
+  const artists = new Map(); // name -> songs
 
   for (const song of songs) {
     if (!song.slug) continue;
 
-    const chineseLines = (song.lyrics_chinese || '').split('\n');
-    const pinyinLines = (song.lyrics_pinyin || '').split('\n');
-    const englishLines = (song.lyrics_english || '').split('\n');
-
-    const displayTitle = song.title_zh || song.title_en || 'Untitled';
-    const artist = song.artist_en || song.artist_zh || 'Unknown';
-    const canonical = `${DOMAIN}/song/${song.slug}`;
-    const hasTranslation = englishLines.some((l) => l.trim());
-
-    // Unique, non-boilerplate description — this is what stops Google collapsing
-    // the whole catalogue into one page.
-    const firstLine = chineseLines.find((l) => l.trim()) || '';
-    const description =
-      `${displayTitle} by ${artist} — full Chinese lyrics with character-by-character Pinyin` +
-      (hasTranslation ? ' and English translation' : '') +
-      (song.year ? `. Released ${song.year}` : '') +
-      (firstLine ? `. Opens with "${firstLine.trim()}".` : '.');
-
-    for (const col of [song.artist_en, song.artist_zh]) {
-      for (const name of (col || '').split(',')) {
-        const t = name.trim();
-        if (t) artists.set(t, (artists.get(t) || 0) + 1);
-      }
+    const names = new Set([song.artist_en, song.artist_zh].flatMap(col => (col || '').split(',').map(name => name.trim())).filter(Boolean));
+    for (const name of names) {
+      if (!artists.has(name)) artists.set(name, []);
+      artists.get(name).push(song);
     }
 
-    const html = render({
-      title: `${displayTitle} — ${artist} | Lyrics, Pinyin${hasTranslation ? ' & English' : ''} | CN Lyric Hub`,
-      description,
-      canonical,
-      ogImage: song.cover_url || `${DOMAIN}/logo.png`,
-      ogType: 'music.song',
-      structuredData: [
-        {
-          '@context': 'https://schema.org',
-          '@type': 'MusicComposition',
-          name: song.title_zh || song.title_en,
-          alternativeHeadline: song.title_en || undefined,
-          inLanguage: 'zh',
-          url: canonical,
-          image: song.cover_url || undefined,
-          datePublished: song.year ? String(song.year) : undefined,
-          composer: artist !== 'Unknown' ? { '@type': 'MusicGroup', name: artist } : undefined,
-        },
-        {
-          '@context': 'https://schema.org',
-          '@type': 'BreadcrumbList',
-          itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Home', item: `${DOMAIN}/` },
-            ...(artist !== 'Unknown'
-              ? [{ '@type': 'ListItem', position: 2, name: artist, item: `${DOMAIN}/artist/${encodeURIComponent(artist)}` }]
-              : []),
-            { '@type': 'ListItem', position: artist !== 'Unknown' ? 3 : 2, name: displayTitle, item: canonical },
-          ],
-        },
-      ],
-      body: songBody(song, chineseLines, pinyinLines, englishLines),
-    });
-
-    writePage(path.join('song', song.slug), html);
+    writePage(path.join('song', song.slug), songPage(template, song));
     done++;
   }
 
   // Artist pages have the same duplicate-shell problem.
   let artistCount = 0;
-  for (const [name, songCount] of artists) {
+  for (const [name, artistSongs] of artists) {
     // The file must be named with the RAW name, not the percent-encoded one: a
     // server percent-decodes the request path before matching the filesystem, so
     // "/artist/%E5%91%A8%E6%9D%B0%E4%BC%A6" looks for "artist/周杰伦.html".
     // Skip names carrying characters that can't be a path segment — a mangled
     // filename wouldn't match its URL anyway.
     if (/[/\\:*?"<>|]/.test(name)) continue;
-    const canonical = `${DOMAIN}/artist/${encodeURIComponent(name)}`;
-    const html = render({
-      title: `${name} — Song Lyrics with Pinyin & English | CN Lyric Hub`,
-      description: `All ${songCount} ${name} song${songCount === 1 ? '' : 's'} on CN Lyric Hub, with character-by-character Pinyin and English translations.`,
-      canonical,
-      ogType: 'profile',
-      ogImage: `${DOMAIN}/logo.png`,
-      structuredData: [
-        { '@context': 'https://schema.org', '@type': 'MusicGroup', name, url: canonical },
-      ],
-      body:
-        `<div class="min-h-screen bg-slate-950 text-white"><main class="max-w-6xl mx-auto px-6 py-12">` +
-        `<h1 class="text-4xl font-black mb-2">${esc(name)}</h1>` +
-        `<p class="text-slate-400">${songCount} song${songCount === 1 ? '' : 's'} with Pinyin and English translations.</p>` +
-        `</main></div>`,
-    });
-    writePage(path.join('artist', name), html);
+    writePage(path.join('artist', name), artistPage(template, name, artistSongs));
     artistCount++;
   }
 
   console.log(`✅ Prerendered ${done} songs + ${artistCount} artists + ${staticCount} static pages`);
 }
 
-main().catch((err) => {
-  // Never fail the deploy over SEO markup — the SPA shell still works.
-  console.error('⚠️  Prerender failed, continuing with SPA shell:', err.message);
-  process.exit(0);
-});
+module.exports = { songPage, artistPage };
+
+if (require.main === module) {
+  if (!url || !key) {
+    console.warn('⚠️  No Supabase env — skipping prerender. Pages will serve the SPA shell.');
+    process.exit(0);
+  }
+  main().catch((err) => {
+    // Never fail the deploy over SEO markup — the SPA shell still works.
+    console.error('⚠️  Prerender failed, continuing with SPA shell:', err.message);
+    process.exit(0);
+  });
+}
