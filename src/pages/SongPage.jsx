@@ -90,6 +90,7 @@ const SongPage = () => {
   const [fontSettings, setFontSettings] = useState(() =>
     readJson('lyric_font_settings', { pinyin: 1, zh: 3, en: 2 })
   );
+  const lyricFont = ['serif', 'system', 'kai', 'mono'].includes(fontSettings.family) ? fontSettings.family : 'default';
 
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
@@ -352,6 +353,23 @@ const SongPage = () => {
                     {showSettings && (
                       <div id="lyric-appearance" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowSettings(false); settingsRef.current?.querySelector('button')?.focus(); } }} className="fixed right-4 top-20 sm:absolute sm:right-0 sm:top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80 max-w-[calc(100vw-2rem)] sm:max-w-full max-h-[calc(100dvh-7rem)] sm:max-h-[70dvh] overflow-y-auto">
                           
+                          <label htmlFor="lyric-font" className="text-xs text-slate-400 block mb-2">Lyric font</label>
+                          <select
+                            id="lyric-font"
+                            name="lyric-font"
+                            value={lyricFont}
+                            onChange={event => setFontSettings(prev => ({ ...prev, family: event.target.value }))}
+                            className="w-full min-h-11 bg-slate-950 text-slate-200 border border-slate-700 rounded-lg px-3 text-base"
+                          >
+                            <option value="default">Default</option>
+                            <option value="serif">Serif</option>
+                            <option value="system">System</option>
+                            <option value="kai">Kai — handwritten</option>
+                            <option value="mono">Monospace — typewriter</option>
+                          </select>
+                          <p className="text-xs text-slate-400 mt-2">Fonts vary by device; unavailable styles use a fallback.</p>
+                          <div className="h-px bg-slate-800 my-4" />
+
                           {/* SIZE CONTROLS */}
                           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-3">Size</p>
                           <SizeControl label="Pinyin" type="pinyin" fontSettings={fontSettings} updateSize={updateSize} />
@@ -396,7 +414,7 @@ const SongPage = () => {
            <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
            <button onClick={() => setSelectedLine(-1)} className="min-h-11 text-xs text-slate-400 hover:text-primary">Earlier contributions</button>
            {/* LYRICS LIST */}
-           <div className="space-y-4">
+           <div className="space-y-4" data-lyric-font={lyricFont}>
             {lines.map((_, index) => {
               const line = chineseLines[index] || ""; 
               const py = pinyinLines[index] || ""; 
