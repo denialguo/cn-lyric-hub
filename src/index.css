@@ -182,3 +182,115 @@ ruby rt {
 /* Keep catalogue accents readable on the existing light surfaces. */
 .light .text-primary { color: color-mix(in srgb, rgb(var(--color-primary-rgb)) 60%, #0f172a); }
 .light .text-emerald-400 { color: #047857; }
+
+/* Homepage: a quiet reading sample, with search as the primary action. */
+.home-page {
+  --home-ink: #f1f5f9;
+  --home-muted: #94a3b8;
+  --home-surface: #0f172a;
+  --home-line: #334155;
+  --home-annotation: #67e8f9;
+}
+.light .home-page {
+  --home-ink: #0f172a;
+  --home-muted: #475569;
+  --home-surface: #ffffff;
+  --home-line: #cbd5e1;
+  --home-annotation: #0e7490;
+}
+.home-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 4rem;
+  padding-block: 4rem;
+}
+.home-eyebrow {
+  color: var(--home-muted);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.home-heading {
+  margin-block: 1rem 1.25rem;
+  color: var(--home-ink);
+  font-size: clamp(2.25rem, 4.5vw, 3.75rem);
+  line-height: 1.08;
+  font-weight: 650;
+  letter-spacing: -.045em;
+}
+.home-description {
+  max-width: 28rem;
+  color: var(--home-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.home-search { position: relative; margin-top: 1.75rem; max-width: 32rem; color: var(--home-muted); }
+.home-search input {
+  width: 100%;
+  min-height: 3.5rem;
+  padding: .875rem 3rem;
+  border: 1px solid var(--home-muted);
+  border-radius: .875rem;
+  background: var(--home-surface);
+  color: var(--home-ink);
+  font-size: 1rem;
+}
+.home-search input::placeholder { color: var(--home-muted); opacity: 1; }
+.home-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.home-reading-example {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--home-muted);
+  border-left: 1px solid var(--home-line);
+}
+.home-ruby {
+  display: flex;
+  justify-content: center;
+  gap: .3em;
+  margin-block: 2.5rem 1rem;
+  color: var(--home-ink);
+  font-family: 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  font-size: clamp(2.5rem, 4.5vw, 3.75rem);
+  line-height: 1.5;
+}
+.home-ruby rt { color: var(--home-annotation); font-size: .25em; font-weight: 500; }
+.home-reading-example figcaption { font-size: 1rem; }
+.home-example-rule { width: 2rem; height: 1px; background: var(--home-line); margin: 1.5rem auto; }
+.home-example-note { font-size: .75rem; }
+.home-library-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.5rem;
+  border-top: 1px solid var(--home-line);
+}
+.home-categories { display: flex; flex-wrap: wrap; gap: .25rem; }
+.home-category {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  min-height: 3rem;
+  padding: .5rem .875rem;
+  border-radius: .625rem;
+  color: var(--home-muted);
+  font-size: .875rem;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.home-category:hover, .home-category[aria-pressed="true"] { color: var(--home-ink); background: var(--home-surface); }
+.home-category[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--home-line); font-weight: 600; }
+@media (max-width: 767px) {
+  .home-intro { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; padding-block: 2rem; }
+  .home-reading-example { border-left: 0; padding: 1.25rem 1rem; border-radius: 1rem; background: var(--home-surface); }
+  .home-reading-example .home-eyebrow, .home-example-rule, .home-example-note { display: none; }
+  .home-ruby { margin-block: .75rem .5rem; font-size: 2.5rem; }
+  .home-library-header { align-items: flex-start; }
+  .home-categories { width: 100%; }
+  .home-category { flex: 1 1 auto; }
+}

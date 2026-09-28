@@ -106,7 +106,7 @@ const HomePage = () => {
   }, [songs]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 relative">
+    <div className="home-page min-h-screen bg-slate-950 text-slate-200 relative">
       <Helmet>
         <title>CN Lyric Hub — Chinese Lyrics with Pinyin & English Translations</title>
         <meta name="description" content="Browse a community database of Chinese song lyrics with character-by-character Pinyin and English translations. Read along, learn the language, and contribute." />
@@ -119,55 +119,58 @@ const HomePage = () => {
 
       <Navbar />
 
-      {/* Hero */}
-      <div className="relative overflow-hidden border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 text-center relative z-10">
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-3 tracking-tight">Chinese Lyric Database</h1>
-          <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-6">Chinese lyrics with character-aligned pinyin and community translations.</p>
-          
-          <form role="search" onSubmit={event => event.preventDefault()} className="relative max-w-xl mx-auto mb-6">
-            <label htmlFor="song-search" className="sr-only">Search all songs and artists</label>
-            <Search aria-hidden="true" size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input id="song-search" type="search" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search songs or artists…" className="w-full bg-slate-900 text-white placeholder:text-slate-400 border border-slate-700 rounded-xl py-3 pl-12 pr-12 text-base" />
-            {searchQuery && <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 -translate-y-1/2 p-3 text-slate-300"><X size={18} /></button>}
-          </form>
-          {!searchQuery.trim() && <div className="flex flex-wrap justify-center gap-2" aria-label="Browse songs">
-            {[
-              { id: 'all', label: 'All Songs', icon: Music },
-              { id: 'trending', label: 'Popular', icon: Flame },
-              { id: 'new', label: 'Recently Active', icon: Activity },
-              { id: 'classics', label: 'Classics', icon: Disc },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                aria-pressed={activeTab === tab.id}
-                className={`flex items-center gap-2 px-4 sm:px-6 min-h-11 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-                  activeTab === tab.id 
-                    ? 'bg-primary/10 text-primary border border-primary/20' 
-                    : 'bg-white/5 text-slate-400 border border-transparent hover:bg-white/10'
-                }`}
-              >
-                <tab.icon size={16} />
-                {tab.label}
-              </button>
-            ))}
-          </div>}
-        </div>
-      </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+        <section className="home-intro" aria-labelledby="home-heading">
+          <div className="min-w-0">
+            <p className="home-eyebrow">A shared love of Chinese music</p>
+            <h1 id="home-heading" className="home-heading">Find a song.<br />Follow every word.</h1>
+            <p className="home-description">Explore Chinese lyrics with pinyin to read along, and translations from the community.</p>
+            <form role="search" onSubmit={event => event.preventDefault()} className="home-search">
+              <label htmlFor="song-search" className="sr-only">Search all songs and artists</label>
+              <Search aria-hidden="true" size={20} className="absolute left-4 top-1/2 -translate-y-1/2" />
+              <input id="song-search" name="q" type="search" enterKeyHint="search" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search songs or artists…" />
+              {searchQuery && <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 -translate-y-1/2 p-3"><X size={20} /></button>}
+            </form>
+          </div>
+          <figure className="home-reading-example" aria-label="Pinyin reading example">
+            <p className="home-eyebrow">Character by character</p>
+            <p className="home-ruby" lang={scriptMode === 'traditional' ? 'zh-Hant' : 'zh-Hans'}>
+              <ruby>一<rp>(</rp><rt>yì</rt><rp>)</rp></ruby>
+              <ruby>起<rp>(</rp><rt>qǐ</rt><rp>)</rp></ruby>
+              <ruby>{scriptMode === 'traditional' ? '聽' : '听'}<rp>(</rp><rt>tīng</rt><rp>)</rp></ruby>
+              <ruby>歌<rp>(</rp><rt>gē</rt><rp>)</rp></ruby>
+            </p>
+            <figcaption>Listen to music together.</figcaption>
+            <div className="home-example-rule" aria-hidden="true" />
+            <p className="home-example-note">Chinese lyrics. Pinyin above. Meaning below.</p>
+          </figure>
+        </section>
 
-      {/* Song Grid */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <h2 className="text-2xl font-bold text-white mb-6">
-          {searchQuery.trim() ? `Search results for “${searchQuery.trim()}”` :
-           activeTab === 'all' ? 'All Songs' :
-           activeTab === 'trending' ? 'Popular Songs' :
-           activeTab === 'new' ? 'Recently Active' :
-           activeTab === 'classics' ? 'Timeless Classics' : 'All Songs'}
-        </h2>
+        <section aria-labelledby="library-heading">
+          <div className="home-library-header">
+            <h2 id="library-heading" className="text-xl sm:text-2xl font-semibold text-white tracking-tight min-w-0 break-words">
+              {searchQuery.trim() ? `Search results for “${searchQuery.trim()}”` :
+               activeTab === 'all' ? 'All Songs' :
+               activeTab === 'trending' ? 'Popular Songs' :
+               activeTab === 'new' ? 'Recently Active' : 'Timeless Classics'}
+            </h2>
+            {!searchQuery.trim() && <div className="home-categories" role="group" aria-label="Browse songs">
+              {[
+                { id: 'all', label: 'All Songs', icon: Music },
+                { id: 'trending', label: 'Popular', icon: Flame },
+                { id: 'new', label: 'Recently Active', icon: Activity },
+                { id: 'classics', label: 'Classics', icon: Disc },
+              ].map((tab) => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} aria-pressed={activeTab === tab.id} className="home-category">
+                  <tab.icon size={16} aria-hidden="true" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>}
+          </div>
 
         {loading ? (
-          <div className="text-slate-500">Loading library...</div>
+          <div role="status" className="text-slate-400 py-8">Loading library…</div>
         ) : loadError ? (
           <div className="text-center py-20 bg-slate-900/50 rounded-2xl border border-red-500/20 border-dashed">
             <p className="text-slate-300 mb-2">We couldn't load the library just now.</p>
@@ -207,6 +210,7 @@ const HomePage = () => {
             </button>
           </div>
         )}
+        </section>
       </main>
     </div>
   );
