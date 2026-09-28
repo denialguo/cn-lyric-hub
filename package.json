@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test src scripts",
+    "test:browser": "node --test tests/seo.browser.test.mjs",
     "verify:rls": "node scripts/verify-rls.cjs",
     "prerender": "node scripts/prerender.cjs",
     "backup": "node scripts/backup.cjs",
@@ -40,6 +41,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.18",
     "globals": "^15.14.0",
+    "playwright": "^1.63.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "vite": "^6.1.0"

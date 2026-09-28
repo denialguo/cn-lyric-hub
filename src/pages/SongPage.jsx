@@ -12,6 +12,7 @@ import Navbar from '../components/Navbar';
 import LyricLine from '../components/LyricLine';
 import LineSidebar from '../components/LineSidebar';
 import { readJson, writeJson } from '../lib/storage';
+import { isConfirmedMissing, readPrerenderedPage } from '../lib/seo';
 
 // Color swatches for the picker
 const colorSwatches = [
@@ -82,8 +83,8 @@ const SongPage = () => {
   const navigate = useNavigate();
   const { scriptMode, toggleScript, lyricColors, setLyricColors } = useTheme(); 
   
-  const [song, setSong] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [song, setSong] = useState(() => readPrerenderedPage('song', slug));
+  const [loading, setLoading] = useState(!song);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -130,19 +131,19 @@ const SongPage = () => {
   useEffect(() => {
     // Guard against a slow response for an old slug landing after a newer one
     let cancelled = false;
-    // Clear the previous song first: without this, a failed fetch left the old
-    // song's lyrics on screen under the new URL.
-    setSong(null);
+    // Only this route's build snapshot can survive a failed refresh.
+    const fallback = readPrerenderedPage('song', slug);
+    setSong(fallback);
     setSelectedLine(null);
     setCoverFailed(false);
-    setLoading(true);
+    setLoading(!fallback);
     setLoadError(false);
     const fetchSong = async () => {
       const { data, error } = await supabase.from('songs').select('*').eq('slug', slug).maybeSingle();
       if (cancelled) return;
       if (error) console.error('Song fetch failed:', error.message);
       setLoadError(Boolean(error));
-      setSong(data ?? null);
+      setSong(error ? fallback : data ?? null);
       setLoading(false);
     };
     fetchSong();
@@ -199,11 +200,14 @@ const SongPage = () => {
   if (!song) {
     return (
       <div className="min-h-screen bg-slate-950">
-        <Helmet>
-          <title>Song not found | CN Lyric Hub</title>
-          {/* Bad slugs must not be indexed as thin duplicates of each other */}
-          <meta name="robots" content="noindex, follow" />
-        </Helmet>
+        {/* Bad slugs must not be indexed as thin duplicates of each other. On a load
+            error, leave the prerendered head (title, canonical, robots) untouched. */}
+        {isConfirmedMissing({ loading, error: loadError, found: song }) && (
+          <Helmet>
+            <title>Song not found | CN Lyric Hub</title>
+            <meta name="robots" content="noindex, follow" />
+          </Helmet>
+        )}
         <Navbar />
         <div className="max-w-2xl mx-auto px-6 py-24 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full border border-slate-800 mb-6">

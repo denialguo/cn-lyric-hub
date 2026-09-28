@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { songsByArtist, likedSongIds } from '../lib/queries';
 import { ArrowLeft, Mic2, Disc } from 'lucide-react';
 import SongCard from '../components/SongCard';
+import { isConfirmedMissing, readPrerenderedPage } from '../lib/seo';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
@@ -11,9 +12,9 @@ const ArtistPage = () => {
   const { name } = useParams(); // Gets 'Jay Chou' from url
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [songs, setSongs] = useState([]);
   const [likedIds, setLikedIds] = useState(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Decode the URL (e.g., "Jay%20Chou" -> "Jay Chou"). A malformed escape such as
   // "/artist/%" makes decodeURIComponent throw, which would take out the route.
@@ -24,16 +25,23 @@ const ArtistPage = () => {
     artistName = name;
   }
 
+  const [songs, setSongs] = useState(() => readPrerenderedPage('artist', artistName) ?? []);
+  const [loading, setLoading] = useState(songs.length === 0);
+
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    songsByArtist(artistName).then(({ songs: found }) => {
+    const fallback = readPrerenderedPage('artist', artistName);
+    setSongs(fallback ?? []);
+    setLoading(!fallback);
+    setLoadError(false);
+    songsByArtist(artistName).then(({ songs: found, error }) => {
       if (cancelled) return;
-      setSongs(found);
+      setSongs(error ? fallback ?? [] : found);
+      setLoadError(Boolean(error));
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [artistName]);
+  }, [artistName, reloadKey]);
 
   // One batched query instead of SongCard firing two per card
   useEffect(() => {
@@ -50,8 +58,9 @@ const ArtistPage = () => {
         <meta name="description" content={`Browse all songs by ${artistName} with Pinyin and English translations on CN Lyric Hub.`} />
         <link rel="canonical" href={`https://cnlyrichub.vercel.app/artist/${encodeURIComponent(artistName)}`} />
         {/* Any URL can reach this route, so an artist with no songs must not be
-            indexed as a thin near-duplicate of every other empty artist page. */}
-        {!loading && songs.length === 0 && <meta name="robots" content="noindex, follow" />}
+            indexed as a thin near-duplicate of every other empty artist page. A failed
+            fetch proves nothing, so it must not noindex a real artist. */}
+        {isConfirmedMissing({ loading, error: loadError, found: songs.length }) && <meta name="robots" content="noindex, follow" />}
       </Helmet>
       <Navbar />
       <div className="max-w-6xl mx-auto p-6 md:p-12">
@@ -67,15 +76,20 @@ const ArtistPage = () => {
             </div>
             <div>
                 <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-2">{artistName}</h1>
-                <p className="text-slate-400 font-medium flex items-center gap-2">
+                {((!loading && !loadError) || songs.length > 0) && <p className="text-slate-400 font-medium flex items-center gap-2">
                     <Disc size={18} /> {songs.length} Songs Available
-                </p>
+                </p>}
             </div>
         </div>
 
         {/* SONG GRID */}
         {loading ? (
             <div className="text-slate-500">Loading discography...</div>
+        ) : loadError && songs.length === 0 ? (
+            <div className="text-center py-16">
+              <p role="status" className="text-slate-400 mb-2">Couldn’t load the songs.</p>
+              <button onClick={() => setReloadKey(key => key + 1)} className="min-h-11 px-6 text-primary">Try again</button>
+            </div>
         ) : songs.length === 0 ? (
             <div className="text-center py-16 bg-slate-900/50 rounded-2xl border border-white/5 border-dashed">
               <p className="text-slate-400 mb-2">We don't have any songs for “{artistName}” yet.</p>
