@@ -16,6 +16,7 @@ const AuthPage = lazy(() => import('./pages/AuthPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+const CataloguePage = lazy(() => import('./pages/CataloguePage'));
 const ArtistPage = lazy(() => import('./pages/ArtistPage'));
 const StatsPage = lazy(() => import('./pages/StatsPage'));
 const FaqPage = lazy(() => import('./pages/FaqPage'));
@@ -37,6 +38,9 @@ const App = () => {
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/songs" element={<CataloguePage kind="songs" />} />
+              <Route path="/songs/:page" element={<CataloguePage kind="songs" />} />
+              <Route path="/artists" element={<CataloguePage kind="artists" />} />
               <Route path="/login" element={<AuthPage />} />
               <Route path="/song/:slug" element={<SongPage />} />
               <Route path="/add" element={<AddSongPage />} />

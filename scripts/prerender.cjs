@@ -75,7 +75,7 @@ function render(template, { title, description, canonical, ogImage, ogType, stru
   );
 
   const head = [
-    `<link rel="canonical" href="${esc(canonical)}" />`,
+    `<link rel="canonical" href="${esc(canonical)}" data-rh="true" />`,
     `<meta property="og:title" content="${esc(title)}" />`,
     `<meta property="og:description" content="${esc(description)}" />`,
     `<meta property="og:type" content="${ogType}" />`,
@@ -213,6 +213,55 @@ function artistPage(template, name, songs) {
   });
 }
 
+function catalogueNav() {
+  return '<nav aria-label="Catalogue" class="flex flex-wrap gap-x-6 gap-y-2 mb-6 text-primary">' +
+    [['/', 'Home'], ['/songs', 'Song directory'], ['/artists', 'Artist directory']].map(([href, label]) =>
+      `<a class="inline-flex min-h-11 items-center hover:underline" href="${href}">${label}</a>`).join('') + '</nav>';
+}
+
+function catalogueLinks(items) {
+  return '<ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-8">' + items.map(item =>
+    `<li class="min-w-0 border-b border-white/10"><a class="block py-3 hover:text-primary break-words" href="${esc(item.href)}">` +
+    `<span class="font-medium">${esc(item.label)}</span>` +
+    (item.detail ? `<span class="block text-sm text-slate-400">${esc(item.detail)}</span>` : '') + '</a></li>'
+  ).join('') + '</ul>';
+}
+
+async function cataloguePages(template, songs) {
+  const { buildCatalogue, cataloguePage, CATALOGUE_PAGE_SIZE } = await import('../src/lib/catalogue.js');
+  const catalogue = buildCatalogue(songs);
+  const pages = new Map();
+  const wrap = body => `<div class="min-h-screen bg-slate-950 text-slate-200"><main class="max-w-6xl mx-auto px-6 py-12">${body}</main></div>`;
+  const makePage = (key, data, body) => render(template, {
+    title: `${data.title} | CN Lyric Hub`, description: data.description,
+    canonical: `${DOMAIN}${data.path}`, ogType: 'website', ogImage: `${DOMAIN}/logo.png`,
+    structuredData: [], body: wrap(body), pageData: { type: 'catalogue', key, data },
+  });
+  const home = cataloguePage(catalogue, 'home');
+  pages.set('index', makePage('home/1', {
+    title: 'Chinese Lyrics with Pinyin & English Translations', path: '/',
+    description: 'Browse a community database of Chinese song lyrics with character-by-character Pinyin and English translations. Read along, learn the language, and contribute.',
+    ...home,
+  }, '<h1 class="text-4xl font-bold text-white mb-4">Find a song. Follow every word.</h1>' +
+    '<p class="text-slate-400 mb-8">Explore Chinese lyrics with pinyin to read along, and translations from the community.</p>' +
+    '<section aria-labelledby="catalogue-heading"><h2 id="catalogue-heading" class="text-2xl font-semibold text-white mb-3">Explore the catalogue</h2>' +
+    catalogueNav() + '<div class="grid grid-cols-1 lg:grid-cols-2 gap-10">' +
+    '<div><h3 class="text-lg font-semibold mb-2">Songs to explore</h3>' + catalogueLinks(home.songs) + '</div>' +
+    '<div><h3 class="text-lg font-semibold mb-2">Artists to explore</h3>' + catalogueLinks(home.artists) + '</div></div></section>'));
+  const count = Math.max(1, Math.ceil(catalogue.songs.length / CATALOGUE_PAGE_SIZE));
+  for (const [kind, number] of [['artists', 1], ...Array.from({ length: count }, (_, i) => ['songs', i + 1])]) {
+    const data = cataloguePage(catalogue, kind, number);
+    const pagination = data.pages > 1 ? '<nav aria-label="Song directory pages" class="flex flex-wrap items-center gap-6 mt-8">' +
+      (data.previous ? `<a class="min-h-11 inline-flex items-center text-primary hover:underline" href="${data.previous}" rel="prev">Previous page</a>` : '') +
+      `<span class="text-slate-400">Page ${data.page} of ${data.pages}</span>` +
+      (data.next ? `<a class="min-h-11 inline-flex items-center text-primary hover:underline" href="${data.next}" rel="next">Next page</a>` : '') + '</nav>' : '';
+    pages.set(data.path.slice(1), makePage(`${kind}/${number}`, data, catalogueNav() +
+      `<h1 class="text-4xl font-bold tracking-tight text-white mb-4">${esc(data.title)}</h1>` +
+      `<p class="text-slate-400 mb-8">${esc(data.description)}</p>` + catalogueLinks(data.items) + pagination));
+  }
+  return { pages, catalogue };
+}
+
 /**
  * Write as `<route>.html`, NOT `<route>/index.html`.
  *
@@ -322,10 +371,14 @@ async function main() {
     artistCount++;
   }
 
-  console.log(`✅ Prerendered ${done} songs + ${artistCount} artists + ${staticCount} static pages`);
+  const { pages, catalogue } = await cataloguePages(template, songs);
+  for (const [route, html] of pages) writePage(route, html);
+  fs.writeFileSync(path.join(DIST, 'catalogue.json'), jsonLd(catalogue));
+
+  console.log(`✅ Prerendered ${done} songs + ${artistCount} artists + ${staticCount} static pages + ${pages.size} catalogue/home pages`);
 }
 
-module.exports = { songPage, artistPage };
+module.exports = { songPage, artistPage, cataloguePages };
 
 if (require.main === module) {
   if (!url || !key) {

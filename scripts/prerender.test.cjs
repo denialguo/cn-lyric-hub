@@ -38,3 +38,52 @@ test('public snapshots escape script terminators and artist HTML includes song l
   assert.match(artist, /href="\/song\/test">测试<\/a>/);
   assert.doesNotMatch(artist, /lyrics_chinese/);
 });
+
+test('ordinary HTML links reach every song through the homepage and paginated directories', async () => {
+  const { cataloguePages } = require('./prerender.cjs');
+  const songs = Array.from({ length: 205 }, (_, id) => ({
+    id, slug: `test-${id}`, title_zh: `歌曲 ${id} <&>`, artist_en: 'Artist A, Artist B', artist_zh: '歌手',
+  }));
+  songs.push({ id: 999, slug: null, title_zh: 'No public URL' });
+  const { pages, catalogue } = await cataloguePages(template, songs);
+  const links = html => [...html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '').matchAll(/<a\b[^>]*href="([^"]*)"/g)].map(match => match[1]);
+  const homeLinks = links(pages.get('index'));
+  assert.ok(homeLinks.includes('/songs'));
+  assert.ok(homeLinks.includes('/artists'));
+  assert.equal(homeLinks.filter(link => link.startsWith('/song/')).length, 6);
+  assert.ok(homeLinks.some(link => link.startsWith('/artist/')));
+  assert.ok(links(pages.get('artists')).includes('/artist/Artist%20A'));
+  assert.ok(links(pages.get('artists')).includes('/artist/Artist%20B'));
+  assert.ok(links(pages.get('artists')).includes(`/artist/${encodeURIComponent('歌手')}`));
+  assert.ok(links(pages.get('songs')).includes('/songs/2'));
+  assert.ok(!links(pages.get('songs')).includes('/songs/1'));
+  assert.ok(links(pages.get('songs/2')).includes('/songs'));
+  assert.ok(links(pages.get('songs/2')).includes('/songs/3'));
+  assert.ok(links(pages.get('songs/3')).includes('/songs/2'));
+  assert.ok(!links(pages.get('songs/3')).includes('/songs/4'));
+  const reached = new Set();
+  const queue = ['/'];
+  while (queue.length) {
+    const route = queue.shift();
+    if (reached.has(route)) continue;
+    reached.add(route);
+    const html = pages.get(route === '/' ? 'index' : route.slice(1));
+    if (html) queue.push(...links(html));
+  }
+  for (const song of songs.filter(song => song.slug)) assert.ok(reached.has(`/song/${song.slug}`), song.slug);
+  assert.equal(catalogue.songs.length, 205);
+  const titles = new Set();
+  for (const [route, html] of pages) {
+    assert.doesNotMatch(html, /noindex|nofollow/i);
+    assert.deepEqual(canonicals(html), [`https://cnlyrichub.vercel.app/${route === 'index' ? '' : route}`]);
+    assert.deepEqual(robots(html), ['index, follow']);
+    titles.add(html.match(/<title>(.*?)<\/title>/)[1]);
+  }
+  assert.equal(titles.size, pages.size);
+  assert.match(pages.get('songs'), /歌曲 0 &lt;&amp;&gt;/);
+  const { cataloguePage, buildCatalogue } = await import('../src/lib/catalogue.js');
+  assert.equal(cataloguePage(catalogue, 'songs', 4), null);
+  assert.equal(cataloguePage(catalogue, 'songs', 0), null);
+  assert.equal(cataloguePage(catalogue, 'songs', NaN), null);
+  assert.deepEqual(cataloguePage(buildCatalogue([]), 'songs').items, []);
+});
