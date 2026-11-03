@@ -48,3 +48,76 @@ test('build scripts write flat catalogue files and sitemap URLs without invented
   const artist = await fs.readFile(path.join(cwd, 'dist/artist/Test Artist.html'), 'utf8');
   assert.match(artist, /href="\/song\/song-1000"/);
 });
+
+test('production builds fail on prerender errors and missing configuration', async t => {
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'prerender-failure-'));
+  const root = path.join(__dirname, '..');
+  const song = { id: 1, slug: 'test-song', title_zh: '测试', artist_en: 'Test Artist' };
+  let failFetch = false;
+  const server = http.createServer((req, res) => {
+    const isPrerender = new URL(req.url, 'http://localhost').searchParams.get('select').includes('lyrics_chinese');
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = failFetch && isPrerender ? 401 : 200;
+    res.end(JSON.stringify(res.statusCode === 401 ? { message: 'Unauthorized' } : [song]));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await new Promise(resolve => server.close(resolve));
+    await fs.rm(cwd, { recursive: true, force: true });
+  });
+  const env = {
+    ...process.env, NODE_ENV: 'production',
+    VITE_SUPABASE_URL: `http://127.0.0.1:${server.address().port}`, VITE_SUPABASE_ANON_KEY: 'test',
+  };
+  const run = promisify(execFile);
+  const prerender = path.join(__dirname, 'prerender.cjs');
+  const resetDist = async () => {
+    await fs.rm(path.join(cwd, 'dist'), { recursive: true, force: true });
+    await fs.mkdir(path.join(cwd, 'dist'));
+    await fs.copyFile(path.join(root, 'index.html'), path.join(cwd, 'dist/index.html'));
+  };
+  for (const [kind, obstacle] of [['song', 'song'], ['artist', 'artist'], ['catalogue', 'songs.html']]) {
+    await t.test(`${kind} file-write failure exits non-zero`, async () => {
+      await resetDist();
+      if (obstacle.endsWith('.html')) await fs.mkdir(path.join(cwd, 'dist', obstacle));
+      else await fs.writeFile(path.join(cwd, 'dist', obstacle), 'blocked');
+      await assert.rejects(run(process.execPath, [prerender], { cwd, env }), error => {
+        assert.equal(error.code, 1);
+        assert.match(error.stderr, /Prerender failed:/);
+        return true;
+      });
+    });
+  }
+  await t.test('npm run build propagates a prerender fetch failure after Vite succeeds', async () => {
+    const pkg = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+    await fs.writeFile(path.join(cwd, 'package.json'), JSON.stringify({ scripts: { build: pkg.scripts.build } }));
+    await fs.symlink(path.join(root, 'scripts'), path.join(cwd, 'scripts'), 'dir');
+    await fs.symlink(path.join(root, 'node_modules'), path.join(cwd, 'node_modules'), 'dir');
+    await fs.mkdir(path.join(cwd, 'public'));
+    await fs.writeFile(path.join(cwd, 'index.html'), '<html><head><title>Test</title></head><body><div id="root"></div></body></html>');
+    failFetch = true;
+    await assert.rejects(run('npm', ['run', 'build'], { cwd, env }), error => {
+      assert.equal(error.code, 1);
+      assert.match(error.stdout, /Sitemap generated:/);
+      assert.match(error.stdout, /built in/);
+      assert.match(error.stderr, /Prerender failed: Catalogue HTTP 401/);
+      return true;
+    });
+  });
+  for (const context of ['npm_lifecycle_event', 'NODE_ENV', 'VERCEL', 'local']) {
+    await t.test(`missing configuration: ${context}`, async () => {
+      const missing = { ...env, VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '', NODE_ENV: '', VERCEL: '', npm_lifecycle_event: '' };
+      if (context !== 'local') missing[context] = { npm_lifecycle_event: 'build', NODE_ENV: 'production', VERCEL: '1' }[context];
+      if (context === 'local') {
+        const { stderr } = await run(process.execPath, [prerender], { cwd, env: missing });
+        assert.match(stderr, /skipping local prerender/);
+      } else {
+        await assert.rejects(run(process.execPath, [prerender], { cwd, env: missing }), error => {
+          assert.equal(error.code, 1);
+          assert.match(error.stderr, /Supabase configuration missing/);
+          return true;
+        });
+      }
+    });
+  }
+});
