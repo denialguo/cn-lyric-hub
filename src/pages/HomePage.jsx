@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import SongCard from '../components/SongCard';
 import Navbar from '../components/Navbar';
+import CatalogueDiscovery from '../components/CatalogueDiscovery';
 import { Helmet } from 'react-helmet-async';
 import { tify, sify } from 'chinese-conv';
 import { searchSongs, listSongs, trendingSongs, recentlyActiveSongs, classicSongs, likedSongIds, translatedSongIds } from '../lib/queries';
@@ -211,6 +212,7 @@ const HomePage = () => {
           </div>
         )}
         </section>
+        <CatalogueDiscovery />
       </main>
     </div>
   );

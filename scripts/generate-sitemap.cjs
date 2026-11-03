@@ -75,7 +75,14 @@ async function generateSitemap() {
     }
   }
 
+  const { CATALOGUE_PAGE_SIZE, songDirectoryPath } = await import('../src/lib/catalogue.js');
+  const publicSongs = songs.filter(song => song.slug);
+  const directoryUrls = Array.from({ length: Math.max(1, Math.ceil(publicSongs.length / CATALOGUE_PAGE_SIZE)) }, (_, i) =>
+    urlTag(`${DOMAIN}${songDirectoryPath(i + 1)}`, { changefreq: 'weekly', priority: '0.7' }));
+
   const staticUrls = [
+    ...directoryUrls,
+    urlTag(`${DOMAIN}/artists`, { changefreq: 'weekly', priority: '0.7' }),
     urlTag(`${DOMAIN}/`, { changefreq: 'daily', priority: '1.0' }),
     urlTag(`${DOMAIN}/faq`, { changefreq: 'monthly', priority: '0.5' }),
     urlTag(`${DOMAIN}/stats`, { changefreq: 'weekly', priority: '0.5' }),
@@ -83,8 +90,8 @@ async function generateSitemap() {
     urlTag(`${DOMAIN}/terms`, { changefreq: 'yearly', priority: '0.3' }),
   ];
 
-  const songUrls = songs.map(song => urlTag(`${DOMAIN}/song/${song.slug}`, {
-    lastmod: new Date(song.updated_at || Date.now()).toISOString(),
+  const songUrls = publicSongs.map(song => urlTag(`${DOMAIN}/song/${song.slug}`, {
+    lastmod: song.updated_at && !Number.isNaN(Date.parse(song.updated_at)) ? new Date(song.updated_at).toISOString() : undefined,
     changefreq: 'weekly',
     priority: '0.8',
   }));

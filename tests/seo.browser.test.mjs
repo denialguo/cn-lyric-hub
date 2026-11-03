@@ -34,6 +34,14 @@ test('rendered public pages survive failed requests without hiding content or ad
     build: { outDir, emptyOutDir: true },
   });
   const template = await readFile(path.join(outDir, 'index.html'), 'utf8');
+  const catalogueSongs = Array.from({ length: 205 }, (_, id) => ({ ...song, id, slug: id ? `fixture-${id}` : song.slug }));
+  const generated = await prerender.cataloguePages(template, catalogueSongs);
+  await writeFile(path.join(outDir, 'catalogue.json'), JSON.stringify(generated.catalogue));
+  for (const [route, html] of generated.pages) {
+    const file = path.join(outDir, `${route}.html`);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, html);
+  }
   const pages = [
     { type: 'song', route: `/song/${song.slug}`, html: prerender.songPage(template, song) },
     { type: 'artist', route: `/artist/${encodeURIComponent(artist)}`, html: prerender.artistPage(template, artist, [song]) },
@@ -46,6 +54,60 @@ test('rendered public pages survive failed requests without hiding content or ad
   server = await preview({ logLevel: 'silent', build: { outDir }, preview: { host: '127.0.0.1', port: 0 } });
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
   browser = await chromium.launch();
+
+  await t.test('catalogue navigation works without JavaScript', async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    try {
+      await page.goto(origin + '/');
+      await page.getByRole('link', { name: 'Song directory', exact: true }).click();
+      assert.equal(await page.locator('a[href^="/song/"]').count(), 100);
+      await page.getByRole('link', { name: 'Next page', exact: true }).click();
+      assert.equal(new URL(page.url()).pathname, '/songs/2');
+      await page.getByRole('link', { name: 'Next page', exact: true }).click();
+      assert.equal(await page.locator('a[href^="/song/"]').count(), 5);
+      await page.getByRole('link', { name: 'Artist directory', exact: true }).click();
+      await page.getByRole('link', { name: artist, exact: false }).click();
+      assert.equal(await page.locator(`a[href="/song/${song.slug}"]`).count(), 1);
+    } finally { await context.close(); }
+  });
+
+  await t.test('React preserves directory links, pagination and canonicals on desktop and mobile', async () => {
+    for (const width of [1280, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      try {
+        await page.route('**/*', request => new URL(request.request().url()).origin === origin ? request.continue() : request.abort());
+        await page.goto(origin + '/songs', { waitUntil: 'networkidle' });
+        await page.getByRole('navigation', { name: 'Main', exact: true }).waitFor();
+        assert.equal(await page.locator('a[href^="/song/"]').count(), 100);
+        await page.getByRole('link', { name: 'Next page', exact: true }).click();
+        await page.getByText('Page 2 of 3', { exact: true }).waitFor();
+        await page.waitForFunction(() => document.querySelector('link[rel="canonical"]')?.href.endsWith('/songs/2'));
+        assert.equal(await page.locator('link[rel="canonical"]').count(), 1);
+        assert.equal(await page.locator('meta[name="robots"][content*="noindex"]').count(), 0);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        assert.equal(await page.evaluate(() => window.scrollY), 0);
+        await page.screenshot({ path: path.join(tmpdir(), `cn-catalogue-${width}.png`), fullPage: false });
+        await page.getByRole('link', { name: 'Artist directory', exact: true }).click();
+        await page.getByRole('heading', { name: 'Artist Directory', exact: true }).waitFor();
+        assert.equal(await page.locator('a[href^="/artist/"]').count(), 1);
+        await page.getByRole('navigation', { name: 'Catalogue', exact: true }).getByRole('link', { name: 'Home', exact: true }).click();
+        await page.getByRole('heading', { name: 'Explore the catalogue', exact: true }).waitFor();
+        await page.locator('#catalogue-heading').scrollIntoViewIfNeeded();
+        await page.locator('section[aria-labelledby="catalogue-heading"] a[href^="/song/"]').first().waitFor();
+        assert.equal(await page.locator('section[aria-labelledby="catalogue-heading"] a[href^="/song/"]').count(), 6);
+        await page.evaluate(() => {
+          history.pushState({}, '', '/songs/999');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        });
+        await page.getByRole('heading', { name: 'Page not found', exact: true }).waitFor();
+        await page.waitForFunction(() => [...document.querySelectorAll('meta[name="robots"]')].some(tag => tag.content.includes('noindex')));
+        assert.deepEqual(errors, []);
+      } finally { await page.close(); }
+    }
+  });
 
   for (const { type, route } of pages) {
     for (const mode of ['abort', '503', 'empty', 'fresh']) {
