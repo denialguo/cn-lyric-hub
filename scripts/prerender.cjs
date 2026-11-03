@@ -382,12 +382,17 @@ module.exports = { songPage, artistPage, cataloguePages };
 
 if (require.main === module) {
   if (!url || !key) {
-    console.warn('⚠️  No Supabase env — skipping prerender. Pages will serve the SPA shell.');
+    const productionBuild = process.env.npm_lifecycle_event === 'build' ||
+      process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+    if (productionBuild) {
+      console.error('❌ Supabase configuration missing — cannot build crawlable static pages.');
+      process.exit(1);
+    }
+    console.warn('⚠️  No Supabase env — skipping local prerender.');
     process.exit(0);
   }
   main().catch((err) => {
-    // Never fail the deploy over SEO markup — the SPA shell still works.
-    console.error('⚠️  Prerender failed, continuing with SPA shell:', err.message);
-    process.exit(0);
+    console.error('❌ Prerender failed:', err.message);
+    process.exit(1);
   });
 }

@@ -57,7 +57,7 @@ Community Chinese-lyrics site: per-character ruby pinyin, community line transla
 2. `vercel.json` needs `"cleanUrls": true` and `"trailingSlash": false`.
 3. Artist filenames use the **raw** name, not `encodeURIComponent` (servers decode the path before matching files).
 - New page route → add it to `STATIC_ROUTES` in `prerender.cjs` **and** `generate-sitemap.cjs`.
-- Prerender exits 0 on failure; sitemap failure fails the build. Both use `scripts/build-fetch.cjs` retries.
+- Prerender and sitemap errors fail the build. Missing Supabase settings also fail `npm run build`, production mode and Vercel; only standalone local prerender may skip without settings. Both use `scripts/build-fetch.cjs` retries.
 - A full corpus import (~49,760 files) would exceed the 50,000-URL single-sitemap limit.
 
 ## Commands
