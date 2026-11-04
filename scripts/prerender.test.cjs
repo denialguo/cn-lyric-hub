@@ -19,12 +19,16 @@ test('prerendered song and artist pages are indexable with a self-referencing ca
   const artist = artistPage(template, '周杰伦', [songData]);
 
   for (const [html, canonical] of [
-    [song, 'https://cnlyrichub.vercel.app/song/ru-guo-de-shi'],
-    [artist, `https://cnlyrichub.vercel.app/artist/${encodeURIComponent('周杰伦')}`],
+    [song, 'https://cnlyrics.app/song/ru-guo-de-shi'],
+    [artist, `https://cnlyrics.app/artist/${encodeURIComponent('周杰伦')}`],
   ]) {
     assert.doesNotMatch(html, /noindex|nofollow/i);
     assert.deepEqual(robots(html), ['index, follow']);
     assert.deepEqual(canonicals(html), [canonical]);
+    assert.doesNotMatch(html, /cnlyrichub\.vercel\.app/);
+    const structuredData = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+    assert.equal(structuredData[0].url, canonical);
+    assert.ok(html.includes('content="https://cnlyrics.app/logo.png"'));
   }
 });
 
@@ -75,7 +79,7 @@ test('ordinary HTML links reach every song through the homepage and paginated di
   const titles = new Set();
   for (const [route, html] of pages) {
     assert.doesNotMatch(html, /noindex|nofollow/i);
-    assert.deepEqual(canonicals(html), [`https://cnlyrichub.vercel.app/${route === 'index' ? '' : route}`]);
+    assert.deepEqual(canonicals(html), [`https://cnlyrics.app/${route === 'index' ? '' : route}`]);
     assert.deepEqual(robots(html), ['index, follow']);
     titles.add(html.match(/<title>(.*?)<\/title>/)[1]);
   }

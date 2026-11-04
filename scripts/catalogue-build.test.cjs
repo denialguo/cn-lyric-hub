@@ -6,6 +6,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { checkSeoOrigin } = require('./check-seo-origin.cjs');
 
 test('build scripts write flat catalogue files and sitemap URLs without invented lastmod', async t => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'catalogue-build-'));
@@ -31,11 +32,25 @@ test('build scripts write flat catalogue files and sitemap URLs without invented
     const { stdout, stderr } = await promisify(execFile)(process.execPath, [path.join(__dirname, script)], { cwd, env });
     assert.doesNotMatch(stdout + stderr, /skipping|failed/i);
   }
+  await fs.copyFile(path.join(cwd, 'public/sitemap.xml'), path.join(cwd, 'dist/sitemap.xml'));
+  await fs.copyFile(path.join(__dirname, '../public/robots.txt'), path.join(cwd, 'dist/robots.txt'));
+  checkSeoOrigin(path.join(cwd, 'dist'));
+  for (const route of ['index', 'songs', 'artists', 'song/song-0', 'artist/Test Artist', 'faq', 'stats', 'privacy', 'terms']) {
+    const html = await fs.readFile(path.join(cwd, `dist/${route}.html`), 'utf8');
+    const canonical = `https://cnlyrics.app/${route === 'index' ? '' : route.replaceAll(' ', '%20')}`;
+    assert.ok(html.includes(`<link rel="canonical" href="${canonical}"`));
+    assert.ok(html.includes(`<meta property="og:url" content="${canonical}"`));
+    assert.ok(html.includes('<meta property="og:image" content="https://cnlyrics.app/logo.png"'));
+  }
+  assert.match(await fs.readFile(path.join(cwd, 'dist/robots.txt'), 'utf8'), /Sitemap: https:\/\/cnlyrics\.app\/sitemap.xml/);
   const sitemap = await fs.readFile(path.join(cwd, 'public/sitemap.xml'), 'utf8');
-  assert.match(sitemap, /<loc>https:\/\/cnlyrichub.vercel.app\/artists<\/loc>/);
+  for (const [, location] of sitemap.matchAll(/<loc>(.*?)<\/loc>/g)) {
+    assert.equal(new URL(location).origin, 'https://cnlyrics.app');
+  }
+  assert.match(sitemap, /<loc>https:\/\/cnlyrics\.app\/artists<\/loc>/);
   for (let page = 1; page <= 11; page++) {
     const route = page === 1 ? 'songs' : `songs/${page}`;
-    assert.ok(sitemap.includes(`<loc>https://cnlyrichub.vercel.app/${route}</loc>`));
+    assert.ok(sitemap.includes(`<loc>https://cnlyrics.app/${route}</loc>`));
     const html = await fs.readFile(path.join(cwd, `dist/${route}.html`), 'utf8');
     assert.match(html, /<a [^>]*href="\/song\/song-/);
   }

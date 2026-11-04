@@ -1,3 +1,4 @@
+import site from '../lib/site.json';
 import React, { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -15,7 +16,7 @@ export default function CataloguePage({ kind }) {
     <Helmet>
       <title>{data?.title || (invalid ? 'Page not found' : 'Catalogue')} | CN Lyric Hub</title>
       {data && <meta name="description" content={data.description} />}
-      {data && <link rel="canonical" href={`https://cnlyrichub.vercel.app${data.path}`} />}
+      {data && <link rel="canonical" href={`${site.origin}${data.path}`} />}
       {invalid && <meta name="robots" content="noindex, follow" />}
     </Helmet>
     <Navbar />

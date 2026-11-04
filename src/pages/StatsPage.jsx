@@ -1,3 +1,4 @@
+import site from '../lib/site.json';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, Music, Users, Type, Heart, TrendingUp, Hash, Sparkles, MessageSquare, Globe, Calendar, Repeat, BookOpen, Fingerprint, Ghost, Mic } from 'lucide-react';
@@ -118,7 +119,7 @@ const StatsPage = () => {
       <Helmet>
         <title>Stats — CN Lyric Hub</title>
         <meta name="description" content="Explore analytics across the CN Lyric Hub catalog — most common characters, mood analysis, artist breakdowns, and more." />
-        <link rel="canonical" href="https://cnlyrichub.vercel.app/stats" />
+        <link rel="canonical" href={`${site.origin}/stats`} />
       </Helmet>
       <Navbar />
 

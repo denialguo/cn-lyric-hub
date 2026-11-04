@@ -8,7 +8,7 @@ Read by Claude Code (`CLAUDE.md`) and Codex (`AGENTS.md` is a symlink to this fi
 - Only add something here if every future session needs it.
 
 ## What This Is
-Community Chinese-lyrics site: per-character ruby pinyin, community line translations with voting, and a live Simplified/Traditional toggle. Personal project by Daniel. Live: https://cnlyrichub.vercel.app
+Community Chinese-lyrics site: per-character ruby pinyin, community line translations with voting, and a live Simplified/Traditional toggle. Personal project by Daniel. Live: https://cnlyrics.app
 
 ## Stack
 - React 19 + Vite 6 + Tailwind v4 + react-router v7, on Vercel.

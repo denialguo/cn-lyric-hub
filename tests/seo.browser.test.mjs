@@ -86,6 +86,7 @@ test('rendered public pages survive failed requests without hiding content or ad
         await page.getByText('Page 2 of 3', { exact: true }).waitFor();
         await page.waitForFunction(() => document.querySelector('link[rel="canonical"]')?.href.endsWith('/songs/2'));
         assert.equal(await page.locator('link[rel="canonical"]').count(), 1);
+        assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), 'https://cnlyrics.app/songs/2');
         assert.equal(await page.locator('meta[name="robots"][content*="noindex"]').count(), 0);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         assert.equal(await page.evaluate(() => window.scrollY), 0);
@@ -151,6 +152,8 @@ test('rendered public pages survive failed requests without hiding content or ad
             }
             const robots = await page.locator('meta[name="robots"]').evaluateAll(nodes => nodes.map(node => node.content));
             assert.ok(robots.every(value => !/noindex/i.test(value)), robots.join(', '));
+            assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://cnlyrics.app${route}`);
+            assert.doesNotMatch(await page.locator('head').innerHTML(), /cnlyrichub\.vercel\.app/);
           }
           assert.ok(requests > 0, 'The rendered app must actually attempt its API request');
           assert.deepEqual(errors, []);

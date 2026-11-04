@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sitemap.cjs && vite build && node scripts/prerender.cjs",
+    "build": "node scripts/generate-sitemap.cjs && vite build && node scripts/prerender.cjs && node scripts/check-seo-origin.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test src/**/*.test.* scripts/*.test.*",

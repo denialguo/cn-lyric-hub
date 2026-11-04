@@ -25,7 +25,7 @@ const { fetchRows } = require('./build-fetch.cjs');
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
 
-const DOMAIN = 'https://cnlyrichub.vercel.app';
+const { origin: DOMAIN } = require('../src/lib/site.json');
 const DIST = './dist';
 
 const url = process.env.VITE_SUPABASE_URL;

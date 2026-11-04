@@ -5,7 +5,7 @@ English translations. Every line renders as HTML `<ruby>` markup so the Pinyin
 sits directly above each hanzi, and a toggle flips the whole page between
 Simplified and Traditional instantly, client-side.
 
-**Live:** https://cnlyrichub.vercel.app
+**Live:** https://cnlyrics.app
 
 ## Stack
 
