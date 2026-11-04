@@ -13,4 +13,4 @@ Disallow: /profile
 # bare SPA shell and treat every one as a duplicate of the homepage.
 Disallow: /user/
 
-Sitemap: https://cnlyrichub.vercel.app/sitemap.xml
+Sitemap: https://cnlyrics.app/sitemap.xml

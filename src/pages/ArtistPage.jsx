@@ -1,3 +1,4 @@
+import site from '../lib/site.json';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -56,7 +57,7 @@ const ArtistPage = () => {
       <Helmet>
         <title>{artistName} — CN Lyric Hub</title>
         <meta name="description" content={`Browse all songs by ${artistName} with Pinyin and English translations on CN Lyric Hub.`} />
-        <link rel="canonical" href={`https://cnlyrichub.vercel.app/artist/${encodeURIComponent(artistName)}`} />
+        <link rel="canonical" href={`${site.origin}/artist/${encodeURIComponent(artistName)}`} />
         {/* Any URL can reach this route, so an artist with no songs must not be
             indexed as a thin near-duplicate of every other empty artist page. A failed
             fetch proves nothing, so it must not noindex a real artist. */}

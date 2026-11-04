@@ -1,3 +1,4 @@
+import site from '../lib/site.json';
 import { selectedLineTranslation } from '../lib/lineAnchors';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -254,12 +255,12 @@ const SongPage = () => {
       <Helmet>
         <title>{displayTitle} - {primaryArtist} | CN Lyric Hub</title>
         <meta name="description" content={`Read ${displayTitle} by ${primaryArtist} with character-by-character Pinyin and English translation on CN Lyric Hub.`} />
-        <link rel="canonical" href={`https://cnlyrichub.vercel.app/song/${song.slug}`} />
+        <link rel="canonical" href={`${site.origin}/song/${song.slug}`} />
         <meta property="og:title" content={`${displayTitle} - ${primaryArtist}`} />
         <meta property="og:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
-        <meta property="og:image" content={song.cover_url || 'https://cnlyrichub.vercel.app/logo.png'} />
+        <meta property="og:image" content={song.cover_url || `${site.origin}/logo.png`} />
         <meta property="og:type" content="music.song" />
-        <meta property="og:url" content={`https://cnlyrichub.vercel.app/song/${song.slug}`} />
+        <meta property="og:url" content={`${site.origin}/song/${song.slug}`} />
         <meta name="twitter:card" content="summary_large_image" />
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',
@@ -267,7 +268,7 @@ const SongPage = () => {
           name: song.title_zh || song.title_en,
           alternativeHeadline: song.title_en || undefined,
           inLanguage: 'zh',
-          url: `https://cnlyrichub.vercel.app/song/${song.slug}`,
+          url: `${site.origin}/song/${song.slug}`,
           image: song.cover_url || undefined,
           datePublished: song.year ? String(song.year) : undefined,
           composer: primaryArtist !== 'Unknown' ? { '@type': 'MusicGroup', name: primaryArtist } : undefined,
@@ -276,14 +277,14 @@ const SongPage = () => {
           '@context': 'https://schema.org',
           '@type': 'BreadcrumbList',
           itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://cnlyrichub.vercel.app/' },
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${site.origin}/` },
             ...(primaryArtist !== 'Unknown' ? [{
               '@type': 'ListItem', position: 2, name: primaryArtist,
-              item: `https://cnlyrichub.vercel.app/artist/${encodeURIComponent(primaryArtist)}`,
+              item: `${site.origin}/artist/${encodeURIComponent(primaryArtist)}`,
             }] : []),
             {
               '@type': 'ListItem', position: primaryArtist !== 'Unknown' ? 3 : 2, name: displayTitle,
-              item: `https://cnlyrichub.vercel.app/song/${song.slug}`,
+              item: `${site.origin}/song/${song.slug}`,
             },
           ],
         })}</script>

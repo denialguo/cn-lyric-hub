@@ -1,3 +1,4 @@
+import site from '../lib/site.json';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -13,7 +14,7 @@ const LegalLayout = ({ title, description, canonicalPath, updated, intro, childr
     <Helmet>
       <title>{title} — CN Lyric Hub</title>
       <meta name="description" content={description} />
-      <link rel="canonical" href={`https://cnlyrichub.vercel.app${canonicalPath}`} />
+      <link rel="canonical" href={`${site.origin}${canonicalPath}`} />
     </Helmet>
     <Navbar />
 

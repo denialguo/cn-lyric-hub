@@ -1,3 +1,4 @@
+import site from '../lib/site.json';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, HelpCircle, BookOpen, Scale } from 'lucide-react';
@@ -95,7 +96,7 @@ const FaqPage = () => {
       <Helmet>
         <title>FAQ — CN Lyric Hub</title>
         <meta name="description" content="Frequently asked questions about CN Lyric Hub — how Pinyin works, script toggling, community translations, adding songs, and DMCA takedown requests." />
-        <link rel="canonical" href="https://cnlyrichub.vercel.app/faq" />
+        <link rel="canonical" href={`${site.origin}/faq`} />
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',
           '@type': 'FAQPage',
