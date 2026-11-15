@@ -42,7 +42,7 @@ const LOOKS = [
 const WEB_FONTS = ['Ma Shan Zheng', 'Zhi Mang Xing', 'Long Cang', 'ZCOOL KuaiLe', 'ZCOOL XiaoWei'];
 // Slot-machine intro: gaps ease from 70ms to 300ms, so the fast burst lasts well under a second.
 // It's a small crossfading text block (never blanks) and reduced-motion skips it entirely.
-const LOOP_GAP_MS = 1500; // after the fast intro, the sample changes this slowly, forever
+const LOOP_GAP_MS = 2000; // after the fast intro, the sample changes this slowly, forever
 const INTRO_GAPS_MS = Array.from({ length: 10 }, (_, i) => 70 + 230 * (i / 9) ** 2);
 
 const HomePage = () => {

@@ -170,7 +170,7 @@ ruby rt {
 /* "Prioritize pinyin spacing": padding on the annotation widens its ruby box, so every
    syllable keeps a clear gap from its neighbours and never overhangs them. */
 [data-pinyin-room] ruby { ruby-overhang: none; }
-[data-pinyin-room] ruby rt { padding-inline: .45em; }
+[data-pinyin-room] ruby rt { padding-inline: var(--pinyin-room, .45em); }
 
 /* Local reading fonts; pinyin keeps its explicit sans-serif font above. */
 [data-lyric-font="serif"] {

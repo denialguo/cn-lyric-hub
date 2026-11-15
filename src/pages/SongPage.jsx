@@ -97,6 +97,7 @@ const SongPage = () => {
   );
   const lyricFont = ['serif', 'system', 'kai', 'mono', 'brush', 'cursive', 'hand', 'round', 'elegant'].includes(fontSettings.family) ? fontSettings.family : 'default';
 
+  const pinyinRoom = Number.isFinite(fontSettings.roomAmount) ? Math.min(1.2, Math.max(0, fontSettings.roomAmount)) : 0.45;
   const [showSettings, setShowSettings] = useState(false);
   // One-time pointer to the appearance panel; most visitors never find it on their own.
   const [appearanceSeen, setAppearanceSeen] = useState(() => readString('appearance-seen', '') === '1');
@@ -428,6 +429,12 @@ const SongPage = () => {
                             <input type="checkbox" checked={Boolean(fontSettings.roomy)} onChange={event => setFontSettings(prev => ({ ...prev, roomy: event.target.checked }))} className="mt-1 h-4 w-4 accent-[rgb(var(--color-primary-rgb))]" />
                             <span><span className="text-xs text-slate-200 block">Prioritize pinyin spacing</span><span className="text-xs text-slate-400">Gives every syllable room, even if characters sit further apart.</span></span>
                           </label>
+                          {fontSettings.roomy && (
+                            <div className="flex items-center gap-3 pl-7 pb-1">
+                              <label htmlFor="pinyin-room" className="text-xs text-slate-400">Space</label>
+                              <input id="pinyin-room" type="range" min="0" max="1.2" step="0.05" value={pinyinRoom} onChange={event => setFontSettings(prev => ({ ...prev, roomAmount: Number(event.target.value) }))} className="flex-1 min-h-11 accent-[rgb(var(--color-primary-rgb))]" />
+                            </div>
+                          )}
                           
                           <div className="h-px bg-slate-800 my-4" />
                           
@@ -467,7 +474,7 @@ const SongPage = () => {
            
            <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
            {/* LYRICS LIST */}
-           <div className="space-y-4" data-lyric-font={lyricFont} data-pinyin-room={fontSettings.roomy ? 'true' : undefined}>
+           <div className="space-y-4" data-lyric-font={lyricFont} data-pinyin-room={fontSettings.roomy ? 'true' : undefined} style={{ '--pinyin-room': `${pinyinRoom}em` }}>
             {lines.map((_, index) => {
               const line = chineseLines[index] || ""; 
               const py = pinyinLines[index] || ""; 
