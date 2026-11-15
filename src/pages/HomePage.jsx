@@ -42,8 +42,8 @@ const LOOKS = [
 const WEB_FONTS = ['Ma Shan Zheng', 'Zhi Mang Xing', 'Long Cang', 'ZCOOL KuaiLe', 'ZCOOL XiaoWei'];
 // Slot-machine intro: gaps ease from 70ms to 300ms, so the fast burst lasts well under a second.
 // It's a small crossfading text block (never blanks) and reduced-motion skips it entirely.
-const LOOP_GAP_MS = 300;
-const INTRO_GAPS_MS = Array.from({ length: 10 }, (_, i) => 70 + 230 * (i / 9) ** 2); // ends at LOOP_GAP_MS
+const LOOP_GAP_MS = 1500; // after the fast intro, the sample changes this slowly, forever
+const INTRO_GAPS_MS = Array.from({ length: 10 }, (_, i) => 70 + 230 * (i / 9) ** 2);
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -74,7 +74,7 @@ const HomePage = () => {
   const [introPlaying, setIntroPlaying] = useState(true);
   const look = LOOKS[lookIndex];
 
-  // On load, speed through every look, then keep cycling forever at the intro's final (slowest) pace.
+  // On load, speed through every look, then keep cycling forever at a slow pace.
   // Fonts load first (capped at 1.5s) so no step flashes a fallback face. Clicking skips ahead.
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setIntroPlaying(false); return; }
@@ -203,7 +203,7 @@ const HomePage = () => {
                   initial={{ opacity: 0, filter: 'blur(6px)', y: 6 }}
                   animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
                   exit={{ opacity: 0, filter: 'blur(6px)', y: -6 }}
-                  transition={{ duration: introPlaying ? .1 : .25, ease: [.2, .8, .2, 1] }}
+                  transition={{ duration: introPlaying ? .1 : .5, ease: [.2, .8, .2, 1] }}
                 >
                   <ruby>一<rp>(</rp><rt>yì</rt><rp>)</rp></ruby>
                   <ruby>起<rp>(</rp><rt>qǐ</rt><rp>)</rp></ruby>
