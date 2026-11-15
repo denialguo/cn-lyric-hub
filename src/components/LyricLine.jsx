@@ -8,7 +8,7 @@ const LyricLine = ({
   pinyin,
   translatedText, 
   isActive, 
-  fontSettings = { pinyin: 1, zh: 3, en: 2 },
+  fontSettings = { pinyin: 3, zh: 5, en: 3 },
   lyricColors = { pinyin: 'default', hanzi: 'default', english: 'default' },
   onClick 
 }) => {
@@ -18,9 +18,9 @@ const LyricLine = ({
   const enSizes =     ['text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'];
   const rtSizes =     ['text-[10px]', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'];
 
-  const zhClass = zhSizes[fontSettings.zh] || 'text-2xl';
-  const enClass = enSizes[fontSettings.en] || 'text-sm';
-  const rtClass = rtSizes[fontSettings.pinyin] || 'text-[10px]';
+  const zhClass = zhSizes[fontSettings.zh] || 'text-4xl';
+  const enClass = enSizes[fontSettings.en] || 'text-base';
+  const rtClass = rtSizes[fontSettings.pinyin] || 'text-base';
   const showPinyin = fontSettings.pinyin >= 0;
 
   const pinyinColor = lyricColors.pinyin !== 'default' ? lyricColors.pinyin : null;

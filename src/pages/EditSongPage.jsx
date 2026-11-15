@@ -321,12 +321,14 @@ const EditSongPage = ({ isReviewMode = false }) => {
               onChange={handleChange} originalValue={originalData?.lyrics_chinese}
             />
             <div className="relative">
-              <button
-                type="button" onClick={handleAutoPinyin}
-                className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded hover:bg-primary hover:text-white transition-colors mt-2 mr-2"
-              >
-                <Sparkles className="w-3 h-3" /> Auto-Fill
-              </button>
+              {!isReviewMode && (
+                <button
+                  type="button" onClick={handleAutoPinyin}
+                  className="absolute right-0 top-0 z-10 text-xs flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded hover:bg-primary hover:text-white transition-colors mt-2 mr-2"
+                >
+                  <Sparkles className="w-3 h-3" /> Auto-Fill
+                </button>
+              )}
               <LyricsEditor
                 label="Pinyin" name="lyrics_pinyin" value={formData.lyrics_pinyin}
                 onChange={handleChange} originalValue={originalData?.lyrics_pinyin}

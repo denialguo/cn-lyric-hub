@@ -1,5 +1,5 @@
 import site from '../lib/site.json';
-import { selectedLineTranslation } from '../lib/lineAnchors';
+import { selectedLineTranslation, matchesLine } from '../lib/lineAnchors';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Music, Info, Type, Plus, Minus, RotateCcw } from 'lucide-react';
@@ -8,11 +8,13 @@ import { tify, sify } from 'chinese-conv';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext'; 
 import { Helmet } from 'react-helmet-async'; 
+import { AnimatePresence } from 'motion/react';
+import * as M from 'motion/react-m';
 import CommentsSection from '../components/CommentsSection';
 import Navbar from '../components/Navbar';
 import LyricLine from '../components/LyricLine';
 import LineSidebar from '../components/LineSidebar';
-import { readJson, writeJson } from '../lib/storage';
+import { readJson, writeJson, readString, writeString } from '../lib/storage';
 import { isConfirmedMissing, readPrerenderedPage } from '../lib/seo';
 import { SITE_NAME, songMeta, withSite } from '../lib/pageMeta';
 
@@ -91,11 +93,14 @@ const SongPage = () => {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [fontSettings, setFontSettings] = useState(() =>
-    readJson('lyric_font_settings', { pinyin: 1, zh: 3, en: 2 })
+    readJson('lyric_font_settings', { pinyin: 3, zh: window.matchMedia('(max-width: 639px)').matches ? 4 : 5, en: 3 })
   );
-  const lyricFont = ['serif', 'system', 'kai', 'mono'].includes(fontSettings.family) ? fontSettings.family : 'default';
+  const lyricFont = ['serif', 'system', 'kai', 'mono', 'brush', 'cursive', 'hand', 'round', 'elegant'].includes(fontSettings.family) ? fontSettings.family : 'default';
 
   const [showSettings, setShowSettings] = useState(false);
+  // One-time pointer to the appearance panel; most visitors never find it on their own.
+  const [appearanceSeen, setAppearanceSeen] = useState(() => readString('appearance-seen', '') === '1');
+  const [hasEarlier, setHasEarlier] = useState(false);
   const settingsRef = useRef(null);
   
   const [selectedLine, setSelectedLine] = useState(null); 
@@ -119,6 +124,25 @@ const SongPage = () => {
   useEffect(() => {
     writeJson('lyric_font_settings', fontSettings);
   }, [fontSettings]);
+
+  useEffect(() => {
+    if (showSettings && !appearanceSeen) { setAppearanceSeen(true); writeString('appearance-seen', '1'); }
+  }, [showSettings, appearanceSeen]);
+
+  // Only offer "Earlier contributions" when this song has some: rows whose lyric line was since edited.
+  const songId = song?.id;
+  const songLyrics = song?.lyrics_chinese;
+  useEffect(() => {
+    if (!songId) return;
+    let cancelled = false;
+    const lines = (songLyrics || '').split('\n');
+    Promise.all(['line_translations', 'line_comments'].map(table =>
+      supabase.from(table).select('line_index, original_line').eq('song_id', songId)
+    )).then(results => {
+      if (!cancelled) setHasEarlier(results.some(({ data }) => data?.some(row => !matchesLine(row, lines))));
+    });
+    return () => { cancelled = true; };
+  }, [songId, songLyrics]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -357,9 +381,21 @@ const SongPage = () => {
                     >
                       <Type className="w-3 h-3" /> Appearance
                     </button>
+                    {!appearanceSeen && !showSettings && (
+                      <span className="relative block">
+                      <M.span
+                        aria-hidden="true"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: .8, duration: .3 }}
+                        className="appearance-hint"
+                      >10 fonts, sizes &amp; colors</M.span>
+                      </span>
+                    )}
                     
+                    <AnimatePresence>
                     {showSettings && (
-                      <div id="lyric-appearance" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowSettings(false); settingsRef.current?.querySelector('button')?.focus(); } }} className="fixed right-4 top-20 sm:absolute sm:right-0 sm:top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80 max-w-[calc(100vw-2rem)] sm:max-w-full max-h-[calc(100dvh-7rem)] sm:max-h-[70dvh] overflow-y-auto">
+                      <M.div initial={{ opacity: 0, y: -8, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: .97 }} transition={{ type: 'spring', duration: .25, bounce: .15 }} style={{ transformOrigin: 'top right' }} id="lyric-appearance" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowSettings(false); settingsRef.current?.querySelector('button')?.focus(); } }} className="fixed right-4 top-20 sm:absolute sm:right-0 sm:top-full mt-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80 max-w-[calc(100vw-2rem)] sm:max-w-full max-h-[calc(100dvh-7rem)] sm:max-h-[70dvh] overflow-y-auto">
                           
                           <label htmlFor="lyric-font" className="text-xs text-slate-400 block mb-2">Lyric font</label>
                           <select
@@ -372,7 +408,12 @@ const SongPage = () => {
                             <option value="default">Default</option>
                             <option value="serif">Serif</option>
                             <option value="system">System</option>
-                            <option value="kai">Kai — handwritten</option>
+                            <option value="kai">Kai — calligraphic</option>
+                            <option value="brush">Brush — bold calligraphy</option>
+                            <option value="cursive">Cursive — flowing script</option>
+                            <option value="hand">Handwritten — casual</option>
+                            <option value="round">Rounded — playful</option>
+                            <option value="elegant">Elegant — display serif</option>
                             <option value="mono">Monospace — typewriter</option>
                           </select>
                           <p className="text-xs text-slate-400 mt-2">Fonts vary by device; unavailable styles use a fallback.</p>
@@ -411,8 +452,9 @@ const SongPage = () => {
                                 {scriptMode === 'simplified' ? '简体字' : '繁体字'}
                               </button>
                           </div>
-                      </div>
+                      </M.div>
                     )}
+                    </AnimatePresence>
                  </div>
 
                  <button onClick={() => navigate(`/edit/${song.id}`)} className="min-h-11 text-xs text-slate-400 hover:text-primary ml-2">Suggest Edit</button>
@@ -420,7 +462,6 @@ const SongPage = () => {
            </div>
            
            <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
-           <button onClick={() => setSelectedLine(-1)} className="min-h-11 text-xs text-slate-400 hover:text-primary">Earlier contributions</button>
            {/* LYRICS LIST */}
            <div className="space-y-4" data-lyric-font={lyricFont}>
             {lines.map((_, index) => {
@@ -446,6 +487,7 @@ const SongPage = () => {
               );
             })}
            </div>
+           {hasEarlier && <button onClick={() => setSelectedLine(-1)} className="mt-6 min-h-11 text-xs text-slate-400 hover:text-primary">Earlier contributions from previous lyric versions</button>}
 
            {/* Bio */}
            {song.bio && (
@@ -531,6 +573,8 @@ const SongPage = () => {
           </div>
         </div>
 
+        {/* wait: the outgoing panel's cleanup restores focus, so it must finish before the next opens. */}
+        <AnimatePresence mode="wait">
         {selectedLine !== null && (
             <LineSidebar
                 key={`${song.id}:${selectedLine}:${canonicalLines[selectedLine] ?? ''}:${user?.id || 'guest'}`}
@@ -545,6 +589,7 @@ const SongPage = () => {
                 onSelectTranslation={handleSelectTranslation}
             />
         )}
+        </AnimatePresence>
       </div>
     </div>
   );

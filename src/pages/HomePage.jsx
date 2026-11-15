@@ -8,6 +8,8 @@ import SongCard from '../components/SongCard';
 import Navbar from '../components/Navbar';
 import CatalogueDiscovery from '../components/CatalogueDiscovery';
 import { Helmet } from 'react-helmet-async';
+import { AnimatePresence } from 'motion/react';
+import * as M from 'motion/react-m';
 import { tify, sify } from 'chinese-conv';
 import { searchSongs, listSongs, trendingSongs, recentlyActiveSongs, classicSongs, likedSongIds, translatedSongIds } from '../lib/queries';
 import { readString, writeString } from '../lib/storage';
@@ -22,6 +24,25 @@ const TAB_QUERY = {
   new: recentlyActiveSongs,
   classics: classicSongs,
 };
+
+// The hero sample cycles through real lyric-settings combinations. Fonts are the same
+// data-lyric-font stacks the song page uses, so what you see is what you'd get.
+const LOOKS = [
+  { label: 'Your theme', font: 'default', scale: 1 },
+  { label: 'Brush · Rose · Large', font: 'brush', ink: '#f43f5e', scale: 1.25 },
+  { label: 'Kai · Amber', font: 'kai', ink: '#f59e0b', scale: 1.05 },
+  { label: 'Rounded · Blue', font: 'round', ink: '#3b82f6', scale: 1 },
+  { label: 'Monospace · Violet · Small', font: 'mono', ink: '#8b5cf6', scale: 0.8 },
+  { label: 'Cursive · Pink · Large', font: 'cursive', ink: '#ec4899', scale: 1.2 },
+  { label: 'Elegant · Teal', font: 'elegant', ink: '#14b8a6', scale: 1.1 },
+  { label: 'Serif · Orange · Small', font: 'serif', ink: '#f97316', scale: 0.9 },
+  { label: 'Handwritten · Indigo · Large', font: 'hand', ink: '#6366f1', scale: 1.15 },
+  { label: 'System · Emerald', font: 'system', ink: '#10b981', scale: 1 },
+];
+const WEB_FONTS = ['Ma Shan Zheng', 'Zhi Mang Xing', 'Long Cang', 'ZCOOL KuaiLe', 'ZCOOL XiaoWei'];
+// Slot-machine intro: gaps ease from 70ms to 300ms, so the fast burst lasts well under a second.
+// It's a small crossfading text block (never blanks) and reduced-motion skips it entirely.
+const INTRO_GAPS_MS = Array.from({ length: 10 }, (_, i) => 70 + 230 * (i / 9) ** 2);
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -48,6 +69,34 @@ const HomePage = () => {
   const [userLikedIds, setUserLikedIds] = useState(new Set());
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [lookIndex, setLookIndex] = useState(0);
+  const [introPlaying, setIntroPlaying] = useState(true);
+  const look = LOOKS[lookIndex];
+
+  // On load, flash through every look once and land back on the viewer's own theme.
+  // Fonts load first (capped at 1.5s) so no step flashes a fallback face.
+  // After that the sample only changes when clicked.
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setIntroPlaying(false); return; }
+    let cancelled = false;
+    let timers = [];
+    const fontsReady = Promise.all(WEB_FONTS.map(font => document.fonts.load(`1em "${font}"`, '一起听聽歌'))).catch(() => {});
+    Promise.race([fontsReady, new Promise(resolve => setTimeout(resolve, 1500))]).then(() => {
+      if (cancelled) return;
+      const steps = [...LOOKS.keys()].slice(1).concat(0);
+      let at = 100;
+      timers = steps.map((index, step) => setTimeout(() => {
+        setLookIndex(index);
+        if (step === steps.length - 1) setIntroPlaying(false);
+      }, at += INTRO_GAPS_MS[step] ?? 300));
+    });
+    return () => { cancelled = true; timers.forEach(clearTimeout); };
+  }, []);
+
+  const nextLook = () => {
+    setIntroPlaying(false);
+    setLookIndex(i => (i + 1) % LOOKS.length);
+  };
 
   useEffect(() => { writeString('homeTab', activeTab); }, [activeTab]);
 
@@ -127,7 +176,6 @@ const HomePage = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
         <section className="home-intro" aria-labelledby="home-heading">
           <div className="min-w-0">
-            <p className="home-eyebrow">A shared love of Chinese music</p>
             <h1 id="home-heading" className="home-heading">Find a song.<br />Follow every word.</h1>
             <p className="home-description">Read Chinese lyrics with pinyin and English translations.</p>
             <form role="search" onSubmit={event => event.preventDefault()} className="home-search">
@@ -139,15 +187,31 @@ const HomePage = () => {
           </div>
           <figure className="home-reading-example" aria-label="Pinyin reading example">
             <p className="home-eyebrow">Character by character</p>
-            <p className="home-ruby" lang={scriptMode === 'traditional' ? 'zh-Hant' : 'zh-Hans'}>
-              <ruby>一<rp>(</rp><rt>yì</rt><rp>)</rp></ruby>
-              <ruby>起<rp>(</rp><rt>qǐ</rt><rp>)</rp></ruby>
-              <ruby>{scriptMode === 'traditional' ? '聽' : '听'}<rp>(</rp><rt>tīng</rt><rp>)</rp></ruby>
-              <ruby>歌<rp>(</rp><rt>gē</rt><rp>)</rp></ruby>
-            </p>
+            <button type="button" onClick={nextLook} className="home-look-button" aria-label={`Lyric style: ${look.label}. Show another style`}>
+            <span className="home-ruby" lang={scriptMode === 'traditional' ? 'zh-Hant' : 'zh-Hans'}>
+              {/* popLayout takes the outgoing look out of flow, so old and new crossfade in place. */}
+              <AnimatePresence mode="popLayout" initial={false}>
+                <M.span
+                  key={lookIndex}
+                  className="home-look"
+                  data-lyric-font={look.font}
+                  style={{ '--look-scale': look.scale, '--look-ink': look.ink }}
+                  initial={{ opacity: 0, filter: 'blur(6px)', y: 6 }}
+                  animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+                  exit={{ opacity: 0, filter: 'blur(6px)', y: -6 }}
+                  transition={{ duration: introPlaying ? .1 : .35, ease: [.2, .8, .2, 1] }}
+                >
+                  <ruby>一<rp>(</rp><rt>yì</rt><rp>)</rp></ruby>
+                  <ruby>起<rp>(</rp><rt>qǐ</rt><rp>)</rp></ruby>
+                  <ruby>{scriptMode === 'traditional' ? '聽' : '听'}<rp>(</rp><rt>tīng</rt><rp>)</rp></ruby>
+                  <ruby>歌<rp>(</rp><rt>gē</rt><rp>)</rp></ruby>
+                </M.span>
+              </AnimatePresence>
+            </span>
+            </button>
             <figcaption>Listen to music together.</figcaption>
             <div className="home-example-rule" aria-hidden="true" />
-            <p className="home-example-note">Chinese lyrics. Pinyin above. Meaning below.</p>
+            <p className="home-example-note" aria-hidden="true">{look.label}<span className="home-look-hint"> · tap to try another</span></p>
           </figure>
         </section>
 
@@ -167,6 +231,7 @@ const HomePage = () => {
                 { id: 'classics', label: 'Classics', icon: Disc },
               ].map((tab) => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} aria-pressed={activeTab === tab.id} className="home-category">
+                  {activeTab === tab.id && <M.span layoutId="home-category-pill" className="home-category-pill" transition={{ type: 'spring', bounce: .2, duration: .4 }} />}
                   <tab.icon size={16} aria-hidden="true" />
                   {tab.label}
                 </button>
@@ -187,18 +252,21 @@ const HomePage = () => {
             <button onClick={() => {setSearchQuery(''); setActiveTab('all')}} className="text-primary hover:underline">Clear filters</button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-            {songs.map((song) => {
+          <div key={`${activeTab}:${debouncedQuery}`} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {songs.map((song, index) => {
                 const rawChinese = song.title_zh || song.title_en || "Untitled";
                 const displayChinese = scriptMode === 'traditional' ? tify(rawChinese) : sify(rawChinese);
+                // Cards rise in a quick wave; the grid's key replays it per tab/search, and
+                // "Load more" pages start their own wave instead of waiting behind the first.
                 return (
-                  <SongCard 
-                    key={song.id} 
-                    song={{ ...song, display_title: displayChinese }}
-                    hasTranslation={translatedIds.has(song.id)}
-                    initialLikeCount={song.song_likes?.[0]?.count || 0}
-                    initialIsLiked={userLikedIds.has(song.id)}
-                  />
+                  <M.div key={song.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .35, ease: [.2, .8, .2, 1], delay: Math.min(index % PAGE_SIZE, 12) * .03 }}>
+                    <SongCard
+                      song={{ ...song, display_title: displayChinese }}
+                      hasTranslation={translatedIds.has(song.id)}
+                      initialLikeCount={song.song_likes?.[0]?.count || 0}
+                      initialIsLiked={userLikedIds.has(song.id)}
+                    />
+                  </M.div>
                 );
             })}
           </div>

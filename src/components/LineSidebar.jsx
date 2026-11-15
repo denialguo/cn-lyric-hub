@@ -1,6 +1,7 @@
 import { matchesLine } from '../lib/lineAnchors';
 import { songContributions } from '../lib/queries';
 import React, { useState, useEffect, useRef } from 'react';
+import * as M from 'motion/react-m';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -365,7 +366,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
   ];
 
   return (
-    <dialog ref={dialogRef} aria-labelledby="line-panel-title" onKeyDown={event => {
+    <M.dialog initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%', transition: { duration: .18, ease: 'easeIn' } }} transition={{ type: 'spring', bounce: 0, duration: .32 }} ref={dialogRef} aria-labelledby="line-panel-title" onKeyDown={event => {
       if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
       if (event.key === 'Tab' && window.matchMedia('(max-width: 767px)').matches) {
         const controls = [...dialogRef.current.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')].filter(element => element.getClientRects().length);
@@ -646,7 +647,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
         )}
       </div>}
 
-    </dialog>
+    </M.dialog>
   );
 };
 

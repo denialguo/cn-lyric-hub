@@ -3,6 +3,9 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider } from './context/AuthContext';
+import { LazyMotion, MotionConfig } from 'motion/react';
+
+const loadMotionFeatures = () => import('./lib/motionFeatures').then(module => module.default);
 
 // HomePage is the LCP landing route — keep it eager so first paint isn't gated on a chunk
 import HomePage from './pages/HomePage';
@@ -32,6 +35,8 @@ const RouteFallback = () => (
 
 const App = () => {
   return (
+    <LazyMotion features={loadMotionFeatures} strict>
+    <MotionConfig reducedMotion="user">
     <AuthProvider>
       <Router>
         <div className="min-h-screen bg-slate-950 text-slate-200">
@@ -65,6 +70,8 @@ const App = () => {
         </div>
       </Router>
     </AuthProvider>
+    </MotionConfig>
+    </LazyMotion>
   );
 };
 
