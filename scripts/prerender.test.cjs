@@ -104,7 +104,7 @@ test('title templates', async () => {
   assert.equal(titleOf(translated), '歌 Lyrics, Pinyin & Translation — Singer | CN Lyrics');
   assert.equal(titleOf(artistPage(template, 'Singer', [song])), 'Singer Lyrics & Pinyin | CN Lyrics');
   const { pages } = await require('./prerender.cjs').cataloguePages(template, Array.from({ length: 150 }, (_, id) => ({ id, slug: `s${id}`, title_zh: `歌${id}` })));
-  assert.equal(titleOf(pages.get('index')), 'CN Lyrics — Chinese Lyrics with Pinyin');
+  assert.equal(titleOf(pages.get('index')), 'CN Lyrics: Chinese Lyrics with Pinyin');
   assert.equal(titleOf(pages.get('songs')), 'Chinese Song Lyrics | CN Lyrics');
   assert.equal(titleOf(pages.get('songs/2')), 'Chinese Song Lyrics — Page 2 | CN Lyrics');
   assert.equal(titleOf(pages.get('artists')), 'Chinese Music Artists | CN Lyrics');

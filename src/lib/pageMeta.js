@@ -6,7 +6,7 @@
 export const SITE_NAME = 'CN Lyrics';
 export const withSite = title => `${title} | ${SITE_NAME}`;
 
-export const HOME_TITLE = `${SITE_NAME} — Chinese Lyrics with Pinyin`;
+export const HOME_TITLE = `${SITE_NAME}: Chinese Lyrics with Pinyin`;
 export const HOME_DESCRIPTION =
   'Read Chinese song lyrics with character-by-character pinyin, Simplified/Traditional text, and English translations. Find songs by title or artist.';
 
