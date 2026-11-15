@@ -425,13 +425,26 @@ const SongPage = () => {
                           <SizeControl label="Pinyin" type="pinyin" fontSettings={fontSettings} updateSize={updateSize} />
                           <SizeControl label="Hanzi" type="zh" fontSettings={fontSettings} updateSize={updateSize} />
                           <SizeControl label="English" type="en" fontSettings={fontSettings} updateSize={updateSize} />
-                          <label className="flex items-start gap-3 mt-3 min-h-11 cursor-pointer">
-                            <input type="checkbox" checked={Boolean(fontSettings.roomy)} onChange={event => setFontSettings(prev => ({ ...prev, roomy: event.target.checked }))} className="mt-1 h-4 w-4 accent-[rgb(var(--color-primary-rgb))]" />
-                            <span><span className="text-xs text-slate-200 block">Prioritize pinyin spacing</span><span className="text-xs text-slate-400">Gives every syllable room, even if characters sit further apart.</span></span>
-                          </label>
+                          <div className="flex items-center justify-between gap-4 mb-2">
+                            <span id="pinyin-room-label" className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">Room</span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={Boolean(fontSettings.roomy)}
+                              aria-labelledby="pinyin-room-label"
+                              title="Gives every pinyin syllable room, even if characters sit further apart"
+                              onClick={() => setFontSettings(prev => ({ ...prev, roomy: !prev.roomy }))}
+                              className="flex items-center gap-2 bg-slate-950 rounded-lg p-1 border border-slate-700 pr-3 min-h-11 text-slate-400 hover:text-white transition-colors"
+                            >
+                              <span className={`relative w-9 h-5 rounded-full transition-colors ${fontSettings.roomy ? 'bg-primary' : 'bg-slate-800'}`}>
+                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${fontSettings.roomy ? 'translate-x-4' : ''}`} />
+                              </span>
+                              <span className="text-xs">Pinyin spacing</span>
+                            </button>
+                          </div>
                           {fontSettings.roomy && (
-                            <div className="flex items-center gap-3 pl-7 pb-1">
-                              <label htmlFor="pinyin-room" className="text-xs text-slate-400">Space</label>
+                            <div className="flex items-center justify-between gap-4 mb-2">
+                              <label htmlFor="pinyin-room" className="text-slate-400 text-xs font-bold uppercase tracking-wider w-16">Gap</label>
                               <input id="pinyin-room" type="range" min="0" max="1.2" step="0.05" value={pinyinRoom} onChange={event => setFontSettings(prev => ({ ...prev, roomAmount: Number(event.target.value) }))} className="flex-1 min-h-11 accent-[rgb(var(--color-primary-rgb))]" />
                             </div>
                           )}
