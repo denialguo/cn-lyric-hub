@@ -11,6 +11,7 @@ import { Helmet } from 'react-helmet-async';
 import { tify, sify } from 'chinese-conv';
 import { searchSongs, listSongs, trendingSongs, recentlyActiveSongs, classicSongs, likedSongIds, translatedSongIds } from '../lib/queries';
 import { readString, writeString } from '../lib/storage';
+import { SITE_NAME, HOME_TITLE, HOME_DESCRIPTION, websiteJsonLd } from '../lib/pageMeta';
 
 const PAGE_SIZE = 36;
 
@@ -110,13 +111,15 @@ const HomePage = () => {
   return (
     <div className="home-page min-h-screen bg-slate-950 text-slate-200 relative">
       <Helmet>
-        <title>CN Lyric Hub — Chinese Lyrics with Pinyin & English Translations</title>
-        <meta name="description" content="Browse a community database of Chinese song lyrics with character-by-character Pinyin and English translations. Read along, learn the language, and contribute." />
+        <title>{HOME_TITLE}</title>
+        <meta name="description" content={HOME_DESCRIPTION} />
         <link rel="canonical" href={`${site.origin}/`} />
-        <meta property="og:title" content="CN Lyric Hub — Chinese Lyrics with Pinyin & Translations" />
-        <meta property="og:description" content="Chinese lyrics with character-aligned pinyin and community translations." />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:title" content={HOME_TITLE} />
+        <meta property="og:description" content={HOME_DESCRIPTION} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`${site.origin}/`} />
+        <script type="application/ld+json">{JSON.stringify(websiteJsonLd(site.origin))}</script>
       </Helmet>
 
       <Navbar />
@@ -126,7 +129,7 @@ const HomePage = () => {
           <div className="min-w-0">
             <p className="home-eyebrow">A shared love of Chinese music</p>
             <h1 id="home-heading" className="home-heading">Find a song.<br />Follow every word.</h1>
-            <p className="home-description">Explore Chinese lyrics with pinyin to read along, and translations from the community.</p>
+            <p className="home-description">Read Chinese lyrics with pinyin and English translations.</p>
             <form role="search" onSubmit={event => event.preventDefault()} className="home-search">
               <label htmlFor="song-search" className="sr-only">Search all songs and artists</label>
               <Search aria-hidden="true" size={20} className="absolute left-4 top-1/2 -translate-y-1/2" />

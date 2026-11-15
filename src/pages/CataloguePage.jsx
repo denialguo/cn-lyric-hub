@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import Navbar from '../components/Navbar';
 import { CatalogueNav, CatalogueLinks } from '../components/CatalogueLinks';
+import { SITE_NAME, withSite } from '../lib/pageMeta';
 import { useCataloguePage } from '../hooks/useCataloguePage';
 
 export default function CataloguePage({ kind }) {
@@ -14,7 +15,10 @@ export default function CataloguePage({ kind }) {
   const invalid = !Number.isSafeInteger(page) || (!loading && !error && !data);
   return <div className="min-h-screen bg-slate-950 text-slate-200">
     <Helmet>
-      <title>{data?.title || (invalid ? 'Page not found' : 'Catalogue')} | CN Lyric Hub</title>
+      <title>{withSite(data?.title || (invalid ? 'Page not found' : 'Catalogue'))}</title>
+      <meta property="og:site_name" content={SITE_NAME} />
+      {data && <meta property="og:title" content={withSite(data.title)} />}
+      {data && <meta property="og:description" content={data.description} />}
       {data && <meta name="description" content={data.description} />}
       {data && <link rel="canonical" href={`${site.origin}${data.path}`} />}
       {invalid && <meta name="robots" content="noindex, follow" />}

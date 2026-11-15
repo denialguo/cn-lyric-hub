@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { BarChart3, Music, Users, Type, Heart, TrendingUp, Hash, Sparkles, MessageSquare, Globe, Calendar, Repeat, BookOpen, Fingerprint, Ghost, Mic } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { catalogueStats } from '../lib/queries';
+import { SITE_NAME, STATIC_PAGES, staticMeta } from '../lib/pageMeta';
 import Navbar from '../components/Navbar';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -117,8 +118,11 @@ const StatsPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <Helmet>
-        <title>Stats — CN Lyric Hub</title>
-        <meta name="description" content="Explore analytics across the CN Lyric Hub catalog — most common characters, mood analysis, artist breakdowns, and more." />
+        <title>{staticMeta('stats').title}</title>
+        <meta name="description" content={staticMeta('stats').description} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:title" content={staticMeta('stats').title} />
+        <meta property="og:description" content={staticMeta('stats').description} />
         <link rel="canonical" href={`${site.origin}/stats`} />
       </Helmet>
       <Navbar />
@@ -130,7 +134,7 @@ const StatsPage = () => {
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-full text-sm font-bold mb-6">
             <BarChart3 size={16} /> Catalogue Stats
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">The Numbers</h1>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">{STATIC_PAGES.stats.name}</h1>
           <p className="text-xs text-slate-400 mb-3">Updated {new Date(snapshot.generated_at).toLocaleString()}</p>
           <p className="text-slate-400 max-w-xl mx-auto">What {totalChars.toLocaleString()} characters across {songCount} songs look like under a microscope.</p>
         </div>

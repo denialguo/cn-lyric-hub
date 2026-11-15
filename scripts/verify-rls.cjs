@@ -1,5 +1,5 @@
 /**
- * CN Lyric Hub — RLS policy verifier
+ * CN Lyrics — RLS policy verifier
  *
  * Probes the REST API the way an attacker would rather than through the app,
  * because the UI only ever sends well-formed requests and therefore proves

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft } from 'lucide-react';
 import Navbar from './Navbar';
+import { SITE_NAME, withSite } from '../lib/pageMeta';
 
 /**
  * Shared chrome for /privacy and /terms so the two pages can't drift apart.
@@ -12,8 +13,11 @@ import Navbar from './Navbar';
 const LegalLayout = ({ title, description, canonicalPath, updated, intro, children }) => (
   <div className="min-h-screen bg-slate-950 text-slate-200">
     <Helmet>
-      <title>{title} — CN Lyric Hub</title>
+      <title>{withSite(title)}</title>
       <meta name="description" content={description} />
+      <meta property="og:site_name" content={SITE_NAME} />
+      <meta property="og:title" content={withSite(title)} />
+      <meta property="og:description" content={description} />
       <link rel="canonical" href={`${site.origin}${canonicalPath}`} />
     </Helmet>
     <Navbar />

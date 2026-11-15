@@ -26,7 +26,7 @@ test('prerendered song and artist pages are indexable with a self-referencing ca
     assert.deepEqual(robots(html), ['index, follow']);
     assert.deepEqual(canonicals(html), [canonical]);
     assert.doesNotMatch(html, /cnlyrichub\.vercel\.app/);
-    const structuredData = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+    const structuredData = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
     assert.equal(structuredData[0].url, canonical);
     assert.ok(html.includes('content="https://cnlyrics.app/logo.png"'));
   }
@@ -90,4 +90,59 @@ test('ordinary HTML links reach every song through the homepage and paginated di
   assert.equal(cataloguePage(catalogue, 'songs', 0), null);
   assert.equal(cataloguePage(catalogue, 'songs', NaN), null);
   assert.deepEqual(cataloguePage(buildCatalogue([]), 'songs').items, []);
+});
+
+const ld = html => [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(m => JSON.parse(m[1]));
+const titleOf = html => html.match(/<title>(.*?)<\/title>/)[1].replaceAll('&amp;', '&');
+const ogTitleOf = html => html.match(/property="og:title" content="([^"]*)"/)[1].replaceAll('&amp;', '&');
+
+test('title templates', async () => {
+  const song = { slug: 's', title_zh: '歌', artist_en: 'Singer', lyrics_chinese: '你好', lyrics_english: '' };
+  const plain = songPage(template, song);
+  const translated = songPage(template, { ...song, lyrics_english: 'Hello' });
+  assert.equal(titleOf(plain), '歌 Lyrics & Pinyin — Singer | CN Lyrics');
+  assert.equal(titleOf(translated), '歌 Lyrics, Pinyin & Translation — Singer | CN Lyrics');
+  assert.equal(titleOf(artistPage(template, 'Singer', [song])), 'Singer Lyrics & Pinyin | CN Lyrics');
+  const { pages } = await require('./prerender.cjs').cataloguePages(template, Array.from({ length: 150 }, (_, id) => ({ id, slug: `s${id}`, title_zh: `歌${id}` })));
+  assert.equal(titleOf(pages.get('index')), 'CN Lyrics — Chinese Lyrics with Pinyin');
+  assert.equal(titleOf(pages.get('songs')), 'Chinese Song Lyrics | CN Lyrics');
+  assert.equal(titleOf(pages.get('songs/2')), 'Chinese Song Lyrics — Page 2 | CN Lyrics');
+  assert.equal(titleOf(pages.get('artists')), 'Chinese Music Artists | CN Lyrics');
+  const { staticMeta } = await import('../src/lib/pageMeta.js');
+  assert.equal(staticMeta('stats').title, 'Chinese Lyrics Statistics | CN Lyrics');
+  assert.equal(staticMeta('faq').title, 'FAQ | CN Lyrics');
+  assert.equal(staticMeta('privacy').title, 'Privacy Policy | CN Lyrics');
+  for (const html of [plain, translated, ...pages.values()]) {
+    assert.equal(ogTitleOf(html), titleOf(html)); // og:title == <title>
+    assert.match(html, /property="og:site_name" content="CN Lyrics"/);
+    assert.doesNotMatch(html, /CN Lyric Hub/);
+  }
+});
+
+test('homepage has one WebSite node and the shell matches the shared metadata', async () => {
+  const { pages } = await require('./prerender.cjs').cataloguePages(template, [{ id: 1, slug: 'a', title_zh: '歌' }]);
+  const { HOME_DESCRIPTION, HOME_TITLE } = await import('../src/lib/pageMeta.js');
+  const sites = ld(pages.get('index')).filter(d => d['@type'] === 'WebSite');
+  assert.deepEqual(sites, [{ '@context': 'https://schema.org', '@type': 'WebSite', name: 'CN Lyrics', alternateName: 'cnlyrics.app', url: 'https://cnlyrics.app/' }]);
+  assert.equal(pages.get('index').match(/name="description" content="([^"]*)"/)[1], HOME_DESCRIPTION);
+  // The unrendered shell (served for unknown routes) must not drift from the template either.
+  assert.equal(titleOf(template), HOME_TITLE);
+  assert.match(template, new RegExp(`name="description" content="${HOME_DESCRIPTION.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}"`));
+  for (const [route, html] of pages) if (route !== 'index') assert.equal(ld(html).filter(d => d['@type'] === 'WebSite').length, 0);
+});
+
+test('favicon declares its real MIME type', () => {
+  const icon = template.match(/<link rel="icon"[^>]*>/)[0];
+  assert.match(icon, /type="image\/png"/);
+  assert.match(icon, /href="\/logo\.png"/);
+});
+
+test('no public source contains the old brand', () => {
+  const root = path.join(__dirname, '..');
+  const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e =>
+    e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
+  const files = [...walk(path.join(root, 'src')), path.join(root, 'index.html'), ...walk(path.join(root, 'public'))]
+    .filter(f => /\.(jsx?|html|svg|json|xml|txt)$/.test(f) && !f.endsWith('.test.js'));
+  // Built output is covered by check-seo-origin.cjs at the end of `npm run build`.
+  for (const file of files) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /CN Lyric Hub/i, file);
 });

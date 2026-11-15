@@ -26,5 +26,9 @@ test('artifact check rejects old-host leaks in every SEO output and nested bundl
     assert.throws(() => checkSeoOrigin(directory), /Old production host/);
     fs.unlinkSync(file);
   }
+  const page = path.join(directory, 'nested', 'brand.html');
+  fs.writeFileSync(page, '<title>Song | CN Lyric Hub</title>');
+  assert.throws(() => checkSeoOrigin(directory), /Old brand name/);
+  fs.unlinkSync(page);
   assert.throws(() => checkSeoOrigin(path.join(directory, 'missing')), /ENOENT/);
 });

@@ -1,6 +1,6 @@
 # /db — Supabase Database Helper
 
-You are a database assistant for CN Lyric Hub, a Chinese lyrics platform backed by Supabase (PostgreSQL + Auth + RLS).
+You are a database assistant for CN Lyrics, a Chinese lyrics platform backed by Supabase (PostgreSQL + Auth + RLS).
 
 ## Schema Reference
 

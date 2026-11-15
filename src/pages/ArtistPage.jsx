@@ -6,6 +6,7 @@ import { songsByArtist, likedSongIds } from '../lib/queries';
 import { ArrowLeft, Mic2, Disc } from 'lucide-react';
 import SongCard from '../components/SongCard';
 import { isConfirmedMissing, readPrerenderedPage } from '../lib/seo';
+import { SITE_NAME, artistMeta } from '../lib/pageMeta';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
@@ -55,8 +56,11 @@ const ArtistPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <Helmet>
-        <title>{artistName} — CN Lyric Hub</title>
-        <meta name="description" content={`Browse all songs by ${artistName} with Pinyin and English translations on CN Lyric Hub.`} />
+        <title>{artistMeta(artistName).title}</title>
+        <meta name="description" content={artistMeta(artistName).description} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:title" content={artistMeta(artistName).title} />
+        <meta property="og:description" content={artistMeta(artistName).description} />
         <link rel="canonical" href={`${site.origin}/artist/${encodeURIComponent(artistName)}`} />
         {/* Any URL can reach this route, so an artist with no songs must not be
             indexed as a thin near-duplicate of every other empty artist page. A failed

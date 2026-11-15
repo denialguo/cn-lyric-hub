@@ -6,6 +6,32 @@ import path from 'node:path';
 import { build, preview } from 'vite';
 import { chromium } from 'playwright';
 import prerender from '../scripts/prerender.cjs';
+import { HOME_TITLE, SITE_NAME } from '../src/lib/pageMeta.js';
+
+// The head fields that must be identical before and after hydration.
+const readHead = page => page.evaluate(() => {
+  const meta = selector => document.querySelector(selector)?.content;
+  return {
+    title: document.title,
+    description: meta('meta[name="description"]'),
+    ogTitle: meta('meta[property="og:title"]'),
+    ogDescription: meta('meta[property="og:description"]'),
+    siteName: meta('meta[property="og:site_name"]'),
+    ogTitles: document.querySelectorAll('meta[property="og:title"]').length,
+    siteNames: document.querySelectorAll('meta[property="og:site_name"]').length,
+    webSites: [...document.querySelectorAll('script[type="application/ld+json"]')].filter(s => JSON.parse(s.textContent)['@type'] === 'WebSite').length,
+  };
+});
+// Same URL with JavaScript off = the raw prerendered HTML.
+async function prerenderedHead(browser, url) {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    await page.goto(url);
+    return await readHead(page);
+  } finally { await context.close(); }
+}
+
 
 const artist = '测试歌手';
 const song = {
@@ -92,7 +118,7 @@ test('rendered public pages survive failed requests without hiding content or ad
         assert.equal(await page.evaluate(() => window.scrollY), 0);
         await page.screenshot({ path: path.join(tmpdir(), `cn-catalogue-${width}.png`), fullPage: false });
         await page.getByRole('link', { name: 'Artist directory', exact: true }).click();
-        await page.getByRole('heading', { name: 'Artist Directory', exact: true }).waitFor();
+        await page.getByRole('heading', { name: 'Chinese Music Artists', exact: true }).waitFor();
         assert.equal(await page.locator('a[href^="/artist/"]').count(), 1);
         await page.getByRole('navigation', { name: 'Catalogue', exact: true }).getByRole('link', { name: 'Home', exact: true }).click();
         await page.getByRole('heading', { name: 'Explore the catalogue', exact: true }).waitFor();
@@ -108,6 +134,21 @@ test('rendered public pages survive failed requests without hiding content or ad
         assert.deepEqual(errors, []);
       } finally { await page.close(); }
     }
+  });
+
+  await t.test('homepage head: hydrated matches prerender, one WebSite node', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.route('**/*', request => new URL(request.request().url()).origin === origin ? request.continue() : request.abort());
+      await page.goto(origin + '/', { waitUntil: 'networkidle' });
+      await page.getByRole('heading', { name: 'Explore the catalogue', exact: true }).waitFor();
+      await page.waitForTimeout(300);
+      const hydrated = await readHead(page);
+      assert.equal(hydrated.title, HOME_TITLE);
+      assert.equal(hydrated.webSites, 1);
+      assert.equal(hydrated.ogTitles, 1);
+      assert.deepEqual(hydrated, await prerenderedHead(browser, origin + '/'));
+    } finally { await page.close(); }
   });
 
   for (const { type, route } of pages) {
@@ -136,7 +177,8 @@ test('rendered public pages survive failed requests without hiding content or ad
           });
           await page.goto(origin + route, { waitUntil: 'networkidle' });
           // Head updates are deferred by Helmet. Wait for the real page to mount.
-          await page.waitForFunction(() => !document.title.includes('Lyrics, Pinyin') && !document.title.includes('Song Lyrics with Pinyin'));
+          // Prerendered and hydrated titles now match, so wait on the mounted app instead.
+          await page.getByRole('navigation', { name: 'Main', exact: true }).waitFor();
           if (mode === 'empty') {
             await page.waitForFunction(() => [...document.querySelectorAll('meta[name="robots"]')].some(tag => tag.content.includes('noindex')));
             assert.equal(await page.locator(type === 'song' ? 'ruby' : 'article').count(), 0);
@@ -154,6 +196,17 @@ test('rendered public pages survive failed requests without hiding content or ad
             assert.ok(robots.every(value => !/noindex/i.test(value)), robots.join(', '));
             assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://cnlyrics.app${route}`);
             assert.doesNotMatch(await page.locator('head').innerHTML(), /cnlyrichub\.vercel\.app/);
+            if (mode === 'abort') {
+              // Hydrated head == prerendered head, with no duplicated tags left behind.
+              await page.waitForTimeout(300);
+              const hydrated = await readHead(page);
+              assert.deepEqual(hydrated, await prerenderedHead(browser, origin + route));
+              assert.equal(hydrated.ogTitles, 1);
+              assert.equal(hydrated.siteNames, 1);
+              assert.equal(hydrated.siteName, SITE_NAME);
+              assert.equal(hydrated.ogTitle, hydrated.title);
+              assert.doesNotMatch(await page.locator('head').innerHTML(), /CN Lyric Hub/);
+            }
           }
           assert.ok(requests > 0, 'The rendered app must actually attempt its API request');
           assert.deepEqual(errors, []);

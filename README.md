@@ -1,7 +1,7 @@
-# CN Lyric Hub
+# CN Lyrics
 
-A community database of Chinese song lyrics with per-character ruby Pinyin and
-English translations. Every line renders as HTML `<ruby>` markup so the Pinyin
+Chinese song lyrics with per-character ruby pinyin and English translations
+(community-contributed, with voting). Every line renders as HTML `<ruby>` markup so the Pinyin
 sits directly above each hanzi, and a toggle flips the whole page between
 Simplified and Traditional instantly, client-side.
 

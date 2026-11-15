@@ -1,14 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { STATIC_PAGES } from '../lib/pageMeta';
 import LegalLayout, { Section, Bullets } from '../components/LegalLayout';
 
 const PrivacyPage = () => (
   <LegalLayout
     title="Privacy Policy"
-    description="What data CN Lyric Hub collects, how it is stored, and how to have it deleted. No ads, no data sales, no advertising trackers."
+    description={STATIC_PAGES.privacy.description}
     canonicalPath="/privacy"
     updated="9 September 2026"
-    intro="CN Lyric Hub is a non-commercial community project run by one person. This page explains exactly what data the site collects, why, where it lives, and how to get it removed. There are no ads, no data sales, and no advertising trackers."
+    intro="CN Lyrics is a non-commercial project run by one person. This page explains exactly what data the site collects, why, where it lives, and how to get it removed. There are no ads, no data sales, and no advertising trackers."
   >
     <Section heading="1. The short version">
       <Bullets
@@ -43,7 +44,7 @@ const PrivacyPage = () => (
     </Section>
 
     <Section heading="4. Cookies and browser storage">
-      <p>CN Lyric Hub sets no advertising or tracking cookies. We use your browser's local storage for two things:</p>
+      <p>CN Lyrics sets no advertising or tracking cookies. We use your browser's local storage for two things:</p>
       <Bullets
         items={[
           'Your preferences — dark or light mode, accent colour, Simplified or Traditional script, lyric font sizes and colours, and any unsaved draft of a song you are adding. These never leave your browser.',

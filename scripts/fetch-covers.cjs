@@ -1,5 +1,5 @@
 /**
- * CN Lyric Hub — Bulk Cover Art Fetcher
+ * CN Lyrics — Bulk Cover Art Fetcher
  * 
  * Uses the iTunes Search API (free, no auth needed) to find album art
  * for songs that are missing cover images.

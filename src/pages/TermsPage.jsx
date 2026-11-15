@@ -1,14 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { STATIC_PAGES } from '../lib/pageMeta';
 import LegalLayout, { Section, Bullets } from '../components/LegalLayout';
 
 const TermsPage = () => (
   <LegalLayout
     title="Terms of Service"
-    description="The terms for using CN Lyric Hub: contributed translations and comments, acceptable use, content moderation, and the absence of any warranty."
+    description={STATIC_PAGES.terms.description}
     canonicalPath="/terms"
     updated="9 September 2026"
-    intro="CN Lyric Hub is a free, non-commercial community project run by one person. By using the site you agree to what follows. It is written to be readable rather than impressive; if something here is unclear, ask."
+    intro="CN Lyrics is a free, non-commercial project run by one person. By using the site you agree to what follows. It is written to be readable rather than impressive; if something here is unclear, ask."
   >
     <Section heading="1. Using the site">
       <p>You may browse, read, and study anything on this site without an account. If you create an account, you are responsible for what happens under it and for keeping your sign-in details to yourself. You must be at least 13 years old to create an account.</p>
@@ -16,13 +17,13 @@ const TermsPage = () => (
 
     <Section heading="2. Content you contribute">
       <p><strong>You keep ownership of what you write.</strong> Translations, comments, song notes, and credits you contribute remain yours.</p>
-      <p><strong>You give us permission to publish it.</strong> By submitting content you grant CN Lyric Hub a non-exclusive, worldwide, royalty-free licence to display, store, reproduce, and adapt it on the site, and to let other users read it and build on it. This licence exists so the site can function; it is not a transfer of ownership, and it does not let us sell your work.</p>
+      <p><strong>You give us permission to publish it.</strong> By submitting content you grant CN Lyrics a non-exclusive, worldwide, royalty-free licence to display, store, reproduce, and adapt it on the site, and to let other users read it and build on it. This licence exists so the site can function; it is not a transfer of ownership, and it does not let us sell your work.</p>
       <p><strong>Contributions are public and collaborative.</strong> Anything you post is visible to everyone. Other people may vote on your translations, reply to your comments, and submit improved versions. Expect your work to be edited, superseded, or discussed.</p>
       <p><strong>Only submit what you have the right to submit.</strong> Do not post translations copied from somewhere else, or content you do not have permission to share. Write your own.</p>
     </Section>
 
     <Section heading="3. Song lyrics and copyright">
-      <p>Original song lyrics are the property of their respective artists, songwriters, and publishers. CN Lyric Hub claims no ownership of them. They are hosted here for educational and personal study — specifically to support learning Chinese through pronunciation guides and translation — and the site is non-commercial.</p>
+      <p>Original song lyrics are the property of their respective artists, songwriters, and publishers. CN Lyrics claims no ownership of them. They are hosted here for educational and personal study — specifically to support learning Chinese through pronunciation guides and translation — and the site is non-commercial.</p>
       <p>
         If you own the rights to a work and want it removed, the takedown process and contact address are in our <Link to="/faq">FAQ</Link>. We act on valid requests.
       </p>
@@ -60,7 +61,7 @@ const TermsPage = () => (
     </Section>
 
     <Section heading="8. Limitation of liability">
-      <p>To the fullest extent the law allows, CN Lyric Hub and its operator are not liable for any indirect, incidental, or consequential loss arising from your use of the site, including lost data or lost contributions. Nothing here limits liability that cannot legally be limited.</p>
+      <p>To the fullest extent the law allows, CN Lyrics and its operator are not liable for any indirect, incidental, or consequential loss arising from your use of the site, including lost data or lost contributions. Nothing here limits liability that cannot legally be limited.</p>
     </Section>
 
     <Section heading="9. Ending it">

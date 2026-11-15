@@ -39,10 +39,10 @@ const Navbar = () => {
   return (
     <nav aria-label="Main" className="sticky top-0 z-[100] bg-slate-950 border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-        <Link to="/" className="flex shrink-0 items-center gap-2 sm:gap-3" aria-label="CN Lyric Hub home">
+        <Link to="/" className="flex shrink-0 items-center gap-2 sm:gap-3" aria-label="CN Lyrics home">
           <img src="/logo_inverse.svg" alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg logo-dark" />
           <img src="/logo.png" alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg logo-light" />
-          <span className="hidden min-[360px]:inline font-bold text-base sm:text-xl tracking-tight text-white whitespace-nowrap">CN Lyric Hub</span>
+          <span className="hidden min-[360px]:inline font-bold text-base sm:text-xl tracking-tight text-white whitespace-nowrap">CN Lyrics</span>
         </Link>
         <div className="flex shrink-0 items-center gap-1 sm:gap-3 relative" ref={panelRef}>
           <button onClick={toggleScript} className="hidden md:flex min-h-11 items-center gap-2 text-sm px-4 rounded-full border border-slate-700 text-slate-300 hover:text-primary" aria-label={`Switch to ${scriptMode === 'simplified' ? 'Traditional' : 'Simplified'} Chinese`}>

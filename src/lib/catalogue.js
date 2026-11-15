@@ -30,16 +30,16 @@ export function cataloguePage(catalogue, kind, page = 1) {
     artists: [...catalogue.artists].sort((a, b) => b.count - a.count).slice(0, 6),
   };
   if (kind === 'artists') return {
-    path: '/artists', title: 'Artist Directory',
-    description: 'Browse Chinese music artists and explore their song lyrics with Pinyin and community translations.',
+    path: '/artists', title: 'Chinese Music Artists',
+    description: 'Browse Chinese music artists and read their song lyrics with pinyin and English translations.',
     items: catalogue.artists,
   };
   const pages = Math.max(1, Math.ceil(catalogue.songs.length / CATALOGUE_PAGE_SIZE));
   if (!Number.isSafeInteger(page) || page < 1 || page > pages) return null;
   return {
     path: songDirectoryPath(page),
-    title: `Song Directory${page > 1 ? ` — Page ${page}` : ''}`,
-    description: `Browse all Chinese song lyrics with Pinyin and community translations. Page ${page} of ${pages}.`,
+    title: `Chinese Song Lyrics${page > 1 ? ` — Page ${page}` : ''}`,
+    description: `Browse Chinese song lyrics with pinyin and English translations. Page ${page} of ${pages}.`,
     items: catalogue.songs.slice((page - 1) * CATALOGUE_PAGE_SIZE, page * CATALOGUE_PAGE_SIZE),
     page, pages,
     previous: page > 1 ? songDirectoryPath(page - 1) : null,

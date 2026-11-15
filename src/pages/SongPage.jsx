@@ -14,6 +14,7 @@ import LyricLine from '../components/LyricLine';
 import LineSidebar from '../components/LineSidebar';
 import { readJson, writeJson } from '../lib/storage';
 import { isConfirmedMissing, readPrerenderedPage } from '../lib/seo';
+import { SITE_NAME, songMeta, withSite } from '../lib/pageMeta';
 
 // Color swatches for the picker
 const colorSwatches = [
@@ -205,7 +206,7 @@ const SongPage = () => {
             error, leave the prerendered head (title, canonical, robots) untouched. */}
         {isConfirmedMissing({ loading, error: loadError, found: song }) && (
           <Helmet>
-            <title>Song not found | CN Lyric Hub</title>
+            <title>{withSite('Song not found')}</title>
             <meta name="robots" content="noindex, follow" />
           </Helmet>
         )}
@@ -240,6 +241,7 @@ const SongPage = () => {
     ? (scriptMode === 'traditional' ? tify(rawTitle) : sify(rawTitle))
     : rawTitle;
   const primaryArtist = song.artist_en || song.artist_zh || 'Unknown';
+  const seo = songMeta(song); // same templates as the prerender, so head tags agree
   const displayArtist = song.artist_zh 
     ? (scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh))
     : '';
@@ -253,11 +255,12 @@ const SongPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-900 dark:text-white pb-20">
       <Helmet>
-        <title>{displayTitle} - {primaryArtist} | CN Lyric Hub</title>
-        <meta name="description" content={`Read ${displayTitle} by ${primaryArtist} with character-by-character Pinyin and English translation on CN Lyric Hub.`} />
+        <title>{seo.title}</title>
+        <meta name="description" content={seo.description} />
         <link rel="canonical" href={`${site.origin}/song/${song.slug}`} />
-        <meta property="og:title" content={`${displayTitle} - ${primaryArtist}`} />
-        <meta property="og:description" content={`Learn the lyrics to ${displayTitle} with Pinyin and English translations.`} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:title" content={seo.title} />
+        <meta property="og:description" content={seo.description} />
         <meta property="og:image" content={song.cover_url || `${site.origin}/logo.png`} />
         <meta property="og:type" content="music.song" />
         <meta property="og:url" content={`${site.origin}/song/${song.slug}`} />

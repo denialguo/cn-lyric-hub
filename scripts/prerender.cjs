@@ -26,6 +26,8 @@ require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
 
 const { origin: DOMAIN } = require('../src/lib/site.json');
+// Titles/descriptions are shared with the React pages (Node >=20.19 can require ESM).
+const meta = require('../src/lib/pageMeta.js');
 const DIST = './dist';
 
 const url = process.env.VITE_SUPABASE_URL;
@@ -76,15 +78,16 @@ function render(template, { title, description, canonical, ogImage, ogType, stru
 
   const head = [
     `<link rel="canonical" href="${esc(canonical)}" data-rh="true" />`,
-    `<meta property="og:title" content="${esc(title)}" />`,
-    `<meta property="og:description" content="${esc(description)}" />`,
-    `<meta property="og:type" content="${ogType}" />`,
-    `<meta property="og:url" content="${esc(canonical)}" />`,
-    ogImage ? `<meta property="og:image" content="${esc(ogImage)}" />` : '',
-    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta property="og:site_name" content="${esc(meta.SITE_NAME)}" data-rh="true" />`,
+    `<meta property="og:title" content="${esc(title)}" data-rh="true" />`,
+    `<meta property="og:description" content="${esc(description)}" data-rh="true" />`,
+    `<meta property="og:type" content="${ogType}" data-rh="true" />`,
+    `<meta property="og:url" content="${esc(canonical)}" data-rh="true" />`,
+    ogImage ? `<meta property="og:image" content="${esc(ogImage)}" data-rh="true" />` : '',
+    `<meta name="twitter:card" content="summary_large_image" data-rh="true" />`,
     noindex ? `<meta name="robots" content="noindex, follow" />` : '',
     pageData ? `<script id="prerender-data" type="application/json">${jsonLd(pageData)}</script>` : '',
-    ...structuredData.map((d) => `<script type="application/ld+json">${jsonLd(d)}</script>`),
+    ...structuredData.map((d) => `<script type="application/ld+json" data-rh="true">${jsonLd(d)}</script>`),
   ]
     .filter(Boolean)
     .join('\n    ');
@@ -136,22 +139,14 @@ function songPage(template, song) {
   const pinyinLines = (song.lyrics_pinyin || '').split('\n');
   const englishLines = (song.lyrics_english || '').split('\n');
 
-  const displayTitle = song.title_zh || song.title_en || 'Untitled';
-  const artist = song.artist_en || song.artist_zh || 'Unknown';
+  const { title: displayTitle, artist } = meta.songNames(song);
   const canonical = `${DOMAIN}/song/${song.slug}`;
-  const hasTranslation = englishLines.some((l) => l.trim());
-
   // Unique, non-boilerplate description — this is what stops Google collapsing
   // the whole catalogue into one page.
-  const firstLine = chineseLines.find((l) => l.trim()) || '';
-  const description =
-    `${displayTitle} by ${artist} — full Chinese lyrics with character-by-character Pinyin` +
-    (hasTranslation ? ' and English translation' : '') +
-    (song.year ? `. Released ${song.year}` : '') +
-    (firstLine ? `. Opens with "${firstLine.trim()}".` : '.');
+  const { title, description } = meta.songMeta(song);
 
   return render(template, {
-    title: `${displayTitle} — ${artist} | Lyrics, Pinyin${hasTranslation ? ' & English' : ''} | CN Lyric Hub`,
+    title,
     description,
     canonical,
     ogImage: song.cover_url || `${DOMAIN}/logo.png`,
@@ -193,8 +188,7 @@ function artistPage(template, name, songs) {
   const songCount = cards.length;
   const canonical = `${DOMAIN}/artist/${encodeURIComponent(name)}`;
   return render(template, {
-    title: `${name} — Song Lyrics with Pinyin & English | CN Lyric Hub`,
-    description: `All ${songCount} ${name} song${songCount === 1 ? '' : 's'} on CN Lyric Hub, with character-by-character Pinyin and English translations.`,
+    ...meta.artistMeta(name),
     canonical,
     ogType: 'profile',
     ogImage: `${DOMAIN}/logo.png`,
@@ -232,22 +226,22 @@ async function cataloguePages(template, songs) {
   const catalogue = buildCatalogue(songs);
   const pages = new Map();
   const wrap = body => `<div class="min-h-screen bg-slate-950 text-slate-200"><main class="max-w-6xl mx-auto px-6 py-12">${body}</main></div>`;
-  const makePage = (key, data, body) => render(template, {
-    title: `${data.title} | CN Lyric Hub`, description: data.description,
+  const makePage = (key, data, body, structuredData = []) => render(template, {
+    title: data.documentTitle ?? meta.withSite(data.title), description: data.description,
     canonical: `${DOMAIN}${data.path}`, ogType: 'website', ogImage: `${DOMAIN}/logo.png`,
-    structuredData: [], body: wrap(body), pageData: { type: 'catalogue', key, data },
+    structuredData, body: wrap(body), pageData: { type: 'catalogue', key, data },
   });
   const home = cataloguePage(catalogue, 'home');
   pages.set('index', makePage('home/1', {
-    title: 'Chinese Lyrics with Pinyin & English Translations', path: '/',
-    description: 'Browse a community database of Chinese song lyrics with character-by-character Pinyin and English translations. Read along, learn the language, and contribute.',
+    documentTitle: meta.HOME_TITLE, path: '/', description: meta.HOME_DESCRIPTION,
     ...home,
   }, '<h1 class="text-4xl font-bold text-white mb-4">Find a song. Follow every word.</h1>' +
-    '<p class="text-slate-400 mb-8">Explore Chinese lyrics with pinyin to read along, and translations from the community.</p>' +
+    '<p class="text-slate-400 mb-8">Read Chinese lyrics with pinyin and English translations.</p>' +
     '<section aria-labelledby="catalogue-heading"><h2 id="catalogue-heading" class="text-2xl font-semibold text-white mb-3">Explore the catalogue</h2>' +
     catalogueNav() + '<div class="grid grid-cols-1 lg:grid-cols-2 gap-10">' +
     '<div><h3 class="text-lg font-semibold mb-2">Songs to explore</h3>' + catalogueLinks(home.songs) + '</div>' +
-    '<div><h3 class="text-lg font-semibold mb-2">Artists to explore</h3>' + catalogueLinks(home.artists) + '</div></div></section>'));
+    '<div><h3 class="text-lg font-semibold mb-2">Artists to explore</h3>' + catalogueLinks(home.artists) + '</div></div></section>',
+  [meta.websiteJsonLd(DOMAIN)]));
   const count = Math.max(1, Math.ceil(catalogue.songs.length / CATALOGUE_PAGE_SIZE));
   for (const [kind, number] of [['artists', 1], ...Array.from({ length: count }, (_, i) => ['songs', i + 1])]) {
     const data = cataloguePage(catalogue, kind, number);
@@ -281,30 +275,10 @@ function writePage(routePath, html) {
 // Static routes serve the same shell as the homepage, so they were duplicates of
 // each other too. The real page renders over this once React mounts.
 const STATIC_ROUTES = [
-  {
-    route: 'faq',
-    title: 'FAQ — CN Lyric Hub',
-    description: 'How Pinyin works, switching between Simplified and Traditional, community translations, adding songs, and DMCA takedown requests.',
-    h1: 'Frequently Asked Questions',
-  },
-  {
-    route: 'stats',
-    title: 'Catalogue Statistics — CN Lyric Hub',
-    description: 'Character frequency, tone distribution, rhyme patterns and vocabulary diversity across the Chinese lyrics catalogue.',
-    h1: 'Catalogue Statistics',
-  },
-  {
-    route: 'privacy',
-    title: 'Privacy Policy — CN Lyric Hub',
-    description: 'What data CN Lyric Hub collects, how it is stored, and how to have it deleted. No ads, no data sales, no advertising trackers.',
-    h1: 'Privacy Policy',
-  },
-  {
-    route: 'terms',
-    title: 'Terms of Service — CN Lyric Hub',
-    description: 'The terms for using CN Lyric Hub: contributed translations and comments, acceptable use, content moderation, and the absence of any warranty.',
-    h1: 'Terms of Service',
-  },
+  { route: 'faq', h1: 'Frequently Asked Questions' },
+  { route: 'stats', h1: meta.STATIC_PAGES.stats.name },
+  { route: 'privacy', h1: 'Privacy Policy' },
+  { route: 'terms', h1: 'Terms of Service' },
 ];
 
 function prerenderStaticRoutes(template) {
@@ -313,8 +287,7 @@ function prerenderStaticRoutes(template) {
     writePage(
       page.route,
       render(template, {
-        title: page.title,
-        description: page.description,
+        ...meta.staticMeta(page.route),
         canonical,
         ogType: 'website',
         ogImage: `${DOMAIN}/logo.png`,
@@ -322,7 +295,7 @@ function prerenderStaticRoutes(template) {
         body:
           `<div class="min-h-screen bg-slate-950 text-white"><main class="max-w-3xl mx-auto px-6 py-16">` +
           `<h1 class="text-4xl font-black mb-4">${esc(page.h1)}</h1>` +
-          `<p class="text-slate-400">${esc(page.description)}</p>` +
+          `<p class="text-slate-400">${esc(meta.STATIC_PAGES[page.route].description)}</p>` +
           `</main></div>`,
       })
     );

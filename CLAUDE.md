@@ -1,4 +1,4 @@
-# CN Lyric Hub — Project Context
+# CN Lyrics — Project Context
 
 Read by Claude Code (`CLAUDE.md`) and Codex (`AGENTS.md` is a symlink to this file — edit CLAUDE.md only).
 
@@ -8,7 +8,7 @@ Read by Claude Code (`CLAUDE.md`) and Codex (`AGENTS.md` is a symlink to this fi
 - Only add something here if every future session needs it.
 
 ## What This Is
-Community Chinese-lyrics site: per-character ruby pinyin, community line translations with voting, and a live Simplified/Traditional toggle. Personal project by Daniel. Live: https://cnlyrics.app
+CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-character ruby pinyin, English line translations (community-contributed, with voting), and a live Simplified/Traditional toggle. Personal project by Daniel. Live: https://cnlyrics.app
 
 ## Stack
 - React 19 + Vite 6 + Tailwind v4 + react-router v7, on Vercel.
@@ -18,6 +18,7 @@ Community Chinese-lyrics site: per-character ruby pinyin, community line transla
 
 ## Where things live
 - `src/lib/queries.js` — **the data-access seam.** Any query with more than one caller goes here (sanitising, paging past the 1000-row cap, errors). Includes `publishSong()` (the `publish_song` RPC).
+- `src/lib/pageMeta.js` — **the only place page titles/descriptions are templated** (React Helmet and `prerender.cjs` both import it; never hand-write a `<title>`). Tests reject `CN Lyric Hub` in public output.
 - `src/utils/lyrics.js` — **the only pinyin module**: `isChinese`, `generatePinyin`, `alignSyllables`, `generateCharacterPinyin`. The importer uses it via dynamic `import()`, so stored and rendered pinyin can't drift. Never write a second copy.
 - `src/lib/identity.js` — the only place that decides "real account vs anonymous". Use `isRealAccount` / `isAdmin` / `submitterName`, never bare `if (user)` or `user.email`.
 - `src/lib/storage.js` — all localStorage access (never throws).

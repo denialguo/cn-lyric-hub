@@ -1,5 +1,5 @@
 /**
- * CN Lyric Hub — Bulk Release Year Fetcher
+ * CN Lyrics — Bulk Release Year Fetcher
  * 
  * Uses iTunes Search API to find release years for songs missing year data.
  * 

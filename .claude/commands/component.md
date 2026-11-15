@@ -1,6 +1,6 @@
 # /component — Scaffold a New Component
 
-Generate a new React component for CN Lyric Hub following project conventions.
+Generate a new React component for CN Lyrics following project conventions.
 
 ## Usage
 

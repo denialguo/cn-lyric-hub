@@ -5,9 +5,10 @@ function checkSeoOrigin(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const file = path.join(directory, entry.name);
     if (entry.isDirectory()) checkSeoOrigin(file);
-    else if (/\.(html|xml|txt|js|json)$/.test(entry.name) &&
-      fs.readFileSync(file, 'utf8').includes('cnlyrichub.vercel.app')) {
-      throw new Error(`Old production host in ${file}`);
+    else if (/\.(html|xml|txt|js|json)$/.test(entry.name)) {
+      const text = fs.readFileSync(file, 'utf8');
+      if (text.includes('cnlyrichub.vercel.app')) throw new Error(`Old production host in ${file}`);
+      if (/CN Lyric Hub/i.test(text)) throw new Error(`Old brand name in ${file}`);
     }
   }
 }
@@ -16,5 +17,5 @@ module.exports = { checkSeoOrigin };
 
 if (require.main === module) {
   checkSeoOrigin('dist');
-  console.log('SEO origin check passed: no old production host in dist.');
+  console.log('SEO origin check passed: no old production host or brand name in dist.');
 }

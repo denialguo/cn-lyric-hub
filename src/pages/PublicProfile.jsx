@@ -58,7 +58,7 @@ const PublicProfile = () => {
     return (
       <div className="min-h-screen bg-slate-950">
         <Helmet>
-          <title>User not found | CN Lyric Hub</title>
+          <title>User not found | CN Lyrics</title>
           <meta name="robots" content="noindex, follow" />
         </Helmet>
         <Navbar />

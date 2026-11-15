@@ -10,12 +10,12 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-10">
           <div className="max-w-sm">
             <div className="flex items-center gap-3 mb-3">
-              <img src="/logo_inverse.svg" alt="CN Lyric Hub" className="w-8 h-8 rounded-lg logo-dark" />
-              <img src="/logo.png" alt="CN Lyric Hub" className="w-8 h-8 rounded-lg logo-light" />
-              <span className="font-bold text-lg text-white">CN Lyric Hub</span>
+              <img src="/logo_inverse.svg" alt="CN Lyrics" className="w-8 h-8 rounded-lg logo-dark" />
+              <img src="/logo.png" alt="CN Lyrics" className="w-8 h-8 rounded-lg logo-light" />
+              <span className="font-bold text-lg text-white">CN Lyrics</span>
             </div>
             <p className="text-sm text-slate-500 leading-relaxed">
-              A community-driven database of Chinese lyrics with Pinyin pronunciation and English translations.
+              Chinese lyrics with pinyin and English translations.
             </p>
           </div>
 
@@ -48,11 +48,11 @@ const Footer = () => {
         <div className="mt-10 pt-6 border-t border-white/5 flex flex-col sm:flex-row justify-between gap-4 text-xs text-slate-600">
           <p className="max-w-2xl leading-relaxed">
             Lyrics are the property of their respective artists, songwriters, and publishers, and are provided here for
-            educational and personal study only. CN Lyric Hub is a non-commercial community project and claims no ownership
+            educational and personal study only. CN Lyrics is a non-commercial project and claims no ownership
             of the underlying works. Rights holders can{' '}
             <Link to="/faq" className="text-slate-500 hover:text-primary underline">request removal</Link> via the instructions in our FAQ.
           </p>
-          <p className="shrink-0">© {year} CN Lyric Hub</p>
+          <p className="shrink-0">© {year} CN Lyrics</p>
         </div>
       </div>
     </footer>

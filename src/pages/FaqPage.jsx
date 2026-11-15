@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, HelpCircle, BookOpen, Scale } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
+import { SITE_NAME, staticMeta } from '../lib/pageMeta';
 import Navbar from '../components/Navbar';
 
 const SECTIONS = [
@@ -12,8 +13,8 @@ const SECTIONS = [
     icon: BookOpen,
     items: [
       {
-        q: 'What is CN Lyric Hub?',
-        a: "A community-driven database of Chinese songs presented with character-by-character Pinyin and English translations. It's built for learners and fans who want to read along, understand the meaning, and study the language behind the music.",
+        q: 'What is CN Lyrics?',
+        a: "A place to read Chinese song lyrics with character-by-character pinyin and English translations. You can switch between Simplified and Traditional text, and add or vote on translations if you want to help.",
       },
       {
         q: 'What are the small letters above each character?',
@@ -59,12 +60,12 @@ const SECTIONS = [
     icon: Scale,
     items: [
       {
-        q: 'Who builds and maintains CN Lyric Hub?',
+        q: 'Who builds and maintains CN Lyrics?',
         a: 'It’s an independent, non-commercial project built and maintained by Daniel, with content contributed by the community. There are no ads and nothing is sold here — it exists to make Chinese music easier to read and learn from.',
       },
       {
         q: 'Who owns the lyrics?',
-        a: 'The lyrics belong to their respective artists, songwriters, and publishers. CN Lyric Hub is a non-commercial project for education and personal study, and claims no ownership of the underlying works.',
+        a: 'The lyrics belong to their respective artists, songwriters, and publishers. CN Lyrics is a non-commercial project for education and personal study, and claims no ownership of the underlying works.',
       },
       {
         q: 'How do I request removal of copyrighted content? (DMCA)',
@@ -94,8 +95,11 @@ const FaqPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
       <Helmet>
-        <title>FAQ — CN Lyric Hub</title>
-        <meta name="description" content="Frequently asked questions about CN Lyric Hub — how Pinyin works, script toggling, community translations, adding songs, and DMCA takedown requests." />
+        <title>{staticMeta('faq').title}</title>
+        <meta name="description" content={staticMeta('faq').description} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:title" content={staticMeta('faq').title} />
+        <meta property="og:description" content={staticMeta('faq').description} />
         <link rel="canonical" href={`${site.origin}/faq`} />
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',
