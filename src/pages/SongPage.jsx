@@ -424,6 +424,10 @@ const SongPage = () => {
                           <SizeControl label="Pinyin" type="pinyin" fontSettings={fontSettings} updateSize={updateSize} />
                           <SizeControl label="Hanzi" type="zh" fontSettings={fontSettings} updateSize={updateSize} />
                           <SizeControl label="English" type="en" fontSettings={fontSettings} updateSize={updateSize} />
+                          <label className="flex items-start gap-3 mt-3 min-h-11 cursor-pointer">
+                            <input type="checkbox" checked={Boolean(fontSettings.roomy)} onChange={event => setFontSettings(prev => ({ ...prev, roomy: event.target.checked }))} className="mt-1 h-4 w-4 accent-[rgb(var(--color-primary-rgb))]" />
+                            <span><span className="text-xs text-slate-200 block">Prioritize pinyin spacing</span><span className="text-xs text-slate-400">Gives every syllable room, even if characters sit further apart.</span></span>
+                          </label>
                           
                           <div className="h-px bg-slate-800 my-4" />
                           
@@ -463,7 +467,7 @@ const SongPage = () => {
            
            <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
            {/* LYRICS LIST */}
-           <div className="space-y-4" data-lyric-font={lyricFont}>
+           <div className="space-y-4" data-lyric-font={lyricFont} data-pinyin-room={fontSettings.roomy ? 'true' : undefined}>
             {lines.map((_, index) => {
               const line = chineseLines[index] || ""; 
               const py = pinyinLines[index] || ""; 
