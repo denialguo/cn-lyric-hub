@@ -14,43 +14,43 @@ const SECTIONS = [
     items: [
       {
         q: 'What is CN Lyrics?',
-        a: "A place to read Chinese song lyrics with character-by-character pinyin and English translations. You can switch between Simplified and Traditional text, and add or vote on translations if you want to help.",
+        a: "It's a place to read Chinese song lyrics with pinyin over every character and English translations alongside. You can flip between Simplified and Traditional, and add or vote on translations if you want to help out.",
       },
       {
         q: 'What are the small letters above each character?',
-        a: 'That’s Pinyin — the romanized pronunciation of each Chinese character, shown directly above the hanzi so you can sound out a line as you read it.',
+        a: 'That's pinyin, the romanized pronunciation of each character. It sits right above the hanzi so you can sound out a line as you read it.',
       },
       {
         q: 'How do I switch between Simplified and Traditional characters?',
-        a: 'Use the script toggle (简体 / 繁體) in the top navigation, or open Appearance on a song page. Your choice is remembered and applied everywhere — the conversion happens instantly in your browser.',
+        a: 'Tap the script toggle (简体 / 繁體) in the top navigation, or open Appearance on a song page. The site remembers your choice, and the switch happens instantly in your browser.',
       },
       {
         q: 'How do the English translations work?',
-        a: 'Each line can have an original translation plus alternates suggested by the community. Open any line to see all of them, then pick whichever reads best to you for your session.',
+        a: 'Each line can have a main translation plus alternates that other people have suggested. Open a line to see them all and pick whichever one reads best to you.',
       },
       {
         q: 'How does community translation voting work?',
-        a: 'Click a line to open its panel, then upvote the translation you think is most accurate. The highest-voted translations rise to the top so the best interpretations surface over time — and you can always propose your own.',
+        a: 'Click a line to open its panel, then upvote the translation you think is most accurate. The most upvoted ones move to the top, so the good ones rise over time. You can always add your own too.',
       },
       {
         q: 'How do I add a song?',
-        a: 'Head to Add a Song, paste the Chinese lyrics, and use Auto-Fill to generate Pinyin. Admin submissions publish immediately; everyone else’s go to a review queue before going live.',
+        a: 'Go to Add a Song, paste in the Chinese lyrics, and hit Auto-Fill to generate the pinyin. Songs from admins go live right away. Everyone else's get a quick review first.',
       },
       {
         q: 'Can I fix or improve an existing song?',
-        a: 'Yes — open the song and choose Suggest Edit. Your changes are submitted for review, and an admin can compare them against the original before approving.',
+        a: 'Yes. Open the song and choose Suggest Edit. Your changes go to review, and an admin can compare them with the original before approving.',
       },
       {
         q: 'Why do some songs have no English translation?',
-        a: 'Translations are contributed by the community, so newer or less common songs may not have one yet. If you can help, open a line and add yours — that’s how the library grows.',
+        a: 'Translations come from people who add them, so newer or lesser-known songs may not have one yet. If you can help, open a line and add yours.',
       },
       {
         q: 'Do I need an account?',
-        a: 'You can browse, read, and search freely without one. An account lets your contributions, translations, and votes be saved to your profile.',
+        a: 'No. You can browse, read and search without one. An account just lets your contributions, translations and votes be saved to your profile.',
       },
       {
         q: 'Can I change how the lyrics look?',
-        a: 'Yes. Appearance settings let you resize Pinyin, characters, and translations independently, recolor each layer, and switch between dark and light themes with your own accent color.',
+        a: 'Yes. In Appearance you can resize the pinyin, characters and translations separately, recolor each one, pick a font, and switch between dark and light with your own accent color.',
       },
     ],
   },
@@ -61,11 +61,11 @@ const SECTIONS = [
     items: [
       {
         q: 'Who builds and maintains CN Lyrics?',
-        a: 'It’s an independent, non-commercial project built and maintained by Daniel, with content contributed by the community. There are no ads and nothing is sold here — it exists to make Chinese music easier to read and learn from.',
+        a: 'It's an independent, non-commercial project built and maintained by Daniel, with content added by the community. There are no ads and nothing is sold. It's just meant to make Chinese music easier to read.',
       },
       {
         q: 'Who owns the lyrics?',
-        a: 'The lyrics belong to their respective artists, songwriters, and publishers. CN Lyrics is a non-commercial project for education and personal study, and claims no ownership of the underlying works.',
+        a: 'The lyrics belong to their artists, songwriters and publishers. CN Lyrics is a non-commercial project for education and personal study, and doesn't claim ownership of any of the songs.',
       },
       {
         q: 'How do I request removal of copyrighted content? (DMCA)',
@@ -79,8 +79,8 @@ const SECTIONS = [
               danieldenialdeveloping@gmail.com
             </a>
             . Your subject line <span className="font-bold text-slate-200">must</span> start with{' '}
-            <span className="font-mono font-bold text-slate-200">DMCA TAKEDOWN REQUEST</span> — emails without it may not be reviewed.
-            Please include the song title and artist, a link to the page in question, and confirmation that you represent the
+            <span className="font-mono font-bold text-slate-200">DMCA TAKEDOWN REQUEST</span>, or it may not get reviewed.
+            Please include the song title and artist, a link to the page, and confirmation that you represent the
             rights holder so we can act on it quickly.
           </>
         ),
