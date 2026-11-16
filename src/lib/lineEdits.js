@@ -12,7 +12,7 @@ export async function confirmLineEdit(supabase, targetSongId, lyrics, confirm) {
     for (const result of counts) if (result.error) throw result.error;
     const [translations, comments] = counts.map(result => result.count);
     if ((translations || comments) && !await confirm(
-      `This song has ${translations} community translations and ${comments} line comments. Contributions whose original lyric no longer matches will remain under Earlier contributions. Save these lyric changes?`,
+      `This song has ${translations} community translations and ${comments} line comments. Small edits to a line keep its contributions attached; contributions on lines you rewrite, move, add or remove will remain under Earlier contributions. Save these lyric changes?`,
       { destructive: true, confirmLabel: 'Save anyway' }
     )) return false;
   }
