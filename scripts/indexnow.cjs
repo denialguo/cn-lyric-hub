@@ -1,21 +1,26 @@
-// Usage: --liked = only songs with likes.
+// Usage: --recent = songs added in the last 25h (CI). --liked = only songs with likes.
 // Usage: npm run indexnow -- <url> [url...]   (no args = every URL in public/sitemap.xml)
 const fs = require('fs')
 const key = 'cf253a099c95f7ae9d2b54800ad07809'
 const host = 'cnlyrics.app'
 const args = process.argv.slice(2)
-async function likedUrls() {
+async function dbUrls(select, filter) {
   require('dotenv').config({ path: '.env.local' })
   const base = process.env.VITE_SUPABASE_URL
   const h = { apikey: process.env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${process.env.VITE_SUPABASE_ANON_KEY}` }
   // !inner join keeps only songs with at least one like
-  const r = await fetch(`${base}/rest/v1/songs?select=slug,song_likes!inner(song_id)&limit=1000`, { headers: h })
-  if (!r.ok) throw new Error('liked query failed: ' + r.status)
+  const r = await fetch(`${base}/rest/v1/songs?select=${select}${filter}&limit=1000`, { headers: h })
+  if (!r.ok) throw new Error('query failed: ' + r.status)
   return (await r.json()).map((s) => `https://${host}/song/${s.slug}`)
 }
 async function main() {
-let urls = args.filter((a) => a !== '--liked')
-if (args.includes('--liked')) urls = await likedUrls()
+let urls = args.filter((a) => !a.startsWith('--'))
+if (args.includes('--liked')) urls = await dbUrls('slug,song_likes!inner(song_id)', '')
+else if (args.includes('--recent')) { // songs created in the last 25h; run daily from CI
+  const since = new Date(Date.now() - 25 * 3600e3).toISOString()
+  urls = await dbUrls('slug', `&created_at=gte.${since}`)
+  if (!urls.length) { console.log('no new songs'); return }
+}
 else if (!urls.length) {
   const xml = fs.readFileSync(__dirname + '/../public/sitemap.xml', 'utf8')
   urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
