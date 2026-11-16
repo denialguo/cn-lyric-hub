@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Braces, Save, Sparkles, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput';
 import LyricsEditor from '../components/LyricsEditor';
@@ -13,12 +13,7 @@ import { useArtistSelection } from '../hooks/useArtistSelection';
 import { isAdmin, isRealAccount, submitterName } from '../lib/identity';
 import { readJson, writeJson, removeKeys } from '../lib/storage';
 import { publishSong } from '../lib/queries';
-
-// One definition, so "Clear Draft" can't miss a field the form has (it used to drop `bio`).
-const EMPTY_FORM = {
-  title_zh: '', title_en: '', cover_url: '', youtube_url: '',
-  lyrics_chinese: '', lyrics_pinyin: '', lyrics_english: '', bio: '', credits: '', year: '',
-};
+import { EMPTY_FORM, parseSongJson, songToForm } from '../lib/songImport';
 
 const AddSongPage = () => {
   const navigate = useNavigate();
@@ -30,6 +25,28 @@ const AddSongPage = () => {
   const { selectedArtists, setSelectedArtists, handleSelectArtist, handleRemoveArtist } = useArtistSelection();
 
   const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // --- IMPORT JSON --- fills this form only; submitting goes through handleSubmit as usual.
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
+
+  const handleImport = async () => {
+    const result = parseSongJson(importText);
+    if (!result.ok) return setImportError(result.error);
+    const { patch, artists } = songToForm(result.song);
+    const hasData = Object.values(formData).some(Boolean) || tags.length || selectedArtists.length;
+    if (hasData && !await confirm(
+      'Importing will replace the title, artists and lyrics already in this form. Replace them?',
+      { destructive: true, confirmLabel: 'Replace' }
+    )) return;
+    setFormData(prev => ({ ...prev, ...patch }));
+    setSelectedArtists(artists);
+    setImportText('');
+    setImportError('');
+    setShowImport(false);
+    toast.success(`Imported ${result.song.lines.length} lines. Review everything, then submit.`);
+  };
 
   // --- LOAD DRAFT ---
   useEffect(() => {
@@ -132,13 +149,47 @@ const AddSongPage = () => {
           <button onClick={() => navigate('/')} className="flex items-center text-slate-400 hover:text-white">
             <ArrowLeft className="w-5 h-5 mr-2" /> Back to Home
           </button>
+          <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setShowImport(open => !open)}
+            aria-expanded={showImport}
+            aria-controls="json-import"
+            className="text-slate-400 hover:text-primary text-xs flex items-center gap-1 transition-colors"
+          >
+            <Braces className="w-3 h-3" /> Import JSON
+          </button>
           <button
             onClick={clearDraft}
             className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
           >
             <Trash2 className="w-3 h-3" /> Clear Draft
           </button>
+          </div>
         </div>
+
+        {showImport && (
+          <div id="json-import" className="mb-8 bg-slate-900/50 p-6 rounded-2xl border border-slate-800 space-y-3">
+            <label htmlFor="json-import-text" className="text-slate-400 text-sm font-bold block">Paste song JSON</label>
+            <textarea
+              id="json-import-text"
+              value={importText}
+              onChange={event => { setImportText(event.target.value); setImportError(''); }}
+              placeholder={'{ "title": "…", "artist": "…", "lines": [{ "original": "…", "pinyin": "…", "translation": "…" }] }'}
+              rows={8}
+              spellCheck={false}
+              aria-describedby={importError ? 'json-import-error' : undefined}
+              aria-invalid={Boolean(importError)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-sm font-mono focus:border-primary outline-none resize-y"
+            />
+            {importError && <p id="json-import-error" role="alert" className="text-sm text-red-400">{importError}</p>}
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={handleImport} disabled={!importText.trim()} className="bg-primary hover:bg-primary/90 disabled:opacity-40 text-white text-sm font-bold px-5 min-h-11 rounded-full transition-colors">Fill form</button>
+              <button type="button" onClick={() => setShowImport(false)} className="text-slate-400 hover:text-white text-sm min-h-11 px-3">Cancel</button>
+              <span className="text-xs text-slate-500">Nothing is submitted until you review and press Submit.</span>
+            </div>
+          </div>
+        )}
 
         <h1 className="text-3xl font-bold text-white mb-8">Add New Song</h1>
 
