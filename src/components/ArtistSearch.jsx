@@ -65,11 +65,7 @@ const ArtistSearch = ({ selectedArtists, onSelect, onRemove }) => {
         {selectedArtists.map((artist, i) => (
           <div
             key={`${i}-${artist.id || artist.name_en}`}
-            className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 border ${
-              artist.isNew
-                ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400'
-                : 'bg-primary/10 border-primary/50 text-primary'
-            }`}
+            className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 border bg-primary/10 border-primary/50 text-primary"
           >
             <span>
               {artist.name_en || artist.name_zh}{' '}

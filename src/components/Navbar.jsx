@@ -2,9 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Globe, User, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { isRealAccount } from '../lib/identity';
+import { isAdmin, isRealAccount } from '../lib/identity';
+import { useToast } from '../context/ToastContext';
+import { usePendingSubmissions } from '../hooks/usePendingSubmissions';
 import { useTheme } from '../context/ThemeContext';
 import ThemeSettings from './ThemeSettings';
+
+let announcedPending = false; // once per page load, not once per route
 
 const Navbar = () => {
   const { user, profile, signOut } = useAuth();
@@ -14,6 +18,14 @@ const Navbar = () => {
   const panelRef = useRef(null);
   const menuRef = useRef(null);
   const realAccount = isRealAccount(user);
+  const { toast } = useToast();
+  const admin = isAdmin(user, profile);
+  const pending = usePendingSubmissions(admin);
+  useEffect(() => {
+    if (!pending || announcedPending) return;
+    announcedPending = true;
+    toast.info(`${pending} submission${pending === 1 ? '' : 's'} waiting for review.`);
+  }, [pending, toast]);
   const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const accountName = profile?.display_name || profile?.username || user?.user_metadata?.full_name || user?.user_metadata?.name;
 
@@ -53,7 +65,7 @@ const Navbar = () => {
           </Link>
           <ThemeSettings isOpen={openPanel === 'theme'} onToggle={() => setOpenPanel(openPanel === 'theme' ? null : 'theme')} />
           {!realAccount && <Link to="/login" onClick={closeMenu} className="flex min-h-11 items-center px-2 sm:px-3 text-sm font-semibold text-slate-300 hover:text-primary whitespace-nowrap">Sign In</Link>}
-          <button ref={menuRef} onClick={() => setOpenPanel(openPanel === 'menu' ? null : 'menu')} aria-label={realAccount ? `Account menu${accountName ? ` for ${accountName}` : ''}` : 'Navigation menu'} aria-expanded={openPanel === 'menu'} aria-controls="navigation-menu" className={`flex h-11 w-11 items-center justify-center text-slate-300 hover:bg-white/10 ${realAccount ? 'rounded-full' : 'rounded-lg md:hidden'}`}>
+          <button ref={menuRef} onClick={() => setOpenPanel(openPanel === 'menu' ? null : 'menu')} aria-label={(realAccount ? `Account menu${accountName ? ` for ${accountName}` : ''}` : 'Navigation menu') + (pending ? `, ${pending} submissions waiting for review` : '')} aria-expanded={openPanel === 'menu'} aria-controls="navigation-menu" className={`relative flex h-11 w-11 items-center justify-center text-slate-300 hover:bg-white/10 ${realAccount ? 'rounded-full' : 'rounded-lg md:hidden'}`}>
             {realAccount ? (
               <span className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-primary ring-2 ${openPanel === 'menu' ? 'ring-primary' : 'ring-slate-700'}`}>
                 {avatarUrl && failedAvatar !== avatarUrl ? (
@@ -61,6 +73,7 @@ const Navbar = () => {
                 ) : accountName ? <span className="text-sm font-semibold">{Array.from(accountName)[0].toUpperCase()}</span> : <User size={18} />}
               </span>
             ) : openPanel === 'menu' ? <X size={20} /> : <Menu size={20} />}
+            {pending > 0 && <span aria-hidden="true" className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">{pending > 9 ? '9+' : pending}</span>}
           </button>
           {openPanel === 'menu' && (
             <div id="navigation-menu" className={`absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl py-2 shadow-xl ${realAccount ? '' : 'md:hidden'}`}>
@@ -69,7 +82,7 @@ const Navbar = () => {
               </button>
               <Link to="/add" onClick={closeMenu} className={`${menuLink} md:hidden`}><Plus size={16} /> Add Song</Link>
               {realAccount && <>
-                {profile?.role === 'admin' && <Link to="/admin" onClick={closeMenu} className={menuLink}><LayoutDashboard size={16} /> Admin Dashboard</Link>}
+                {profile?.role === 'admin' && <Link to="/admin" onClick={closeMenu} className={menuLink}><LayoutDashboard size={16} /> Admin Dashboard{pending > 0 && <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">{pending} waiting</span>}</Link>}
                 <Link to="/profile" onClick={closeMenu} className={menuLink}><User size={16} /> My Profile</Link>
                 <button onClick={async () => { await signOut(); closeMenu(); }} className={`${menuLink} w-full`}><LogOut size={16} /> Log Out</button>
               </>}
