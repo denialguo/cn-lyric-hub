@@ -267,14 +267,16 @@ const SongPage = () => {
     : rawTitle;
   const primaryArtist = song.artist_en || song.artist_zh || 'Unknown';
   const seo = songMeta(song); // same templates as the prerender, so head tags agree
-  const displayArtist = song.artist_zh 
-    ? (scriptMode === 'traditional' ? tify(song.artist_zh) : sify(song.artist_zh))
+  // Artists without a Chinese name leave empty slots ("康熙, "); drop them so no stray comma shows.
+  const artistZh = (song.artist_zh || '').split(',').map(name => name.trim()).filter(Boolean).join(', ');
+  const displayArtist = artistZh
+    ? (scriptMode === 'traditional' ? tify(artistZh) : sify(artistZh))
     : '';
   // Skip showing secondary name if it's essentially the same as primary
   const showSecondaryArtist = displayArtist 
     && song.artist_en 
-    && song.artist_zh
-    && sify(song.artist_en) !== sify(song.artist_zh);
+    && artistZh
+    && sify(song.artist_en) !== sify(artistZh);
 
 
   return (

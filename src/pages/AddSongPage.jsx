@@ -107,7 +107,7 @@ const AddSongPage = () => {
         '-' + Math.floor(Math.random() * 1000);
 
       const artistEnString = selectedArtists.map((a) => a.name_en || a.name_zh || '').filter(Boolean).join(', ');
-      const artistZhString = selectedArtists.map((a) => a.name_zh || '').join(', ');
+      const artistZhString = selectedArtists.map((a) => a.name_zh || '').filter(Boolean).join(', ');
 
       // Only admins write straight to the live catalog; everyone else — signed in,
       // anonymous, or not signed in — goes through the review queue.

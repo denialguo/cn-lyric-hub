@@ -113,8 +113,8 @@ const EditSongPage = ({ isReviewMode = false }) => {
       return toast.warning('Please add at least one artist.');
     }
 
-    const artistEnString = selectedArtists.map((a) => a.name_en).join(', ');
-    const artistZhString = selectedArtists.map((a) => a.name_zh).join(', ');
+    const artistEnString = selectedArtists.map((a) => a.name_en).filter(Boolean).join(', ');
+    const artistZhString = selectedArtists.map((a) => a.name_zh).filter(Boolean).join(', ');
 
     let finalSlug = formData.slug;
     if (!finalSlug) {
