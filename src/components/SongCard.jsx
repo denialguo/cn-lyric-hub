@@ -60,7 +60,7 @@ const SongCard = ({ song, initialLikeCount, initialIsLiked, hasTranslation = fal
 
     const newLikedStatus = !isLiked;
     setIsLiked(newLikedStatus);
-    setLikesCount(prev => newLikedStatus ? prev + 1 : prev - 1);
+    setLikesCount(prev => Math.max(0, newLikedStatus ? prev + 1 : prev - 1));
 
     const { error } = newLikedStatus
       ? await supabase.from('song_likes').insert({ song_id: song.id, user_id: currentUser.id })

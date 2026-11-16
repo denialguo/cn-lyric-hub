@@ -106,7 +106,7 @@ const ArtistPage = () => {
                     <SongCard
                       key={song.id}
                       song={song}
-                      initialLikeCount={song.song_likes?.[0]?.count || 0}
+                      initialLikeCount={song.song_likes ? song.song_likes[0]?.count || 0 : undefined}
                       initialIsLiked={likedIds.has(song.id)}
                     />
                 ))}

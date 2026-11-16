@@ -267,7 +267,7 @@ const HomePage = () => {
                     <SongCard
                       song={{ ...song, display_title: displayChinese }}
                       hasTranslation={translatedIds.has(song.id)}
-                      initialLikeCount={song.song_likes?.[0]?.count || 0}
+                      initialLikeCount={song.song_likes ? song.song_likes[0]?.count || 0 : undefined}
                       initialIsLiked={userLikedIds.has(song.id)}
                     />
                   </M.div>
