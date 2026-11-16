@@ -61,7 +61,7 @@ const SECTIONS = [
     items: [
       {
         q: 'Who builds and maintains CN Lyrics?',
-        a: 'It’s an independent, non-commercial project built and maintained by Daniel, with content added by the community. There are no ads and nothing is sold. It’s just meant to make Chinese music easier to read.',
+        a: 'It’s an independent, non-commercial project built and maintained by me! I’m a linguistics and computer science major at UCLA who wanted a really pretty place to read Chinese lyrics with English translations, instead of reading off some random blog and bouncing between different sites for the pinyin, the translation and the characters. Content is added by the community. There are no ads and nothing is sold.',
       },
       {
         q: 'Who owns the lyrics?',
