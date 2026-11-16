@@ -13,6 +13,7 @@
     "verify:rls": "node scripts/verify-rls.cjs",
     "prerender": "node scripts/prerender.cjs",
     "backup": "node scripts/backup.cjs",
+    "indexnow": "node scripts/indexnow.cjs",
     "stats:refresh": "node scripts/refresh-stats.mjs"
   },
   "dependencies": {
