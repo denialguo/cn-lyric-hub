@@ -18,7 +18,7 @@ const SECTIONS = [
       },
       {
         q: 'What are the small letters above each character?',
-        a: 'That's pinyin, the romanized pronunciation of each character. It sits right above the hanzi so you can sound out a line as you read it.',
+        a: 'That’s pinyin, the romanized pronunciation of each character. It sits right above the hanzi so you can sound out a line as you read it.',
       },
       {
         q: 'How do I switch between Simplified and Traditional characters?',
@@ -34,7 +34,7 @@ const SECTIONS = [
       },
       {
         q: 'How do I add a song?',
-        a: 'Go to Add a Song, paste in the Chinese lyrics, and hit Auto-Fill to generate the pinyin. Songs from admins go live right away. Everyone else's get a quick review first.',
+        a: 'Go to Add a Song, paste in the Chinese lyrics, and hit Auto-Fill to generate the pinyin. Songs from admins go live right away. Everyone else’s get a quick review first.',
       },
       {
         q: 'Can I fix or improve an existing song?',
@@ -61,11 +61,11 @@ const SECTIONS = [
     items: [
       {
         q: 'Who builds and maintains CN Lyrics?',
-        a: 'It's an independent, non-commercial project built and maintained by Daniel, with content added by the community. There are no ads and nothing is sold. It's just meant to make Chinese music easier to read.',
+        a: 'It’s an independent, non-commercial project built and maintained by Daniel, with content added by the community. There are no ads and nothing is sold. It’s just meant to make Chinese music easier to read.',
       },
       {
         q: 'Who owns the lyrics?',
-        a: 'The lyrics belong to their artists, songwriters and publishers. CN Lyrics is a non-commercial project for education and personal study, and doesn't claim ownership of any of the songs.',
+        a: 'The lyrics belong to their artists, songwriters and publishers. CN Lyrics is a non-commercial project for education and personal study, and doesn’t claim ownership of any of the songs.',
       },
       {
         q: 'How do I request removal of copyrighted content? (DMCA)',
