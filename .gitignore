@@ -42,3 +42,4 @@ CN_LYRIC_HUB_INTERVIEW_GUIDE.md
 
 # Database dumps — real user data, and they would bloat the repo.
 backups/
+reports/
