@@ -15,9 +15,13 @@ import { chromium } from 'playwright';
 const BASE_URL = 'https://cnlyrics.app';
 const fixes = JSON.parse(await readFile(new URL('./fixtures/community-translation-corrections.json', import.meta.url), 'utf8'));
 const suffix = randomBytes(6).toString('hex');
+const domain = process.env.E2E_EMAIL_DOMAIN;
+if (!domain || !/^[a-z0-9.-]+\\.[a-z]{2,}$/i.test(domain)) {
+  throw new Error('Set E2E_EMAIL_DOMAIN to a test-inbox domain you control (catch-all recommended).');
+}
 const accounts = ['a', 'b'].map(side => ({
   username: `cnlyrics_qa_e2e_${side}_${suffix}`,
-  email: `cnlyrics-qa-${side}-${suffix}@example.com`,
+  email: `cnlyrics-qa-${side}-${suffix}@${domain}`,
   password: randomBytes(28).toString('base64url') + 'X4!',
 }));
 
