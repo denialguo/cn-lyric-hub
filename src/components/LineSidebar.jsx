@@ -598,6 +598,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
                         user={user}
                         onReply={(parentId, text) => handlePostComment(parentId, text)}
                         onDelete={handleDeleteComment}
+                        onToggleLike={toggleVoteComment}
+                        likedCommentIds={myCommentVotes}
                     />
                 ))}
 
