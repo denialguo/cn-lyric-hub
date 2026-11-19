@@ -27,9 +27,11 @@ const ThreadedComments = ({
   onRestoreContext,
 }) => {
   const [narrow, setNarrow] = useState(false);
-  const [expandedDepthIds, setExpandedDepthIds] = useState(() => new Set());
-  const [collapsedIds, setCollapsedIds] = useState(() => new Set());
-  const [siblingVisibleCounts, setSiblingVisibleCounts] = useState(() => new Map());
+  const storedReturn = typeof window !== 'undefined' ? window.history.state?.cnlyricsCommentReturn : null;
+  const storedScope = storedReturn?.scopeKey === scopeKey ? storedReturn : null;
+  const [expandedDepthIds, setExpandedDepthIds] = useState(() => new Set(storedScope?.expandedThreadIds || []));
+  const [collapsedIds, setCollapsedIds] = useState(() => new Set(storedScope?.collapsedThreadIds || []));
+  const [siblingVisibleCounts, setSiblingVisibleCounts] = useState(() => new Map(storedScope?.siblingVisibleCounts || []));
   const [focusAnchorId, setFocusAnchorId] = useState(null);
   const [focusedCount, setFocusedCount] = useState(FOCUS_BATCH_SIZE);
   const contentRef = useRef(null);
@@ -38,6 +40,7 @@ const ThreadedComments = ({
   const focusAnchorIdRef = useRef(null);
   const markerRef = useRef('cnlyrics-thread-' + Math.random().toString(36).slice(2));
   const pendingReplyRef = useRef(null);
+  const fallbackDescendantsRef = useRef([]);
   const returnFromPopstateRef = useRef(null);
 
   const nodes = useMemo(() => indexComments(roots), [roots]);
@@ -114,10 +117,13 @@ const ThreadedComments = ({
     focusAnchorIdRef.current = null;
     returnSnapshotRef.current = null;
     focusPathRef.current = [];
+    fallbackDescendantsRef.current = [];
     setFocusAnchorId(null);
-    setExpandedDepthIds(new Set());
-    setCollapsedIds(new Set());
-    setSiblingVisibleCounts(new Map());
+    const saved = window.history.state?.cnlyricsCommentReturn;
+    const scoped = saved?.scopeKey === scopeKey ? saved : null;
+    setExpandedDepthIds(new Set(scoped?.expandedThreadIds || []));
+    setCollapsedIds(new Set(scoped?.collapsedThreadIds || []));
+    setSiblingVisibleCounts(new Map(scoped?.siblingVisibleCounts || []));
     setFocusedCount(FOCUS_BATCH_SIZE);
   }, [scopeKey]);
 
@@ -136,10 +142,22 @@ const ThreadedComments = ({
         siblingVisibleCounts: [...siblingVisibleCounts.entries()],
         context: { ...context },
       };
+      fallbackDescendantsRef.current = flattenFocusedTraversal(nodes.get(id)).map(entry => entry.comment.id);
       // Same URL, one dedicated history step. Preserve router state keys.
       const currentState = window.history.state || {};
       window.history.replaceState(
-        { ...currentState, cnlyricsCommentReturn: { ...context } },
+        {
+          ...currentState,
+          cnlyricsCommentReturn: {
+            ...context,
+            scopeKey,
+            scrollY: window.scrollY,
+            sidebarScrollTop: scrollContainer?.scrollTop ?? 0,
+            expandedThreadIds: [...expandedDepthIds],
+            collapsedThreadIds: [...collapsedIds],
+            siblingVisibleCounts: [...siblingVisibleCounts.entries()],
+          },
+        },
         '', window.location.href,
       );
       window.history.pushState(
@@ -151,6 +169,7 @@ const ThreadedComments = ({
     // Re-entering a deeper node stays inside the same focused layer and
     // deliberately does NOT replace the original return snapshot.
     focusPathRef.current = getCommentPath(roots, id);
+    fallbackDescendantsRef.current = flattenFocusedTraversal(nodes.get(id)).map(entry => entry.comment.id);
     focusAnchorIdRef.current = id;
     setFocusAnchorId(id);
     setFocusedCount(FOCUS_BATCH_SIZE);
@@ -177,8 +196,7 @@ const ThreadedComments = ({
     focused = [...focusPathRef.current].reverse()
       .map(id => nodes.get(id)).find(Boolean) || null;
     if (!focused) {
-      const old = returnSnapshotRef.current?.focusDescendantIds || [];
-      focused = old.map(id => nodes.get(id)).find(Boolean) || null;
+      focused = fallbackDescendantsRef.current.map(id => nodes.get(id)).find(Boolean) || null;
     }
   }
   const focusedRows = useMemo(() => flattenFocusedTraversal(focused), [focused]);
