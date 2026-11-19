@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
 import CommentItem from './CommentItem';
+import { nestComments } from '../lib/commentThreads';
 import { isRealAccount } from '../lib/identity';
 import { readJson, writeJson } from '../lib/storage';
 
@@ -123,8 +124,25 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
         }
     }
 
+    // The count in line_comments.votes is historical and not updated by RLS.
+    // Comment votes are source-of-truth in comment_votes, so count those rows.
+    const voteCounts = new Map();
+    const commentIdsForCounts = (comms || []).map(c => c.id);
+    let commentCountError = null;
+    for (let start = 0; start < commentIdsForCounts.length; start += 100) {
+      const ids = commentIdsForCounts.slice(start, start + 100);
+      for (let from = 0; ; from += 1000) {
+        const { data: rows, error } = await supabase.from('comment_votes')
+          .select('comment_id').in('comment_id', ids).range(from, from + 999);
+        if (error) { commentCountError = error; break; }
+        rows.forEach(v => voteCounts.set(v.comment_id, (voteCounts.get(v.comment_id) || 0) + 1));
+        if (rows.length < 1000) break;
+      }
+      if (commentCountError) break;
+    }
+
     if (request !== requestRef.current) return;
-    setDataError(Boolean(transError || commentsError || votesError));
+    setDataError(Boolean(transError || commentsError || votesError || commentCountError));
     if (transError) {
       toast.error('Could not load translations. Please try again.');
       setTranslations([]);
@@ -132,7 +150,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
       setTranslations((trans || []).map(t => ({ ...t, votes: t.line_votes?.[0]?.count || 0 }))
         .sort((a, b) => b.votes - a.votes));
     }
-    setComments((comms || []).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)));
+    setComments((comms || []).map(c => ({ ...c, votes: voteCounts.get(c.id) || 0 }))
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)));
     setOriginalVotes(orgVoteCount || 0);
     if(user) {
         setMyVotes(myVotedIds);
@@ -190,7 +209,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
     }
   };
 
-  const toggleVoteComment = async (commentId, currentVotes) => {
+  const toggleVoteComment = async (commentId) => {
     const voter = await ensureUser();
     if (!voter) return;
 
@@ -216,10 +235,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
     let error;
     if (isLiked) {
         ({ error } = await supabase.from('comment_votes').delete().eq('user_id', voter.id).eq('comment_id', commentId));
-        if (!error) ({ error } = await supabase.from('line_comments').update({ votes: currentVotes - 1 }).eq('id', commentId));
     } else {
         ({ error } = await supabase.from('comment_votes').insert({ user_id: voter.id, comment_id: commentId }));
-        if (!error) ({ error } = await supabase.from('line_comments').update({ votes: currentVotes + 1 }).eq('id', commentId));
     }
 
     if (error) {
@@ -227,6 +244,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
         setMyCommentVotes(prevMyCommentVotes);
         writeJson(`comment_votes_${songId}`, [...prevMyCommentVotes]);
         toast.error("Vote didn't save. Please try again.");
+    } else {
+        await fetchData();
     }
   };
 
@@ -290,6 +309,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
     if (error) {
       setComments(prev);
       toast.error("Couldn't delete that comment. Please try again.");
+    } else {
+      await fetchData();
     }
   };
 
@@ -529,34 +550,17 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
                                 <div className="mb-4 bg-slate-950/30 rounded-lg p-3 border border-slate-800/50">
                                     {threadComments.length > 0 && (
                                         <div className="space-y-3 mb-3 pl-1">
-                                            {threadComments.map(tc => {
-                                                const commentLiked = myCommentVotes.has(tc.id);
-                                                return (
-                                                    <div key={tc.id} className="text-xs group/comment">
-                                                        <div className="flex justify-between items-start mb-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-slate-400">@{tc.profiles?.username}</span>
-                                                                <span className="text-[10px] text-slate-600">{new Date(tc.created_at).toLocaleDateString()}</span>
-                                                            </div>
-                                                            
-                                                            <div className="flex items-center gap-2 opacity-0 group-hover/comment:opacity-100 transition-opacity">
-                                                                <button 
-                                                                    onClick={() => toggleVoteComment(tc.id, tc.votes || 0)}
-                                                                    className={`flex items-center gap-1 ${commentLiked ? 'text-pink-500' : 'text-slate-600 hover:text-pink-500'}`}
-                                                                >
-                                                                    <Heart size={10} fill={commentLiked ? "currentColor" : "none"} /> {tc.votes || 0}
-                                                                </button>
-                                                                {user && user.id === tc.user_id && (
-                                                                    <button onClick={() => handleDeleteComment(tc.id)} className="text-slate-600 hover:text-red-500">
-                                                                        <Trash2 size={10} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <p className="text-slate-300 ml-1">{tc.content}</p>
-                                                    </div>
-                                                );
-                                            })}
+                                            {nestComments(threadComments).map(root => (
+                                                <CommentItem
+                                                    key={root.id}
+                                                    comment={root}
+                                                    user={user}
+                                                    onReply={(parentId, text) => handlePostComment(parentId, text, t.id)}
+                                                    onDelete={handleDeleteComment}
+                                                    onToggleLike={toggleVoteComment}
+                                                    likedCommentIds={myCommentVotes}
+                                                />
+                                            ))}
                                         </div>
                                     )}
                                     
@@ -587,21 +591,17 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
             </div>
         ) : (
             <div className="space-y-4">
-                {(() => {
-                    const rootComments = generalComments.filter(c => !c.parent_id);
-                    const getReplies = (parentId) => generalComments.filter(c => c.parent_id === parentId);
-
-                    return rootComments.map(comment => (
-                        <CommentItem
-                            key={comment.id}
-                            comment={comment}
-                            replies={getReplies(comment.id)}
-                            user={user}
-                            onReply={handlePostComment}
-                            onDelete={handleDeleteComment}
-                        />
-                    ));
-                })()}
+                {nestComments(generalComments).map(comment => (
+                    <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        user={user}
+                        onReply={(parentId, text) => handlePostComment(parentId, text)}
+                        onDelete={handleDeleteComment}
+                        onToggleLike={toggleVoteComment}
+                        likedCommentIds={myCommentVotes}
+                    />
+                ))}
 
                 {generalComments.length === 0 && <p className="text-slate-500 text-sm text-center italic">No general comments yet.</p>}
             </div>
