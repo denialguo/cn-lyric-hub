@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { isRealAccount, ownAvatarUrl } from '../lib/identity';
 import { Send, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import CommentItem from './CommentItem';
+import ThreadedComments from './ThreadedComments';
 import { nestComments } from '../lib/commentThreads';
 
 const MAX_COMMENT = 2000;
@@ -117,11 +117,15 @@ const CommentsSection = ({ songId }) => {
       <div className="space-y-6">
         {comments.length === 0 ? (
           <p className="text-slate-600 italic text-sm ml-14">Be the first to comment!</p>
-        ) : threads.map(comment => (
-          <CommentItem key={comment.id} comment={comment} user={user}
+        ) : (
+          <ThreadedComments
+            roots={threads}
+            user={user}
             onReply={(parentId, replyText) => postComment(replyText, parentId)}
-            onDelete={handleDelete} showLike={false} />
-        ))}
+            onDelete={handleDelete}
+            showLike={false}
+          />
+        )}
       </div>
     </div>
   );

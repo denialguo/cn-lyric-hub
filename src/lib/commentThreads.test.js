@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nestComments } from './commentThreads.js';
+import { nestComments, countDescendants, shouldContinueThread } from './commentThreads.js';
 
 const row = (id, parent_id = null, created_at = '2026-11-18T00:00:00Z') => ({ id, parent_id, created_at, content: id });
 
@@ -38,4 +38,23 @@ test('self references and cycles cannot recurse indefinitely', () => {
 
 test('empty rows have no roots', () => {
   assert.deepEqual(nestComments([]), []);
+});
+
+test('continue boundary shows at the third desktop level, not earlier', () => {
+  const replies = [{ id: 'next', replies: [] }];
+  assert.equal(shouldContinueThread(0, 3, replies), false);
+  assert.equal(shouldContinueThread(1, 3, replies), false);
+  assert.equal(shouldContinueThread(2, 3, replies), true);
+  assert.equal(shouldContinueThread(0, 2, replies), false);
+  assert.equal(shouldContinueThread(1, 2, replies), true);
+  assert.equal(shouldContinueThread(2, 3, []), false);
+});
+
+test('continue count includes every descendant, not only direct children', () => {
+  const replies = [
+    { id: 'one', replies: [{ id: 'two', replies: [{ id: 'three', replies: [] }] }] },
+    { id: 'four', replies: [] },
+  ];
+  assert.equal(countDescendants(replies), 4);
+  assert.equal(countDescendants([]), 0);
 });

@@ -41,3 +41,14 @@ export function nestComments(comments = []) {
   for (const node of nodes.values()) node.replies.sort(sort);
   return roots;
 }
+
+/** Number of replies in the whole descendant branch, not only direct children. */
+export function countDescendants(replies = []) {
+  return replies.reduce((sum, reply) => 1 + countDescendants(reply.replies || []) + sum, 0);
+}
+
+/** When the next reply would exceed our indentation budget, focus the thread. */
+export function shouldContinueThread(depth, maxDepth, replies = []) {
+  return Number.isInteger(maxDepth) && maxDepth > 0
+    && depth + 1 >= maxDepth && replies.length > 0;
+}

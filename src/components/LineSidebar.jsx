@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
-import CommentItem from './CommentItem';
+import ThreadedComments from './ThreadedComments';
 import { nestComments } from '../lib/commentThreads';
 import { isRealAccount } from '../lib/identity';
 import { readJson, writeJson } from '../lib/storage';
@@ -550,17 +550,15 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
                                 <div className="mb-4 bg-slate-950/30 rounded-lg p-3 border border-slate-800/50">
                                     {threadComments.length > 0 && (
                                         <div className="space-y-3 mb-3 pl-1">
-                                            {nestComments(threadComments).map(root => (
-                                                <CommentItem
-                                                    key={root.id}
-                                                    comment={root}
-                                                    user={user}
-                                                    onReply={(parentId, text) => handlePostComment(parentId, text, t.id)}
-                                                    onDelete={handleDeleteComment}
-                                                    onToggleLike={toggleVoteComment}
-                                                    likedCommentIds={myCommentVotes}
-                                                />
-                                            ))}
+                                            <ThreadedComments
+                                                roots={nestComments(threadComments)}
+                                                user={user}
+                                                onReply={(parentId, text) => handlePostComment(parentId, text, t.id)}
+                                                onDelete={handleDeleteComment}
+                                                onToggleLike={toggleVoteComment}
+                                                likedCommentIds={myCommentVotes}
+                                                maxDepth={2}
+                                            />
                                         </div>
                                     )}
                                     
@@ -591,17 +589,15 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
             </div>
         ) : (
             <div className="space-y-4">
-                {nestComments(generalComments).map(comment => (
-                    <CommentItem
-                        key={comment.id}
-                        comment={comment}
-                        user={user}
-                        onReply={(parentId, text) => handlePostComment(parentId, text)}
-                        onDelete={handleDeleteComment}
-                        onToggleLike={toggleVoteComment}
-                        likedCommentIds={myCommentVotes}
-                    />
-                ))}
+                <ThreadedComments
+                    roots={nestComments(generalComments)}
+                    user={user}
+                    onReply={(parentId, text) => handlePostComment(parentId, text)}
+                    onDelete={handleDeleteComment}
+                    onToggleLike={toggleVoteComment}
+                    likedCommentIds={myCommentVotes}
+                    maxDepth={2}
+                />
 
                 {generalComments.length === 0 && <p className="text-slate-500 text-sm text-center italic">No general comments yet.</p>}
             </div>
