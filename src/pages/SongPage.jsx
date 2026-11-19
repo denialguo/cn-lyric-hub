@@ -104,8 +104,46 @@ const SongPage = () => {
   const [hasEarlier, setHasEarlier] = useState(false);
   const settingsRef = useRef(null);
   
-  const [selectedLine, setSelectedLine] = useState(null); 
+  const [selectedLine, setSelectedLine] = useState(null);
+  const commentReturnRef = useRef(null);
   const [customTranslations, setCustomTranslations] = useState({});
+
+  // If the user switches lyric lines while focused, the nested sidebar viewer
+  // unmounts. The song page remains alive and restores the original line when
+  // browser Back returns to the single focus-history entry.
+  useEffect(() => {
+    const handleCommentReturn = event => {
+      const snapshot = event.state?.cnlyricsCommentReturn;
+      if (!snapshot || snapshot.songId !== song?.id) return;
+      commentReturnRef.current = snapshot;
+      setSelectedLine(snapshot.sidebarOpen && Number.isInteger(snapshot.selectedLineId)
+        ? snapshot.selectedLineId : null);
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: snapshot.scrollY ?? 0, left: 0, behavior: 'instant' });
+      });
+    };
+    window.addEventListener('popstate', handleCommentReturn);
+    return () => window.removeEventListener('popstate', handleCommentReturn);
+  }, [song?.id]);
+
+  useEffect(() => {
+    const snapshot = commentReturnRef.current;
+    if (!snapshot || snapshot.selectedLineId !== selectedLine) return;
+    if (!snapshot.sidebarOpen) { commentReturnRef.current = null; return; }
+    let frame;
+    let attempts = 0;
+    const scrollToSidebar = () => {
+      const panel = document.querySelector('[data-lyric-comment-scroll]');
+      if (!panel && ++attempts < 45) {
+        frame = window.requestAnimationFrame(scrollToSidebar);
+        return;
+      }
+      if (panel) panel.scrollTop = snapshot.sidebarScrollTop ?? 0;
+      commentReturnRef.current = null;
+    };
+    frame = window.requestAnimationFrame(scrollToSidebar);
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedLine]);
   const [submitterUsername, setSubmitterUsername] = useState(null);
   const [coverFailed, setCoverFailed] = useState(false);
 

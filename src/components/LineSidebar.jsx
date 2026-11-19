@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ThumbsUp, MessageSquare, Globe, X, Send, Loader2, Trash2, RotateCcw, Copy, Flag, Heart } from 'lucide-react';
 import ThreadedComments from './ThreadedComments';
-import { nestComments } from '../lib/commentThreads';
+import { nestComments, retainDeletedParents } from '../lib/commentThreads';
 import { isRealAccount } from '../lib/identity';
 import { readJson, writeJson } from '../lib/storage';
 
@@ -150,7 +150,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
       setTranslations((trans || []).map(t => ({ ...t, votes: t.line_votes?.[0]?.count || 0 }))
         .sort((a, b) => b.votes - a.votes));
     }
-    setComments((comms || []).map(c => ({ ...c, votes: voteCounts.get(c.id) || 0 }))
+    setComments(previous => retainDeletedParents(previous, (comms || []).map(c => ({ ...c, votes: voteCounts.get(c.id) || 0 })))
       .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)));
     setOriginalVotes(orgVoteCount || 0);
     if(user) {
@@ -303,11 +303,10 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
   const handleDeleteComment = async (id) => {
     const ok = await confirm("Delete your comment?", { destructive: true, confirmLabel: 'Delete' });
     if (!ok) return;
-    const prev = comments;
-    setComments(comments.filter(c => c.id !== id));
+    // Do not drop the parent before refetching. Our client-side tombstone
+    // reconstruction needs the pre-delete tree to retain its descendants.
     const { error } = await supabase.from('line_comments').delete().eq('id', id);
     if (error) {
-      setComments(prev);
       toast.error("Couldn't delete that comment. Please try again.");
     } else {
       await fetchData();
@@ -445,7 +444,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
       </div>}
 
       {/* CONTENT */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
+      <div data-lyric-comment-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
         {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-slate-500" /></div>
         ) : dataError ? (
@@ -558,6 +557,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
                                                 onToggleLike={toggleVoteComment}
                                                 likedCommentIds={myCommentVotes}
                                                 maxDepth={2}
+                                                scopeKey={`song:${songId}:line:${lineIndex}:translation:${t.id}`}
+                                                context={{ songId, selectedLineId: lineIndex, selectedTranslationId: t.id, sidebarOpen: true }}
                                             />
                                         </div>
                                     )}
@@ -597,6 +598,8 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
                     onToggleLike={toggleVoteComment}
                     likedCommentIds={myCommentVotes}
                     maxDepth={2}
+                    scopeKey={`song:${songId}:line:${lineIndex}:general`}
+                    context={{ songId, selectedLineId: lineIndex, selectedTranslationId: null, sidebarOpen: true }}
                 />
 
                 {generalComments.length === 0 && <p className="text-slate-500 text-sm text-center italic">No general comments yet.</p>}
