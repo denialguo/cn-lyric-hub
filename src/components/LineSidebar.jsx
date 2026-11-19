@@ -542,7 +542,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
                                         isExpanded || threadComments.length > 0 ? 'text-blue-400' : 'text-slate-500 hover:text-white'
                                     }`}
                                 >
-                                    <MessageSquare size={14} /> {threadComments.length} Reply
+                                    <MessageSquare size={14} /> {threadComments.length} {threadComments.length === 1 ? 'Reply' : 'Replies'}
                                 </button>
                             </div>
 
