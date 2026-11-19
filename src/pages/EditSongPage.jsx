@@ -13,6 +13,7 @@ import { useArtistSelection } from '../hooks/useArtistSelection';
 import { publishSong, isSlugTaken } from '../lib/queries';
 import { newSongSlug, uniqueSlug } from '../lib/slugs';
 import { isAdmin, submitterName } from '../lib/identity';
+import { submissionArtists } from '../lib/submissionArtists';
 
 const EditSongPage = ({ isReviewMode = false }) => {
   const { id } = useParams();
@@ -61,23 +62,21 @@ const EditSongPage = ({ isReviewMode = false }) => {
         if (artistError) setFetchError('Couldn’t load the song’s artists. Retry before editing.');
         if (linkedArtists) setSelectedArtists(linkedArtists.map((link) => link.artists).filter(Boolean));
       } else {
-        const enList = (song.artist_en || '').split(',').map((s) => s.trim()).filter(Boolean);
-        const zhList = (song.artist_zh || '').split(',').map((s) => s.trim()).filter(Boolean);
-
-        const reconstructed = [];
-        const maxLen = Math.max(enList.length, zhList.length);
-        for (let i = 0; i < maxLen; i++) {
-          reconstructed.push({ id: null, name_en: enList[i] || zhList[i], name_zh: zhList[i] || '', isNew: true });
+        // New submissions preserve per-artist bilingual names in artist_data.
+        // Legacy rows only have flattened artist_en/artist_zh strings; when their
+        // list lengths differ, never zip them positionally because a missing
+        // Chinese name would shift every later artist (e.g. The Weeknd/Faye Wong).
+        let foundArtists = [];
+        if (!Array.isArray(song.artist_data) || song.artist_data.length === 0) {
+          const englishNames = (song.artist_en || '').split(',').map((s) => s.trim()).filter(Boolean);
+          if (englishNames.length > 0) {
+            const { data: found, error: lookupError } = await supabase
+              .from('artists').select('*').in('name_en', englishNames);
+            if (lookupError) setFetchError('Couldn’t load artists for comparison. Retry before reviewing.');
+            foundArtists = found || [];
+          }
         }
-
-        const namesToLookup = reconstructed.map((a) => a.name_en);
-        if (namesToLookup.length > 0) {
-          const { data: found, error: lookupError } = await supabase.from('artists').select('*').in('name_en', namesToLookup);
-          if (lookupError) setFetchError('Couldn’t load artists for comparison. Retry before reviewing.');
-          setSelectedArtists(reconstructed.map((a) => found?.find((f) => f.name_en === a.name_en) || a));
-        } else {
-          setSelectedArtists(reconstructed);
-        }
+        setSelectedArtists(submissionArtists(song, foundArtists));
 
         if (song.original_song_id) {
           const { data: orig, error: originalError } = await supabase.from('songs').select('*').eq('id', song.original_song_id).single();

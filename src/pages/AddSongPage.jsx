@@ -14,6 +14,7 @@ import { readJson, writeJson, removeKeys } from '../lib/storage';
 import { publishSong, isSlugTaken } from '../lib/queries';
 import { newSongSlug } from '../lib/slugs';
 import { EMPTY_FORM, parseSongJson, songToForm } from '../lib/songImport';
+import { serializeSubmissionArtists } from '../lib/submissionArtists';
 
 const AddSongPage = () => {
   const navigate = useNavigate();
@@ -124,7 +125,11 @@ const AddSongPage = () => {
       if (publishesDirectly) {
         await publishSong(shared, selectedArtists);
       } else {
-        const { error } = await supabase.from('song_submissions').insert({ ...shared, status: 'pending' });
+        const { error } = await supabase.from('song_submissions').insert({
+          ...shared,
+          artist_data: serializeSubmissionArtists(selectedArtists),
+          status: 'pending',
+        });
         if (error) throw error;
       }
 
