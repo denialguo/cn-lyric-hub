@@ -203,12 +203,20 @@ const ThreadedComments = ({
   const displayedRows = focusedRows.slice(0, focusedCount);
 
   const postReply = async (parentId, text) => {
-    const priorIds = new Set(nodes.keys());
-    const saved = await onReply(parentId, text);
-    if (saved !== false && focusAnchorIdRef.current) {
-      pendingReplyRef.current = { parentId, priorIds };
+    // Register before the async mutation completes, so a fast refetch cannot
+    // render and miss the newly inserted reply.
+    const tracking = focusAnchorIdRef.current
+      ? { parentId, priorIds: new Set(nodes.keys()) }
+      : null;
+    pendingReplyRef.current = tracking;
+    try {
+      const saved = await onReply(parentId, text);
+      if (saved === false) pendingReplyRef.current = null;
+      return saved;
+    } catch (error) {
+      pendingReplyRef.current = null;
+      throw error;
     }
-    return saved;
   };
 
   useEffect(() => {
