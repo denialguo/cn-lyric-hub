@@ -112,9 +112,9 @@ export function validateSlugMap(map, songs, { checkLength = true } = {}) {
     if (seen.has(m.new)) problems.push(`#${m.id}: slug ${m.new} also used by #${seen.get(m.new)}`);
     seen.set(m.new, m.id);
   }
-  const moving = new Set(map.map(m => m.id));
+  // A new slug must not equal ANY other song's current slug, moving or not (the unique index would stop a run mid-way).
   for (const s of songs) {
-    if (!moving.has(s.id) && seen.has(s.slug)) problems.push(`#${seen.get(s.slug)}: slug ${s.slug} already belongs to untouched #${s.id}`);
+    if (seen.has(s.slug) && seen.get(s.slug) !== s.id) problems.push(`#${seen.get(s.slug)}: slug ${s.slug} is currently held by #${s.id}`);
   }
   return problems;
 }

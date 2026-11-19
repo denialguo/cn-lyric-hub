@@ -49,6 +49,7 @@ test('validateSlugMap catches duplicates, strangers and stale rows', () => {
   assert.deepEqual(validateSlugMap([{ id: 1, old: 'old-1', new: 'a' }, { id: 2, old: 'old-2', new: 'b' }], songs), []);
   assert.equal(validateSlugMap([{ id: 1, old: 'old-1', new: 'a' }, { id: 2, old: 'old-2', new: 'a' }], songs).length, 1);
   assert.equal(validateSlugMap([{ id: 1, old: 'old-1', new: 'keep' }], songs).length, 1);
+  assert.equal(validateSlugMap([{ id: 1, old: 'old-1', new: 'old-2' }, { id: 2, old: 'old-2', new: 'z' }], songs).length, 1);   // takes a slug another moving song still holds
   assert.equal(validateSlugMap([{ id: 1, old: 'zzz', new: 'a' }], songs).length, 1);
   assert.equal(validateSlugMap([{ id: 99, old: 'x', new: 'a' }], songs).length, 1);
 });
