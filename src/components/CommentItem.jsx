@@ -3,6 +3,7 @@ import { Heart, MessageCircle, Reply, Trash2, ChevronDown, ChevronRight } from '
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../context/ToastContext';
 import { isRealAccount } from '../lib/identity';
+import { countDescendants, shouldContinueThread } from '../lib/commentThreads';
 
 /**
  * One comment at any depth. Each node owns its reply form; nested replies
@@ -27,10 +28,9 @@ const CommentItem = ({
   const [posting, setPosting] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [showAllSiblings, setShowAllSiblings] = useState(false);
-  const canContinue = depth + 1 >= maxDepth && replies.length > 0 && typeof onContinue === 'function';
+  const canContinue = typeof onContinue === 'function' && shouldContinueThread(depth, maxDepth, replies);
   const visibleReplies = showAllSiblings ? replies : replies.slice(0, 3);
   const hiddenSiblings = Math.max(0, replies.length - visibleReplies.length);
-  const countDescendants = (items) => items.reduce((sum, item) => sum + 1 + countDescendants(item.replies || []), 0);
   const descendants = countDescendants(replies);
 
   const delegatedLike = typeof onToggleLike === 'function';
