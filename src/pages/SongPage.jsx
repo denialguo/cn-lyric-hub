@@ -598,14 +598,13 @@ const SongPage = () => {
                        <span className="text-slate-300">{song.year}</span>
                      </div>
                    )}
+                   {song.source !== 'import' && (
                    <div className="flex justify-between text-slate-400">
                      <span>Source</span>
                      {/* submitted_by holds free-text display names ('Anonymous', 'admin'),
                          not usernames, so linking it blindly produced ~1600 dead links
                          to "User not found". Link only a confirmed profile. */}
-                     {song.source === 'import' ? (
-                       <span className="text-slate-300">Imported</span>
-                     ) : submitterUsername ? (
+                     {submitterUsername ? (
                        <Link to={`/user/${encodeURIComponent(submitterUsername)}`} className="text-primary hover:underline">
                          {submitterUsername}
                        </Link>
@@ -613,6 +612,7 @@ const SongPage = () => {
                        <span className="text-slate-300">{song.submitted_by || 'Community'}</span>
                      )}
                    </div>
+                   )}
                    {song.last_edited_by && (
                      <div className="flex justify-between text-slate-400">
                        <span>Last edited by</span>
