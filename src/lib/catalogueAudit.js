@@ -4,6 +4,7 @@
 // Alignment reuses the one canonical pinyin module (src/utils/lyrics.js).
 import { sify } from 'chinese-conv';
 import { alignSyllables, isChinese } from '../utils/lyrics.js';
+import { detectLyricMetadata } from './lyricMetadata.js';
 
 export const LONG_LINE_CHARS = 150;
 // Corpus lyrics have no blank lines between sections, so a verse or chorus repeated back to back
@@ -149,6 +150,12 @@ export function auditSong(song, context = {}) {
   const { linkedArtists = [], contributions = {} } = context;
   const lyrics = auditLyrics({ chinese: song.lyrics_chinese, pinyin: song.lyrics_pinyin, english: song.lyrics_english });
   const flags = [...lyrics.flags];
+  const sourceMetadata = detectLyricMetadata(song.lyrics_chinese, {
+    title: song.title_zh || song.title_en,
+    artist: song.artist_en || song.artist_zh,
+  });
+  if (sourceMetadata.some(issue => issue.confidence === 'high')) flags.push('suspicious_lyric_source_metadata');
+  else if (sourceMetadata.length) flags.push('possible_lyric_source_metadata');
   const title = song.title_zh || song.title_en || '';
   const artist = song.artist_en || song.artist_zh || '';
   const artistMissing = !filled(song.artist_en) && !filled(song.artist_zh);
@@ -175,7 +182,7 @@ export function auditSong(song, context = {}) {
   };
   const record = {
     id: song.id, slug: song.slug ?? null, title, artist,
-    health, counts: lyrics.counts, samples: lyrics.samples, flags,
+    health, counts: lyrics.counts, samples: { ...lyrics.samples, source_metadata: sourceMetadata }, flags,
     has_user_contributions: attached > 0,
     contributions: {
       line_translations: contributions.line_translations || 0,
@@ -203,6 +210,7 @@ const CATEGORY = {
   translation_line_mismatch: 'translation_mismatch',
   missing_artist: 'artist', no_linked_artist: 'artist', artist_link_mismatch: 'artist',
   missing_cover: 'cover', missing_year: 'year',
+  suspicious_lyric_source_metadata: 'source_metadata', possible_lyric_source_metadata: 'source_metadata',
 };
 export const problemCategories = flags => [...new Set(flags.map(flag => (FORMATTING.test(flag) ? 'formatting' : CATEGORY[flag])).filter(Boolean))];
 export const isFormattingFlag = flag => FORMATTING.test(flag);
@@ -270,6 +278,8 @@ export function summarize(records) {
       no_linked_artist: count(r => has(r, 'no_linked_artist')),
       suspicious_artist_linkage: count(r => has(r, 'artist_link_mismatch')),
       suspicious_lyric_formatting: count(r => r.problem_categories.includes('formatting')),
+      suspicious_lyric_source_metadata: count(r => has(r, 'suspicious_lyric_source_metadata')),
+      possible_lyric_source_metadata: count(r => has(r, 'possible_lyric_source_metadata')),
       with_user_contributions: count(r => r.has_user_contributions),
       user_submitted_or_edited: count(userMade),
     },
@@ -321,6 +331,8 @@ export function formatSummary(summary) {
     row('No linked artist', t.no_linked_artist),
     row('Suspicious artist linkage', t.suspicious_artist_linkage), '',
     row('Suspicious lyric formatting', t.suspicious_lyric_formatting),
+    row('Source metadata in lyrics', t.suspicious_lyric_source_metadata),
+    row('Possible lyric source headers', t.possible_lyric_source_metadata),
     row('Songs with user contributions', t.with_user_contributions),
     row('User-submitted or user-edited', t.user_submitted_or_edited), '',
     'Intersections', '-------------',
