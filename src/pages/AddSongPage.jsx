@@ -15,6 +15,7 @@ import { publishSong, isSlugTaken } from '../lib/queries';
 import { newSongSlug } from '../lib/slugs';
 import { EMPTY_FORM, parseSongJson, songToForm } from '../lib/songImport';
 import { serializeSubmissionArtists } from '../lib/submissionArtists';
+import { validateLyricSource } from '../lib/lyricMetadata';
 
 const AddSongPage = () => {
   const navigate = useNavigate();
@@ -95,6 +96,25 @@ const AddSongPage = () => {
 
     if (selectedArtists.length === 0) return toast.warning('Please add at least one artist.');
     if (!formData.title_zh.trim() && !formData.title_en.trim()) return toast.warning('Please add a song title.');
+    const sourceReview = validateLyricSource(formData.lyrics_chinese, {
+      title: formData.title_zh || formData.title_en,
+      artist: selectedArtists[0]?.name_en || selectedArtists[0]?.name_zh,
+    });
+    if (sourceReview.issues.some(issue => issue.confidence === 'high')) {
+      return toast.error('Lyric source contains credits or non-lyric metadata. Review lines: ' +
+        sourceReview.issues.filter(issue => issue.confidence === 'high')
+          .slice(0, 5).map(issue => issue.line_number).join(', '));
+    }
+    if (sourceReview.issues.length) {
+      const approved = await confirm(
+        'Possible title/credit header detected on lyric lines ' +
+        sourceReview.issues.slice(0, 5).map(issue => issue.line_number).join(', ') +
+        '. Are you certain these are performed lyrics?',
+        { confirmLabel: 'Confirmed lyrics' },
+      );
+      if (!approved) return;
+    }
+
 
     setLoading(true);
 
