@@ -145,25 +145,35 @@ const ThreadedComments = ({
       fallbackDescendantsRef.current = flattenFocusedTraversal(nodes.get(id)).map(entry => entry.comment.id);
       // Same URL, one dedicated history step. Preserve router state keys.
       const currentState = window.history.state || {};
-      window.history.replaceState(
-        {
-          ...currentState,
-          cnlyricsCommentReturn: {
-            ...context,
-            scopeKey,
-            scrollY: window.scrollY,
-            sidebarScrollTop: scrollContainer?.scrollTop ?? 0,
-            expandedThreadIds: [...expandedDepthIds],
-            collapsedThreadIds: [...collapsedIds],
-            siblingVisibleCounts: [...siblingVisibleCounts.entries()],
+      if (currentState.cnlyricsCommentFocus) {
+        // A different lyric line can replace this viewer while already in the
+        // focused history layer. Reuse that layer rather than stacking Back
+        // presses or overwriting its original return snapshot.
+        window.history.replaceState(
+          { ...currentState, cnlyricsCommentFocus: markerRef.current },
+          '', window.location.href,
+        );
+      } else {
+        window.history.replaceState(
+          {
+            ...currentState,
+            cnlyricsCommentReturn: {
+              ...context,
+              scopeKey,
+              scrollY: window.scrollY,
+              sidebarScrollTop: scrollContainer?.scrollTop ?? 0,
+              expandedThreadIds: [...expandedDepthIds],
+              collapsedThreadIds: [...collapsedIds],
+              siblingVisibleCounts: [...siblingVisibleCounts.entries()],
+            },
           },
-        },
-        '', window.location.href,
-      );
-      window.history.pushState(
-        { ...window.history.state, cnlyricsCommentFocus: markerRef.current },
-        '', window.location.href,
-      );
+          '', window.location.href,
+        );
+        window.history.pushState(
+          { ...window.history.state, cnlyricsCommentFocus: markerRef.current },
+          '', window.location.href,
+        );
+      }
     }
 
     // Re-entering a deeper node stays inside the same focused layer and
