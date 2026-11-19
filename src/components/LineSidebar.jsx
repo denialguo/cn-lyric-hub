@@ -303,11 +303,10 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
   const handleDeleteComment = async (id) => {
     const ok = await confirm("Delete your comment?", { destructive: true, confirmLabel: 'Delete' });
     if (!ok) return;
-    const prev = comments;
-    setComments(comments.filter(c => c.id !== id));
+    // Do not drop the parent before refetching. Our client-side tombstone
+    // reconstruction needs the pre-delete tree to retain its descendants.
     const { error } = await supabase.from('line_comments').delete().eq('id', id);
     if (error) {
-      setComments(prev);
       toast.error("Couldn't delete that comment. Please try again.");
     } else {
       await fetchData();
@@ -445,7 +444,7 @@ const LineSidebar = ({ songId, lineIndex, canonicalLines, originalContent, pinyi
       </div>}
 
       {/* CONTENT */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
+      <div data-lyric-comment-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
         {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-slate-500" /></div>
         ) : dataError ? (
