@@ -6,7 +6,7 @@ import { isRealAccount, ownAvatarUrl } from '../lib/identity';
 import { Send, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ThreadedComments from './ThreadedComments';
-import { nestComments } from '../lib/commentThreads';
+import { nestComments, retainDeletedParents } from '../lib/commentThreads';
 
 const MAX_COMMENT = 2000;
 
@@ -30,7 +30,7 @@ const CommentsSection = ({ songId }) => {
       toast.error('Could not load song comments.');
       return;
     }
-    setComments(data || []);
+    setComments(previous => retainDeletedParents(previous, data || []));
   };
 
   useEffect(() => {
@@ -124,6 +124,8 @@ const CommentsSection = ({ songId }) => {
             onReply={(parentId, replyText) => postComment(replyText, parentId)}
             onDelete={handleDelete}
             showLike={false}
+            scopeKey={`song:${songId}:comments`}
+            context={{ selectedLineId: null, selectedTranslationId: null, sidebarOpen: false, songId }}
           />
         )}
       </div>
