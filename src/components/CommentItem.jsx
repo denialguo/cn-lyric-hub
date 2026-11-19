@@ -106,7 +106,10 @@ const CommentItem = ({
 
   return (
     <div data-comment-id={comment.id}
-      className={depth ? 'ml-2 pl-2 md:ml-3 md:pl-3 border-l-2 border-slate-700/70 min-w-0' : 'min-w-0'}>
+      style={focused && depth ? { marginLeft: `${depth * 12}px` } : undefined}
+      className={focused
+        ? (depth ? 'pl-2 border-l-2 border-slate-700/70 min-w-0' : 'min-w-0')
+        : (depth ? 'ml-2 pl-2 md:ml-3 md:pl-3 border-l-2 border-slate-700/70 min-w-0' : 'min-w-0')} >
       <div className="flex gap-3 group min-w-0">
         <div className="flex-shrink-0 w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center overflow-hidden border border-slate-700">
           {!deleted && comment.profiles?.avatar_url ? (
