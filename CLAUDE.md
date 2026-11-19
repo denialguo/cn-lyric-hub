@@ -53,7 +53,9 @@ CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-chara
 ## Lyric content rules
 - Simplified, Traditional or mixed script, Cantonese/Taiwanese/slang/poetry and multilingual lines are valid, not errors. Never flag script variants as typos or silently rewrite source lyrics.
 - Alignment failure ≠ bad data (mixed Latin/Han lines legitimately fail). Zhuyin/Bopomofo passages (solfège like `ㄒ一ㄌㄚ`) are real lyrics: `generatePinyin` keeps them verbatim, never "fix" them to pinyin.
-- Translation jobs may write only `lyrics_english`; re-read the row before writing and refuse if the source changed.
+- Translation jobs may write only `lyrics_english`; re-read the row before writing and refuse if the source changed. **Do not publish a translation batch to production without explicit authorization for that batch; draft/review files are not upload approval.**
+- **Source-lyric ingestion gate:** `src/lib/lyricMetadata.js` detects credits, studios, source-site junk, instrumental markers and suspicious headers without rewriting lyrics. Bulk imports, add/edit screens and catalogue audits use it. On a warning, pause for source review; never silently delete or shift actual sung/spoken lines.
+- **Database safeguard:** `songs_metadata_guard` rejects high-confidence scraped metadata on inserts and source-lyric updates, including direct SQL writes by agents. Existing source lines and English-only translation updates are unaffected. Source edits must preserve 1:1 pinyin/English alignment and reanchor any existing community contributions before changing indices.
 - Display-only tweaks (e.g. hiding repeated adjacent English via `dedupeAdjacentEnglish`) happen in the presentation layer; never change stored text or line indices, since contributions key on them.
 - Public pages show no implementation provenance (`source = import` is hidden). Keep such fields in the DB.
 - Behaviour rules belong in tests, not just prose; add a test with each rule.
