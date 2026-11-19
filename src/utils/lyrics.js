@@ -9,6 +9,9 @@ const HAN_RUN = /\p{Script=Han}+/u;
 // from being read as a single syllable.
 const SYLLABLE_SEP = /[\s,.!?;:'"~·\-—…/\\*()[\]{}，。！？、；：（）「」『』《》【】“”‘’]+/u;
 
+// Bopomofo (+ extended) with 一 only when touching it, so ordinary 一 (一个) is untouched.
+const ZHUYIN_SPAN = /([\u3100-\u312F\u31A0-\u31BF]+(?:一[\u3100-\u312F\u31A0-\u31BF]*)*|一[\u3100-\u312F\u31A0-\u31BF]+)/u;
+
 export const isChinese = (char) => HAN_CHAR.test(char);
 
 export async function generatePinyin(lyricsText) {
@@ -23,11 +26,11 @@ export async function generatePinyin(lyricsText) {
     // Latin words and numbers pass through untouched. Passing a whole run —
     // not single characters — is what lets pinyin-pro resolve polyphones by
     // word context: 音乐 -> "yīn yuè", never "yīn lè".
-    return cleanLine.split(/(\p{Script=Han}+)/gu).map(segment => {
-      if (HAN_CHAR.test(segment)) {
-        return pinyin(segment, { toneType: 'symbol' });
-      }
-      return segment;
+    // Zhuyin solfège (ㄒ一ㄌㄚ) uses Han 一 as the vowel ㄧ; keep those spans verbatim.
+    return cleanLine.split(ZHUYIN_SPAN).map((part, i) => {
+      if (i % 2) return part;
+      return part.split(/(\p{Script=Han}+)/gu).map(segment =>
+        HAN_CHAR.test(segment) ? pinyin(segment, { toneType: 'symbol' }) : segment).join('');
     }).join('');
   }).join('\n');
 }

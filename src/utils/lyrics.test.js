@@ -83,3 +83,10 @@ test('lazy character fallback handles grouped pinyin and supplementary Han', asy
   assert.deepEqual(await generateCharacterPinyin('Baby 音乐!'), ['yīn', 'lè']);
   assert.equal((await generateCharacterPinyin('𠀀')).length, 1);
 });
+
+test('generatePinyin keeps Zhuyin solfège with Han 一 intact', async () => {
+  const { generatePinyin } = await import('./lyrics.js');
+  assert.equal(await generatePinyin('ㄖㄨㄟ ㄙㄡ ㄒ一 ㄉㄡ ㄒ一ㄌㄚ'), 'ㄖㄨㄟ ㄙㄡ ㄒ一 ㄉㄡ ㄒ一ㄌㄚ');
+  assert.equal(await generatePinyin('一个人 ㄒ一 音乐'), 'yí gè rén ㄒ一 yīn yuè');
+  assert.equal(await generatePinyin('音乐'), 'yīn yuè');
+});

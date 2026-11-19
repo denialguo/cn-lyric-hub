@@ -17,6 +17,7 @@ import LineSidebar from '../components/LineSidebar';
 import { readJson, writeJson, readString, writeString } from '../lib/storage';
 import { isConfirmedMissing, readPrerenderedPage } from '../lib/seo';
 import { SITE_NAME, songMeta, withSite } from '../lib/pageMeta';
+import { repeatsOriginal, dedupeAdjacentEnglish } from '../lib/multilingual';
 
 // Color swatches for the picker
 const colorSwatches = [
@@ -528,11 +529,14 @@ const SongPage = () => {
            <p className="text-xs text-slate-400">Select a line to compare translations or join the discussion.</p>
            {/* LYRICS LIST */}
            <div className="space-y-4" data-lyric-font={lyricFont} data-pinyin-room={fontSettings.roomy ? 'true' : undefined} style={{ '--pinyin-room': `${pinyinRoom}em` }}>
-            {lines.map((_, index) => {
+            {(() => {
+              const effective = lines.map((_, i) => selectedLineTranslation(customTranslations[i], canonicalLines[i]) ?? (englishLines[i] || ""));
+              // Identical adjacent English shows once; hide the repeat but keep every Chinese line.
+              const shown = dedupeAdjacentEnglish(effective);
+              return lines.map((_, index) => {
               const line = chineseLines[index] || ""; 
               const py = pinyinLines[index] || ""; 
-              const defaultEnglish = englishLines[index] || "";
-              const activeTranslation = selectedLineTranslation(customTranslations[index], canonicalLines[index]) ?? defaultEnglish;
+              const activeTranslation = shown[index];
 
               if (!line.trim() && !activeTranslation.trim()) return <div key={index} className="h-6"></div>;
 
@@ -549,7 +553,8 @@ const SongPage = () => {
                     onClick={handleLineClick}
                 />
               );
-            })}
+            });
+            })()}
            </div>
            {hasEarlier && <button onClick={() => setSelectedLine(-1)} className="mt-6 min-h-11 text-xs text-slate-400 hover:text-primary">Earlier contributions from previous lyric versions</button>}
 
@@ -618,7 +623,7 @@ const SongPage = () => {
                      <span>Lines</span>
                      <span className="text-slate-300">{chineseLines.filter(l => l.trim()).length}</span>
                    </div>
-                   {englishLines.some(l => l.trim()) && (
+                   {englishLines.some((l, i) => l.trim() && !repeatsOriginal(canonicalLines[i], l)) && (
                      <div className="flex justify-between text-slate-400">
                        <span>Translation</span>
                        <span className="text-primary text-xs font-bold">Available</span>
@@ -648,7 +653,7 @@ const SongPage = () => {
                 lineIndex={selectedLine}
                 originalContent={chineseLines[selectedLine]}
                 pinyinContent={pinyinLines[selectedLine]}
-                defaultTranslation={englishLines[selectedLine] || ""} 
+                defaultTranslation={repeatsOriginal(canonicalLines[selectedLine], englishLines[selectedLine]) ? '' : englishLines[selectedLine] || ''} 
                 onClose={() => setSelectedLine(null)}
                 onSelectTranslation={handleSelectTranslation}
             />

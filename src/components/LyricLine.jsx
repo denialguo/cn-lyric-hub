@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { isChinese, alignSyllables, generateCharacterPinyin } from '../utils/lyrics';
+import { repeatsOriginal } from '../lib/multilingual';
 
 const LyricLine = ({ 
   index, 
@@ -77,6 +78,8 @@ const LyricLine = ({
     });
   }, [originalText, aligned, fallback, rtClass, showPinyin, pinyinColor]);
 
+  // A line originally sung in English is stored in both columns; show it once.
+  const showTranslation = Boolean(translatedText) && !repeatsOriginal(originalText, translatedText);
   const zhDefaultClass = isActive ? 'text-primary' : 'text-slate-200';
   
   // Check if line has any Chinese characters
@@ -88,7 +91,7 @@ const LyricLine = ({
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Line ${index + 1}: ${originalText}. ${translatedText || ''} View translations and discussion`}
+      aria-label={`Line ${index + 1}: ${originalText}. ${showTranslation ? translatedText : ''} View translations and discussion`}
       aria-haspopup="dialog"
       aria-expanded={isActive}
       onKeyDown={event => {
@@ -112,7 +115,7 @@ const LyricLine = ({
       </div>
 
       {/* ENGLISH — only show when there's actually a translation */}
-      {translatedText && (
+      {showTranslation && (
         <div 
           className={`${enClass} leading-relaxed transition-[font-size] duration-200 ${
             englishColor ? '' : 'text-slate-400'
