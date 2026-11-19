@@ -20,6 +20,7 @@ CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-chara
 - `src/lib/queries.js` — **the data-access seam.** Any query with more than one caller goes here (sanitising, paging past the 1000-row cap, errors). Includes `publishSong()` (the `publish_song` RPC).
 - `src/lib/pageMeta.js` — **the only place page titles/descriptions are templated** (React Helmet and `prerender.cjs` both import it; never hand-write a `<title>`). Tests reject `CN Lyric Hub` in public output.
 - `src/utils/lyrics.js` — **the only pinyin module**: `isChinese`, `generatePinyin`, `alignSyllables`, `generateCharacterPinyin`. The importer uses it via dynamic `import()`, so stored and rendered pinyin can't drift. Never write a second copy.
+- `src/lib/slugs.js` — **the only slug generator** (`/song/{primary-artist}-{romanized-title}`, ≤70 chars, `newSongSlug` for new songs, `assignSlugs` for the migration). `songs.slug` is persistent: never regenerate it when title/artist change. Old slugs live in `song_slug_aliases` (trigger-recorded) and redirect via `vercel.json` (`npm run redirects:sync`; Vercel caps `redirects` at 2,048). Japanese/Korean romanization tooling is script-only (`scripts/generate-slug-map.mjs`), never bundled.
 - `src/lib/identity.js` — the only place that decides "real account vs anonymous". Use `isRealAccount` / `isAdmin` / `submitterName`, never bare `if (user)` or `user.email`.
 - `src/lib/storage.js` — all localStorage access (never throws).
 - `src/lib/lineAnchors.js`, `lineEdits.js` — contribution anchoring and the line-edit guard.
@@ -44,6 +45,7 @@ CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-chara
 - Direct `songs` writes are admin-only. Everyone else goes through `song_submissions`; admins publish/approve via the `publish_song` RPC (one transaction).
 - Lazy anonymous auth: never `signInAnonymously()` on page load — write paths call `ensureUser()`.
 - `profiles.role` is frozen by RLS; promotion only via the SQL editor.
+- ⚠️ Scripts that write the live DB (`migrate:slugs`, `backfill:pinyin`) are dry-run by default; never pass `--write` without Daniel's explicit go-ahead for that run.
 - Run `npm run verify:rls` after any policy change. It probes the REST API as an attacker, uses disposable rows/users, and cleans up by exact id.
 - ⚠️ Never restore a row from a `Prefer: return=representation` PATCH response — it returns the row *after* the write. Snapshot first, or restore from the corpus (`~/Downloads/Chinese_Lyrics/`).
 - Service-role key (scripts only) bypasses RLS and is deliberately not `VITE_`-prefixed so it can't be bundled.

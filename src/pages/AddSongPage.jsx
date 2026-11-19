@@ -5,14 +5,14 @@ import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput';
 import LyricsEditor from '../components/LyricsEditor';
 import ArtistSearch from '../components/ArtistSearch';
-import { pinyin } from 'pinyin-pro';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
 import { isAdmin, isRealAccount, submitterName } from '../lib/identity';
 import { readJson, writeJson, removeKeys } from '../lib/storage';
-import { publishSong } from '../lib/queries';
+import { publishSong, isSlugTaken } from '../lib/queries';
+import { newSongSlug } from '../lib/slugs';
 import { EMPTY_FORM, parseSongJson, songToForm } from '../lib/songImport';
 
 const AddSongPage = () => {
@@ -98,13 +98,10 @@ const AddSongPage = () => {
     setLoading(true);
 
     try {
-      let rawSlugSource = formData.title_en || '';
-      if (!rawSlugSource) {
-        rawSlugSource = pinyin(formData.title_zh, { toneType: 'none', nonZh: 'consecutive', separator: '-' });
-      }
-      const generatedSlug =
-        rawSlugSource.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '') +
-        '-' + Math.floor(Math.random() * 1000);
+      const generatedSlug = await newSongSlug({
+        artist: selectedArtists[0].name_en || selectedArtists[0].name_zh || '',
+        titleEn: formData.title_en, titleZh: formData.title_zh, isTaken: isSlugTaken,
+      });
 
       const artistEnString = selectedArtists.map((a) => a.name_en || a.name_zh || '').filter(Boolean).join(', ');
       const artistZhString = selectedArtists.map((a) => a.name_zh || '').filter(Boolean).join(', ');

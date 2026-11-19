@@ -44,6 +44,16 @@ export async function publishSong(song, artists, { songId = null, submissionId =
  * shows "no results", at worst a filter the caller never intended. Artist names
  * like "S.H.E" and "Jay Chou, Jr." hit this in normal use.
  */
+/** True when a slug is a live song slug or a retired one that still redirects (a new song must not take either). */
+export async function isSlugTaken(slug) {
+  const live = await supabase.from('songs').select('id', { head: true, count: 'exact' }).eq('slug', slug);
+  if (live.error) throw live.error;
+  if (live.count) return true;
+  // song_slug_aliases may not exist yet (migration 20261120000000), in which case there is nothing to clash with.
+  const alias = await supabase.from('song_slug_aliases').select('old_slug', { head: true, count: 'exact' }).eq('old_slug', slug);
+  return !alias.error && Boolean(alias.count);
+}
+
 export const sanitizeFilterValue = (value) => String(value ?? '').replace(/[,%().\\]/g, ' ').trim();
 
 /**

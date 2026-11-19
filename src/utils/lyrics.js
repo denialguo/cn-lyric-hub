@@ -64,3 +64,9 @@ export async function generateCharacterPinyin(text) {
   const { pinyin } = await import('pinyin-pro');
   return [...text].filter(isChinese).map(char => pinyin(char, { toneType: 'symbol' }));
 }
+
+// Toneless, hyphen-separated pinyin of a title, for URL slugs (src/lib/slugs.js).
+export async function romanizeHan(text) {
+  const { pinyin } = await import('pinyin-pro');
+  return pinyin(text, { toneType: 'none', nonZh: 'consecutive', separator: '-' });
+}

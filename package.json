@@ -14,6 +14,9 @@
     "prerender": "node scripts/prerender.cjs",
     "backup": "node scripts/backup.cjs",
     "audit:catalogue": "node scripts/audit-catalogue.cjs",
+    "migrate:slugs": "node scripts/migrate-slugs.cjs",
+    "redirects:sync": "node scripts/sync-slug-redirects.cjs",
+    "redirects:check": "node scripts/sync-slug-redirects.cjs --check",
     "indexnow": "node scripts/indexnow.cjs",
     "stats:refresh": "node scripts/refresh-stats.mjs"
   },

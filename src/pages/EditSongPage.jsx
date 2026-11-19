@@ -5,13 +5,13 @@ import { supabase } from '../lib/supabaseClient';
 import TagInput from '../components/TagInput';
 import LyricsEditor from '../components/LyricsEditor';
 import ArtistSearch from '../components/ArtistSearch';
-import { pinyin } from 'pinyin-pro';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { confirmLineEdit } from '../lib/lineEdits';
 import { generatePinyin } from '../utils/lyrics';
 import { useArtistSelection } from '../hooks/useArtistSelection';
-import { publishSong } from '../lib/queries';
+import { publishSong, isSlugTaken } from '../lib/queries';
+import { newSongSlug, uniqueSlug } from '../lib/slugs';
 import { isAdmin, submitterName } from '../lib/identity';
 
 const EditSongPage = ({ isReviewMode = false }) => {
@@ -117,13 +117,16 @@ const EditSongPage = ({ isReviewMode = false }) => {
     const artistZhString = selectedArtists.map((a) => a.name_zh).filter(Boolean).join(', ');
 
     let finalSlug = formData.slug;
+    // A song's slug is persistent: only a missing one is generated, never regenerated on edit.
     if (!finalSlug) {
-      const source = formData.title_en || formData.title_zh || 'untitled';
-      finalSlug =
-        pinyin(source, { toneType: 'none', nonZh: 'consecutive' })
-          .toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-') +
-        '-' + Math.floor(Math.random() * 1000);
+      finalSlug = await newSongSlug({
+        artist: selectedArtists[0].name_en || selectedArtists[0].name_zh || '',
+        titleEn: formData.title_en, titleZh: formData.title_zh, isTaken: isSlugTaken,
+      });
     }
+
+    // Approving a brand-new submission: its slug was free at submit time, so re-check it now.
+    if (isReviewMode && !formData.original_song_id) finalSlug = await uniqueSlug(finalSlug, isSlugTaken);
 
     const editorName = submitterName(user, profile);
 

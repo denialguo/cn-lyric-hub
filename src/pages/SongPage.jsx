@@ -205,8 +205,14 @@ const SongPage = () => {
     setLoading(!fallback);
     setLoadError(false);
     const fetchSong = async () => {
-      const { data, error } = await supabase.from('songs').select('*').eq('slug', slug).maybeSingle();
+      let { data, error } = await supabase.from('songs').select('*').eq('slug', slug).maybeSingle();
       if (cancelled) return;
+      if (!data && !error) {
+        // An old slug (the 301 in vercel.json covers crawlers; this covers a redirect not yet deployed).
+        const { data: alias } = await supabase.from('song_slug_aliases').select('songs(slug)').eq('old_slug', slug).maybeSingle();
+        if (cancelled) return;
+        if (alias?.songs?.slug) { navigate(`/song/${alias.songs.slug}`, { replace: true }); return; }
+      }
       if (error) console.error('Song fetch failed:', error.message);
       setLoadError(Boolean(error));
       setSong(error ? fallback : data ?? null);
@@ -214,7 +220,7 @@ const SongPage = () => {
     };
     fetchSong();
     return () => { cancelled = true; };
-  }, [slug, reloadKey]);
+  }, [slug, reloadKey, navigate]);
 
   // Resolve the submitter to a real profile so we only ever link somewhere that
   // exists. songs.user_id references auth.users, not profiles, so there is no FK
