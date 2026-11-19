@@ -14,6 +14,7 @@ import { publishSong, isSlugTaken } from '../lib/queries';
 import { newSongSlug, uniqueSlug } from '../lib/slugs';
 import { isAdmin, submitterName } from '../lib/identity';
 import { submissionArtists } from '../lib/submissionArtists';
+import { validateLyricSource } from '../lib/lyricMetadata';
 
 const EditSongPage = ({ isReviewMode = false }) => {
   const { id } = useParams();
@@ -110,6 +111,29 @@ const EditSongPage = ({ isReviewMode = false }) => {
     if (selectedArtists.length === 0) {
       setLoading(false);
       return toast.warning('Please add at least one artist.');
+    }
+
+    // Existing imported lyrics may already contain metadata; only gate source
+    // edits so an unrelated bio/cover/translation update isn't blocked.
+    if (formData.lyrics_chinese !== originalData?.lyrics_chinese) {
+      const sourceReview = validateLyricSource(formData.lyrics_chinese, {
+        title: formData.title_zh || formData.title_en,
+        artist: selectedArtists[0]?.name_en || selectedArtists[0]?.name_zh,
+      });
+      const high = sourceReview.issues.filter(issue => issue.confidence === 'high');
+      if (high.length) {
+        setLoading(false);
+        return toast.error('Credits or source markup in lyric lines: ' +
+          high.slice(0, 5).map(issue => issue.line_number).join(', ') +
+          '. Clean the lyrics before saving.');
+      }
+      if (sourceReview.issues.length) {
+        const approved = await confirm('Possible source header on lines ' +
+          sourceReview.issues.slice(0, 5).map(issue => issue.line_number).join(', ') +
+          '. Confirm these are actually sung or spoken lyrics.',
+          { confirmLabel: 'Confirmed lyrics' });
+        if (!approved) { setLoading(false); return; }
+      }
     }
 
     const artistEnString = selectedArtists.map((a) => a.name_en).filter(Boolean).join(', ');
