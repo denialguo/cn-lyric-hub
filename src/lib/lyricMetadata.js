@@ -7,8 +7,8 @@
  * sections and singer/producer names that occur *inside actual lyrics* are
  * not intrinsically suspicious.
  */
-const CREDIT_LABEL = /^(?:(?:作词|作詞|作曲|填词|填詞|编曲|編曲|编配|編配|录音(?:师|室)?|錄音(?:師|室)?|混音(?:师)?|混音師|监制|監製|制作人|製作人|母带|母帶|演唱|原唱|歌曲制作|歌曲製作|配唱|和声|和聲|词曲|詞曲|谱曲|譜曲|歌词制作|歌詞製作|歌词提供|歌詞提供|KRC\s*制作|KRC\s*製作)\s*[：:∶/／\- ]|(?:arranged|recorded|mixed|produced|written|composed)\s+by\s*[:：]?|(?:lyrics|music|vocals|production|mastering|studio)\s*(?:by|[:：]))/iu;
-const STUDIO = /(?:录音室|錄音室|录音工作室|錄音工作室|recording studio|mastering studio|mixing studio|Studio|KRC\s*制作|KRC\s*製作)/iu;
+const CREDIT_LABEL = /^(?:(?:作词|作詞|作曲|填词|填詞|编曲|編曲|编配|編配|录音(?:师|室)?|錄音(?:師|室)?|混音(?:师)?|混音師|监制|監製|制作人|製作人|母带|母帶|演唱|原唱|歌曲制作|歌曲製作|配唱|和声|和聲|词曲|詞曲|谱曲|譜曲|歌词制作|歌詞製作|歌词提供|歌詞提供)\s*[：:∶/／\-]|KRC\s*(?:制作|製作)|(?:arranged|recorded|mixed|produced|written|composed)\s+by\s*[:：]?|(?:lyrics|music|vocals|production|mastering|studio)\s*(?:by|[:：]))/iu;
+const STUDIO = /^(?:[\p{Script=Han}A-Za-z0-9\s./()（）-]{0,32}(?:录音工作室|錄音工作室|录音室|錄音室|recording studio|mastering studio|mixing studio)[)）]?|[A-Za-z0-9 ._-]{2,30}\s+STUDIO)$/iu;
 const SITE = /(?:https?:\/\/|www\.|歌词来源|歌詞來源|歌词提供|歌詞提供|欢迎您|歡迎您|\b(?:QQ音乐|网易云音乐|千千静听)\b)/iu;
 const INSTRUMENTAL = /^[（(]\s*(?:music|instrumental|interlude|伴奏|间奏|間奏|纯音乐|純音樂)\s*[）)]$/iu;
 const END_MARKER = /^-?\s*END\s*-?$/iu;
