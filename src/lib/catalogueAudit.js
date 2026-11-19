@@ -4,6 +4,7 @@
 // Alignment reuses the one canonical pinyin module (src/utils/lyrics.js).
 import { sify } from 'chinese-conv';
 import { alignSyllables, isChinese } from '../utils/lyrics.js';
+import { detectLyricMetadata } from './lyricMetadata.js';
 
 export const LONG_LINE_CHARS = 150;
 // Corpus lyrics have no blank lines between sections, so a verse or chorus repeated back to back
@@ -149,6 +150,12 @@ export function auditSong(song, context = {}) {
   const { linkedArtists = [], contributions = {} } = context;
   const lyrics = auditLyrics({ chinese: song.lyrics_chinese, pinyin: song.lyrics_pinyin, english: song.lyrics_english });
   const flags = [...lyrics.flags];
+  const sourceMetadata = detectLyricMetadata(song.lyrics_chinese, {
+    title: song.title_zh || song.title_en,
+    artist: song.artist_en || song.artist_zh,
+  });
+  if (sourceMetadata.some(issue => issue.confidence === 'high')) flags.push('suspicious_lyric_source_metadata');
+  else if (sourceMetadata.length) flags.push('possible_lyric_source_metadata');
   const title = song.title_zh || song.title_en || '';
   const artist = song.artist_en || song.artist_zh || '';
   const artistMissing = !filled(song.artist_en) && !filled(song.artist_zh);
@@ -175,7 +182,7 @@ export function auditSong(song, context = {}) {
   };
   const record = {
     id: song.id, slug: song.slug ?? null, title, artist,
-    health, counts: lyrics.counts, samples: lyrics.samples, flags,
+    health, counts: lyrics.counts, samples: { ...lyrics.samples, source_metadata: sourceMetadata }, flags,
     has_user_contributions: attached > 0,
     contributions: {
       line_translations: contributions.line_translations || 0,
