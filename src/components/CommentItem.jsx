@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Reply, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Reply, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../context/ToastContext';
 import { isRealAccount } from '../lib/identity';
@@ -16,6 +16,7 @@ import { isRealAccount } from '../lib/identity';
 const CommentItem = ({
   comment, user, replies = comment.replies || [], onReply, onDelete,
   depth = 0, showLike = true, onToggleLike, likedCommentIds,
+  maxDepth = 3, onContinue,
 }) => {
   const { toast } = useToast();
   const [likesCount, setLikesCount] = useState(0);
@@ -24,6 +25,13 @@ const CommentItem = ({
   const [liking, setLiking] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [showAllSiblings, setShowAllSiblings] = useState(false);
+  const canContinue = depth + 1 >= maxDepth && replies.length > 0 && typeof onContinue === 'function';
+  const visibleReplies = showAllSiblings ? replies : replies.slice(0, 3);
+  const hiddenSiblings = Math.max(0, replies.length - visibleReplies.length);
+  const countDescendants = (items) => items.reduce((sum, item) => sum + 1 + countDescendants(item.replies || []), 0);
+  const descendants = countDescendants(replies);
 
   const delegatedLike = typeof onToggleLike === 'function';
   useEffect(() => {
@@ -93,7 +101,7 @@ const CommentItem = ({
   };
 
   return (
-    <div className={depth ? 'ml-2 md:ml-4 pl-2 md:pl-4 border-l-2 border-slate-700/70 min-w-0' : 'min-w-0'}>
+    <div className={depth ? 'ml-2 pl-2 md:ml-3 md:pl-3 border-l-2 border-slate-700/70 min-w-0' : 'min-w-0'}>
       <div className="flex gap-3 group min-w-0">
         <div className="flex-shrink-0 w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center overflow-hidden border border-slate-700">
           {comment.profiles?.avatar_url ? (
@@ -129,6 +137,13 @@ const CommentItem = ({
               className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-primary transition-colors">
               <MessageCircle size={12} /> Reply
             </button>
+            {replies.length > 0 && (
+              <button type="button" onClick={() => setCollapsed(v => !v)} aria-expanded={!collapsed}
+                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-400">
+                {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                {collapsed ? `Show ${descendants} ${descendants === 1 ? 'reply' : 'replies'}` : 'Collapse replies'}
+              </button>
+            )}
           </div>
           {isReplying && (
             <form onSubmit={submitReply} className="mt-3 flex gap-2">
@@ -145,13 +160,31 @@ const CommentItem = ({
           )}
         </div>
       </div>
-      {replies.length > 0 && (
-        <div className="mt-3 space-y-4">
-          {replies.map(reply => (
-            <CommentItem key={reply.id} comment={reply} user={user}
-              onReply={onReply} onDelete={onDelete} depth={depth + 1}
-              showLike={showLike} onToggleLike={onToggleLike} likedCommentIds={likedCommentIds} />
-          ))}
+      {replies.length > 0 && !collapsed && (
+        <div className="mt-3 space-y-4 min-w-0">
+          {canContinue ? (
+            <button type="button" onClick={() => onContinue(comment.id)}
+              className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-blue-400 hover:bg-slate-800/60 hover:text-blue-300">
+              <MessageCircle size={14} />
+              Continue this thread · {descendants} {descendants === 1 ? 'reply' : 'replies'}
+            </button>
+          ) : (
+            <>
+              {visibleReplies.map(reply => (
+                <CommentItem key={reply.id} comment={reply} user={user}
+                  onReply={onReply} onDelete={onDelete} depth={depth + 1}
+                  maxDepth={maxDepth} onContinue={onContinue}
+                  showLike={showLike} onToggleLike={onToggleLike}
+                  likedCommentIds={likedCommentIds} />
+              ))}
+              {hiddenSiblings > 0 && (
+                <button type="button" onClick={() => setShowAllSiblings(true)}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-sm font-semibold text-blue-400 hover:text-blue-300">
+                  <ChevronDown size={14} /> View {hiddenSiblings} more {hiddenSiblings === 1 ? 'reply' : 'replies'}
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
