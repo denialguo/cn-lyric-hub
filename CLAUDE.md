@@ -30,6 +30,7 @@ CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-chara
 - Song ids are **bigint**; every other id is uuid.
 - `songs` has **no `status` column** (only `song_submissions` does) — sending one fails the insert with `PGRST204`. `song_submissions` has no `source` column.
 - `songs.submitted_by` / `last_edited_by` are free-text display names, not usernames.
+- `lyrics_chinese` is a legacy name: it holds the **original performed lyric in any language**. `lyrics_pinyin` is pronunciation help; `lyrics_english` is the English rendering. A line originally sung in English is stored identically in both original and English columns; the UI shows it once (`src/lib/multilingual.js`).
 - Lyrics are **three parallel newline-delimited columns** (`lyrics_chinese`, `lyrics_pinyin`, `lyrics_english`); line N of each is the same line. Postgres doesn't enforce equal line counts — the app does.
 - `cover_url` is `''` when missing, **never NULL** (`cover_url.neq.""` filters depend on it). Covers are hotlinked from Apple; `SongCard` falls back on `onError`.
 - `line_comments`, `comment_votes`, `comment_likes` FK to `line_comments`, not `comments`. `comments` (song-level) has no `line_index`.
@@ -47,6 +48,14 @@ CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-chara
 - ⚠️ Never restore a row from a `Prefer: return=representation` PATCH response — it returns the row *after* the write. Snapshot first, or restore from the corpus (`~/Downloads/Chinese_Lyrics/`).
 - Service-role key (scripts only) bypasses RLS and is deliberately not `VITE_`-prefixed so it can't be bundled.
 
+## Lyric content rules
+- Simplified, Traditional or mixed script, Cantonese/Taiwanese/slang/poetry and multilingual lines are valid, not errors. Never flag script variants as typos or silently rewrite source lyrics.
+- Alignment failure ≠ bad data (mixed Latin/Han lines legitimately fail). Zhuyin/Bopomofo passages (solfège like `ㄒ一ㄌㄚ`) are real lyrics: `generatePinyin` keeps them verbatim, never "fix" them to pinyin.
+- Translation jobs may write only `lyrics_english`; re-read the row before writing and refuse if the source changed.
+- Display-only tweaks (e.g. hiding repeated adjacent English via `dedupeAdjacentEnglish`) happen in the presentation layer; never change stored text or line indices, since contributions key on them.
+- Public pages show no implementation provenance (`source = import` is hidden). Keep such fields in the DB.
+- Behaviour rules belong in tests, not just prose; add a test with each rule.
+
 ## Pinyin and scripts
 - Pinyin is generated **at ingest**, from whole Han runs, so `pinyin-pro` resolves polyphones by context (音乐 → `yīn yuè`).
 - `alignSyllables()` returns one syllable per Han char or `null`; on `null`, `LyricLine` lazily regenerates per character. 99.65% of real lines align; the rest have word-grouped stored pinyin (`píngguǒ`).
@@ -60,6 +69,11 @@ CN Lyrics (formerly CN Lyric Hub): a place to read Chinese lyrics with per-chara
 - New page route → add it to `STATIC_ROUTES` in `prerender.cjs` **and** `generate-sitemap.cjs`.
 - Prerender and sitemap errors fail the build. Missing Supabase settings also fail `npm run build`, production mode and Vercel; only standalone local prerender may skip without settings. Both use `scripts/build-fetch.cjs` retries.
 - A full corpus import (~49,760 files) would exceed the 50,000-URL single-sitemap limit.
+
+## Git
+- Commit locally; push only when Daniel says so. **Push with gh credentials, not plain `git push`** (the keychain holds a different account and returns 403): `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`. If rejected as non-fast-forward, `git pull --rebase --autostash` with the same helper, re-run `npm test`, then push.
+- Commit only the files for your task; the working tree often holds unrelated uncommitted work.
+- No Claude/Co-Authored-By attribution lines in commits.
 
 ## Commands
 ```
